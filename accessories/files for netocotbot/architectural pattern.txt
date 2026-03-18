@@ -1,0 +1,90 @@
+netoctobot/ (المستودع الرئيسي)
+├── .env                 # ملف سري لتوكن البوت وبيانات القاعدة
+├── manage.py            # ملف تحكم Django
+├── core/                # إعدادات مشروع Django الأساسية
+│   ├── settings.py
+│   └── urls.py
+├── apps/                # تطبيقات Django (النماذج والمنطق)
+│   ├── users/           # إدارة المستخدمين والمحافظ
+│   │   ├── models.py
+│   │   └── serializers.py (لربطها بـ React)
+│   └── bots/            # سجل البوتات والقنوات
+│       └── models.py
+├── bot/                 # "المحرك" الخاص بتيليجرام (Aiogram)
+│   ├── main.py          # نقطة انطلاق البوت
+│   ├── handlers/        # الأوامر (start, help, etc.)
+│   └── middlewares/     # وسيط لربط البوت بـ Django ORM
+├── dashboard/           # مجلد مشروع React (مستقبلاً)
+└── requirements.txt     # المكتبات المطلوبة
+
+
+=============================================================
+classDiagram
+    class TelegramUser {
+        +int id (المعرف الداخلي)
+        +int telegram_id (معرف التيليجرام)
+        +string full_name (الاسم الكامل)
+        +string username (اسم المستخدم)
+        +bool is_partner (شريك/صاحب عمل)
+        +datetime date_joined (تاريخ الانضمام)
+    }
+
+    class Wallet {
+        +decimal balance (الرصيد المتاح)
+        +decimal pending_balance (الرصيد المعلق)
+        +decimal total_earned (إجمالي الأرباح)
+    }
+    class SubBot {
+        +string token (توكن البوت)
+        +int owner_id (ربط مع المستخدم)
+        +BotType bot_type (نوع البوت: دعم/تواصل)
+        +string name (اسم البوت)
+        +bool is_active (نشط)
+    }
+    class BotType {
+        <<enumeration>>
+        SUPPORT (بوت دعم)
+        CONTACT (بوت تواصل)
+        LIST (بوت قائمة)
+    }
+
+    class ChannelStatus {
+        <<enumeration>>
+        ACTIVE (نشطة)
+        LEFT_BY_BOT (البوت غادر)
+        BANNED (محظورة من النظام)
+        NEEDS_REFRESH (تحتاج تحديث بيانات)
+    }
+
+    class Channel {
+        +int channel_id (معرف القناة)
+        +int owner_id (ربط مع المستخدم)
+        +string title (عنوان القناة)
+        +int member_count (عدد المشتركين)
+        +bool verified (موثقة)
+        +ChannelStatus status (حالة القناة)
+        +datetime last_sync (آخر وقت تم فيه تحديث البيانات)
+    }
+
+    class BotSubscription {
+        +datetime joined_at (تاريخ الاشتراك)
+        +string source (مصدر الدخول)
+    }
+
+    class Transaction {
+        +decimal amount (المبلغ)
+        +string tx_type (نوع العملية: سحب/ربح)
+        +datetime timestamp (وقت العملية)
+    }
+
+    %% العلاقات
+    TelegramUser "1" -- "1" Wallet : يمتلك (Owns)
+    TelegramUser "1" -- "0..*" SubBot : ينشئ (Creates)
+    TelegramUser "1" -- "0..*" Channel : يربط (Links)
+    
+    SubBot "1" -- "0..*" BotSubscription : لديه مشتركين (Has)
+    TelegramUser "1" -- "0..*" BotSubscription : يشترك في (Subscribes to)
+
+    SubBot ..> BotType : يستخدم (Uses)
+    Channel ..> ChannelStatus : يستخدم
+    Wallet "1" -- "0..*" Transaction : يسجل عمليات (Records)

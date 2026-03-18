@@ -1,0 +1,140 @@
+classDiagram
+    class TelegramUser {
+        +int telegram_id (معرف_التيليجرام)
+        +string full_name (الاسم_الكامل)
+        +string username (اسم_المستخدم)
+        +bool is_partner (هل_هو_شريك)
+        +datetime date_joined (تاريخ_الانضمام)
+    }
+
+    class Wallet {
+        +decimal balance (الرصيد_المتاح)
+        +decimal pending_balance (الرصيد_المعلق)
+        +decimal total_earned (إجمالي_الأرباح)
+        +string country (البلد)
+        +PayoutMethod preferred_method (طريقة_السحب_المفضلة)
+        +text payout_details (تفاصيل_الحساب_أو_العنوان)
+    }
+
+    class SubBot {
+        +string token (رمز_التوكن)
+        +string name (اسم_البوت)
+        +BotType bot_type (نوع_البوت)
+        +bool is_active (حالة_النشاط)
+        +datetime created_at (تاريخ_الإنشاء)
+    }
+
+    class Channel {
+        +int channel_id (معرف_القناة)
+        +string title (عنوان_القناة)
+        +int member_count (عدد_المشتركين)
+        +bool verified (هل_هي_موثقة)
+        +ChannelStatus status (حالة_القناة)
+        +datetime last_sync (آخر_تحديث_للبيانات)
+    }
+
+    class BotSubscription {
+        +datetime joined_at (تاريخ_الاشتراك)
+        +string source (مصدر_الدخول)
+    }
+
+    class MessageTemplate {
+        +string title (عنوان_القالب)
+        +text content (محتوى_الرسالة)
+        +string media_file (ملف_الميديا)
+        +json buttons (أزرار_التفاعل)
+    }
+
+    class BroadcastCampaign {
+        +datetime scheduled_at (وقت_الإرسال_المجدول)
+        +TargetType target (الفئة_المستهدفة)
+        +CampaignStatus status (حالة_الحملة)
+        +int total_sent (إجمالي_المرسل_بنجاح)
+        +int total_failed (إجمالي_الفاشل)
+    }
+
+    class Transaction {
+        +decimal amount (المبلغ)
+        +TransactionType tx_type (نوع_العملية)
+        +TransactionStatus status (حالة_العملية)
+        +string reason (السبب)
+        +datetime timestamp (تاريخ_ووقت_العملية)
+    }
+
+    class BotType {
+        <<enumeration>>
+        SUPPORT (بوت دعم)
+        CONTACT (بوت تواصل)
+        LIST (بوت قائمة)
+    }
+
+    class ChannelStatus {
+        <<enumeration>>
+        ACTIVE (نشطة)
+        LEFT_BY_BOT (البوت غادر)
+        BANNED (محظورة من النظام)
+        NEEDS_REFRESH (تحتاج تحديث بيانات)
+    }
+
+    class TargetType {
+        <<enumeration>>
+        BOT_USERS (مستخدمي البوت)
+        CHANNELS (القنوات المرتبطة)
+        BOTH (الكل)
+    }
+
+    class CampaignStatus {
+        <<enumeration>>
+        PENDING (قيد الانتظار)
+        SENDING (جاري الإرسال)
+        COMPLETED (اكتمل)
+        CANCELED (ملغي)
+    }
+
+    class PayoutMethod {
+        <<enumeration>>
+        CRYPTO (العملات الرقمية)
+        PAYPAL (بايبال)
+        BANK_TRANSFER (تحويل بنكي)
+        LOCAL_CASH (محفظة محلية)
+    }
+
+    class TransactionType {
+        <<enumeration>>
+        EARNING (ربح)
+        WITHDRAWAL (سحب)
+        REFERRAL (عمولة دعوة)
+    }
+
+    class TransactionStatus {
+        <<enumeration>>
+        PENDING (قيد المعالجة)
+        COMPLETED (ناجح)
+        FAILED (فاشل)
+    }
+
+    %% العلاقات الأساسية (Ownership)
+    TelegramUser "1" -- "1" Wallet : يمتلك
+    TelegramUser "1" -- "0..*" SubBot : ينشئ/يملك
+    TelegramUser "1" -- "0..*" Channel : يربط/يملك
+
+    %% علاقات العمليات (Operations)
+    SubBot "1" -- "0..*" MessageTemplate : يحتوي على
+    SubBot "1" -- "0..*" BroadcastCampaign : ينفذ
+    BroadcastCampaign "0..*" -- "1" MessageTemplate : يستخدم قالب
+    
+    %% علاقة العزل (Audience Isolation)
+    SubBot "1" -- "0..*" BotSubscription : يمتلك قاعدة
+    TelegramUser "1" -- "0..*" BotSubscription : مشترك في
+    
+    %% علاقات السجلات (Logging)
+    Wallet "1" -- "0..*" Transaction : يسجل حركات
+
+    %% الروابط مع الـ Enums
+    SubBot ..> BotType
+    Channel ..> ChannelStatus
+    Wallet ..> PayoutMethod
+    BroadcastCampaign ..> TargetType
+    BroadcastCampaign ..> CampaignStatus
+    Transaction ..> TransactionType
+    Transaction ..> TransactionStatus
