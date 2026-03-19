@@ -1,0 +1,8 @@
+// امر الباندل الخاص بالبوت
+pybabel extract . -F babel.cfg -o bot/locales/messages.pot
+
+
+
+// امر اعتماد الباندل في جانقو
+python manage.py makemessages -l ar -i accessories -i venv
+python manage.py compilemessages

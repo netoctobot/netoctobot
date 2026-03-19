@@ -1,9 +1,9 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-
+from apps.core.models import BaseModel
 # ملاحظة: دالة _() تجعل النصوص قابلة للاستخراج لملف الترجمة لاحقاً
 
-class TelegramUser(models.Model):
+class TelegramUser(BaseModel):
     """
     موديل مستخدم التيليجرام الأساسي
     """
@@ -38,7 +38,7 @@ class TelegramUser(models.Model):
         verbose_name_plural = _("Telegram Users")
 
 
-class Wallet(models.Model):
+class Wallet(BaseModel):
     """
     المحفظة المالية المرتبطة بكل مستخدم
     """
@@ -98,7 +98,7 @@ class Wallet(models.Model):
         verbose_name_plural = _("Wallets")
 
 
-class Transaction(models.Model):
+class Transaction(BaseModel):
     """
     سجل العمليات المالية (إيداع، ربح، سحب)
     """

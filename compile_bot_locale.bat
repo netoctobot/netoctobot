@@ -1,0 +1,1 @@
+pybabel compile -d bot/locales -D messages

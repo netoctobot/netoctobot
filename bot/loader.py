@@ -3,28 +3,25 @@ import django
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
+from aiogram_i18n import I18nMiddleware
+from aiogram_i18n.cores import BabelCore
 from .config import BOT_TOKEN
 
-# ربط البوت ببيئة Django (مهم جداً للوصول للمحافظ والمستخدمين)
+# 1. تهيئة بيئة Django
 def setup_django():
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
     os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
     django.setup()
 
-# تشغيل الربط
 setup_django()
 
-# سنستخدم مجلد locales داخل مجلد bot
-I18N_DOMAIN = "messages"
+# 2. إعداد مسار ملفات الترجمة
 LOCALES_DIR = os.path.join(os.path.dirname(__file__), 'locales')
 
-i18n = I18n(path=LOCALES_DIR, default_locale="ar", domain=I18N_DOMAIN)
+# 3. إعداد محرك BabelCore
+i18n_core = BabelCore(path=LOCALES_DIR, default_locale="ar", domain="messages")
 
-# دالة مساعدة لاستدعاء الترجمة في الكود
-_ = i18n.gettext
-
-#  إنشاء كائن البوت والـ Dispatcher
-# نستخدم DefaultBotProperties لجعل كل الرسائل تدعم تنسيق HTML تلقائياً
+# 4. إنشاء البوت والـ Dispatcher
 bot = Bot(
     token=BOT_TOKEN, 
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
@@ -32,6 +29,7 @@ bot = Bot(
 
 dp = Dispatcher()
 
-# تفعيل الميدل وير الخاص بالترجمة
-# هذا سيجعل البوت يكتشف لغة المستخدم تلقائياً
-dp.update.outer_middleware(FSMI18nMiddleware(i18n))
+# 5. تسجيل الميدل وير (Middleware)
+# هذا الجزء هو المسؤول عن اكتشاف لغة المستخدم وتوفير دالة الترجمة i18n
+i18n_middleware = I18nMiddleware(core=i18n_core)
+i18n_middleware.setup(dp)
