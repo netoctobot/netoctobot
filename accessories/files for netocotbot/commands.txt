@@ -1,8 +1,20 @@
 // امر الباندل الخاص بالبوت
 pybabel extract . -F babel.cfg -o bot/locales/messages.pot
-
+pybabel compile -d bot/locales -D messages
 
 
 // امر اعتماد الباندل في جانقو
 python manage.py makemessages -l ar -i accessories -i venv
 python manage.py compilemessages
+
+
+python manage.py makemigrations
+python manage.py migrate
+// امر حذف القاعدة بالكامل
+del db.sqlite3 ; Get-ChildItem -Path "apps" -Filter "*.py" -Recurse | Where-Object { $_.DirectoryName -like "*\migrations*" -and $_.Name -ne "__init__.py" } | Remove-Item
+// هذا في bash
+rm -f db.sqlite3 && find apps -path "*/migrations/*.py" -not -name "__init__.py" -delete
+
+
+
+python -m bot.main

@@ -1,34 +1,15 @@
-# Arabic translations for PROJECT.
-# Copyright (C) 2026 ORGANIZATION
-# This file is distributed under the same license as the PROJECT project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
-#
 msgid ""
 msgstr ""
-"Project-Id-Version: PROJECT VERSION\n"
-"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-19 11:30-0700\n"
-"PO-Revision-Date: 2026-03-19 06:37-0700\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: ar\n"
-"Language-Team: ar <LL@li.org>\n"
-"Plural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : "
-"n%100>=3 && n%100<=10 ? 3 : n%100>=0 && n%100<=2 ? 4 : 5);\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.18.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 
-#: bot/keyboards/main_menu.py:9
+msgid "welcome-new"
+msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"
+
+msgid "welcome-back"
+msgstr "أهلاً بعودتك يا {full_name}! ✨"
+
 msgid "btn-change-lang"
 msgstr "تغيير اللغة 🌐"
 
-#~ msgid "welcome-new"
-#~ msgstr "أهلاً بك يا {full_name} في نظام الأخطبوط! 🐙"
-
-#~ msgid "welcome-back"
-#~ msgstr "مرحباً بعودتك يا {full_name}! كيف يمكنني مساعدتك؟"
-
-#~ msgid "msg-select-language"
-#~ msgstr "الرجاء اختيار اللغة التي تفضلها:"
-
+msgid "msg-select-language"
+msgstr "الرجاء اختيار اللغة المطلوبة:"

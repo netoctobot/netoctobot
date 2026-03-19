@@ -84,6 +84,17 @@ class BotSubscription(BaseModel):
     """سجل المشتركين في البوتات (العزل)"""
     bot = models.ForeignKey(SubBot, on_delete=models.CASCADE, related_name='subscribers', verbose_name=_("Bot"))
     user = models.ForeignKey(TelegramUser, on_delete=models.CASCADE, related_name='subscriptions', verbose_name=_("User"))
+    last_main_message_id = models.BigIntegerField(
+        null=True, 
+        blank=True, 
+        verbose_name=_("Last Main Message ID")
+    )
+    # لغة المستخدم داخل هذا البوت تحديداً
+    language = models.CharField(
+        max_length=10, 
+        default='ar', 
+        verbose_name=_("Language")
+    )
     joined_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Joined At"))
 
     class Meta:

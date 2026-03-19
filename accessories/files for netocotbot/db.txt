@@ -16,6 +16,11 @@ classDiagram
         +text payout_details (تفاصيل_الحساب_أو_العنوان)
     }
 
+      class AdminChannel{
+     +int channel_id (معرف_القناة)
+        +string title (عنوان_القناة)
+    }
+
     class SubBot {
         +string token (رمز_التوكن)
         +string name (اسم_البوت)

@@ -4,6 +4,7 @@ from aiogram_i18n import I18nContext
 from .loader import dp, bot
 from .db_operations import get_or_create_user
 from .handlers import router as main_router
+from aiogram import types
 # استيراد الأزرار للقائمة الرئيسية
 from .keyboards.main_menu import get_main_keyboard 
 
