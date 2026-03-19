@@ -1,0 +1,264 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-19 05:20-0700\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
+"&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+
+#: .\apps\accounts\models.py:12
+msgid "Telegram ID"
+msgstr "معرف تيليغرام"
+
+#: .\apps\accounts\models.py:16
+msgid "Full Name"
+msgstr "الاسم الكامل"
+
+#: .\apps\accounts\models.py:22
+msgid "Username"
+msgstr "اسم المستخدم"
+
+#: .\apps\accounts\models.py:26
+msgid "Is Partner"
+msgstr "هل هو شريك"
+
+#: .\apps\accounts\models.py:30
+msgid "Date Joined"
+msgstr "تاريخ الانضمام"
+
+#: .\apps\accounts\models.py:37
+msgid "Telegram User"
+msgstr "مستخدم تيليغرام"
+
+#: .\apps\accounts\models.py:38
+msgid "Telegram Users"
+msgstr "مستخدمو تيليغرام"
+
+#: .\apps\accounts\models.py:46
+msgid "Crypto (USDT)"
+msgstr "عملة رقمية (USDT)"
+
+#: .\apps\accounts\models.py:47
+msgid "PayPal"
+msgstr "باي بال"
+
+#: .\apps\accounts\models.py:48
+msgid "Bank Transfer"
+msgstr "تحويل بنكي"
+
+#: .\apps\accounts\models.py:49
+msgid "Local Wallet (Cash)"
+msgstr "محفظة محلية (نقدي)"
+
+#: .\apps\accounts\models.py:55 .\apps\bots\models.py:51
+msgid "User"
+msgstr "المستخدم"
+
+#: .\apps\accounts\models.py:61
+msgid "Available Balance"
+msgstr "الرصيد المتاح"
+
+#: .\apps\accounts\models.py:67
+msgid "Pending Balance"
+msgstr "الرصيد المعلق"
+
+#: .\apps\accounts\models.py:73
+msgid "Total Earned"
+msgstr "إجمالي الأرباح"
+
+#: .\apps\accounts\models.py:79
+msgid "Country"
+msgstr "البلد"
+
+#: .\apps\accounts\models.py:85
+msgid "Preferred Payout Method"
+msgstr "طريقة الدفع المفضلة"
+
+#: .\apps\accounts\models.py:90
+msgid "Payout Details"
+msgstr "تفاصيل الدفع"
+
+#: .\apps\accounts\models.py:97 .\apps\accounts\models.py:119
+msgid "Wallet"
+msgstr "المحفظة"
+
+#: .\apps\accounts\models.py:98
+msgid "Wallets"
+msgstr "المحافظ"
+
+#: .\apps\accounts\models.py:106
+msgid "Earning"
+msgstr "أرباح"
+
+#: .\apps\accounts\models.py:107
+msgid "Withdrawal"
+msgstr "سحب"
+
+#: .\apps\accounts\models.py:108
+msgid "Referral Commission"
+msgstr "عمولة الإحالة"
+
+#: .\apps\accounts\models.py:111
+msgid "Pending"
+msgstr "قيد الانتظار"
+
+#: .\apps\accounts\models.py:112
+msgid "Completed"
+msgstr "مكتمل"
+
+#: .\apps\accounts\models.py:113
+msgid "Failed/Rejected"
+msgstr "فشل/مرفوض"
+
+#: .\apps\accounts\models.py:124
+msgid "Amount"
+msgstr "المبلغ"
+
+#: .\apps\accounts\models.py:129
+msgid "Transaction Type"
+msgstr "نوع المعاملة"
+
+#: .\apps\accounts\models.py:135 .\apps\bots\models.py:38
+msgid "Status"
+msgstr "الحالة"
+
+#: .\apps\accounts\models.py:139
+msgid "Reason/Description"
+msgstr "السبب/الوصف"
+
+#: .\apps\accounts\models.py:143
+msgid "Timestamp"
+msgstr "الطابع الزمني"
+
+#: .\apps\accounts\models.py:150
+msgid "Transaction"
+msgstr "المعاملة"
+
+#: .\apps\accounts\models.py:151
+msgid "Transactions"
+msgstr "المعاملات"
+
+#: .\apps\bots\admin.py:19
+msgid "Subscribers"
+msgstr "المشتركون"
+
+#: .\apps\bots\models.py:8
+msgid "Support Bot"
+msgstr "بوت الدعم"
+
+#: .\apps\bots\models.py:9
+msgid "Contact Bot"
+msgstr "بوت التواصل"
+
+#: .\apps\bots\models.py:10
+msgid "List Bot"
+msgstr "بوت القائمة"
+
+#: .\apps\bots\models.py:12 .\apps\bots\models.py:34
+msgid "Owner"
+msgstr "المالك"
+
+#: .\apps\bots\models.py:13
+msgid "Bot Token"
+msgstr "رمز البوت"
+
+#: .\apps\bots\models.py:14
+msgid "Bot Name"
+msgstr "اسم البوت"
+
+#: .\apps\bots\models.py:15
+msgid "Bot Type"
+msgstr "نوع البوت"
+
+#: .\apps\bots\models.py:16
+msgid "Is Active"
+msgstr "هل هو نشط"
+
+#: .\apps\bots\models.py:17
+msgid "Created At"
+msgstr "تاريخ الإنشاء"
+
+#: .\apps\bots\models.py:23
+msgid "Sub Bot"
+msgstr "بوت فرعي"
+
+#: .\apps\bots\models.py:24
+msgid "Sub Bots"
+msgstr "البوتات الفرعية"
+
+#: .\apps\bots\models.py:29
+msgid "Active"
+msgstr "نشط"
+
+#: .\apps\bots\models.py:30
+msgid "Bot Left"
+msgstr "غادر البوت"
+
+#: .\apps\bots\models.py:31
+msgid "Banned"
+msgstr "محظور"
+
+#: .\apps\bots\models.py:32
+msgid "Needs Refresh"
+msgstr "يحتاج تحديث"
+
+#: .\apps\bots\models.py:35
+msgid "Channel ID"
+msgstr "معرف القناة"
+
+#: .\apps\bots\models.py:36
+msgid "Channel Title"
+msgstr "عنوان القناة"
+
+#: .\apps\bots\models.py:37
+msgid "Member Count"
+msgstr "عدد الأعضاء"
+
+#: .\apps\bots\models.py:39
+msgid "Last Sync"
+msgstr "آخر مزامنة"
+
+#: .\apps\bots\models.py:45
+msgid "Channel"
+msgstr "القناة"
+
+#: .\apps\bots\models.py:46
+msgid "Channels"
+msgstr "القنوات"
+
+#: .\apps\bots\models.py:50
+msgid "Bot"
+msgstr "البوت"
+
+#: .\apps\bots\models.py:52
+msgid "Joined At"
+msgstr "تاريخ الانضمام"
+
+#: .\apps\bots\models.py:56
+msgid "Bot Subscription"
+msgstr "اشتراك البوت"
+
+#: .\apps\bots\models.py:57
+msgid "Bot Subscriptions"
+msgstr "اشتراكات البوت"
+
+#: .\core\settings.py:120
+msgid "Arabic"
+msgstr "العربية"
+
+#: .\core\settings.py:121
+msgid "English"
+msgstr "الإنجليزية"
