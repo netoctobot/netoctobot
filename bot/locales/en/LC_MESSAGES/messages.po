@@ -6,7 +6,7 @@ msgid "welcome-new"
 msgstr "Welcome {full_name} to OctoBot! 🐙"
 
 msgid "welcome-back"
-msgstr "Welcome back, {full_name}! ✨"
+msgstr "Welcome, {full_name}! ✨"
 
 msgid "btn-change-lang"
 msgstr "Change Language 🌐"

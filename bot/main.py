@@ -3,31 +3,36 @@ import logging
 from aiogram import types, Bot
 from aiogram.filters import CommandStart
 from aiogram_i18n import I18nContext
+from .config import ADMIN_IDS
 # الاستيرادات الخاصة بك
 from .loader import dp, bot
 from .db_operations import get_user_and_subscription
-from .handlers import router as main_router
 from .keyboards.main_menu import get_main_keyboard
 from .utils import setup_master_bot_sync, update_main_interface # الدالة التي تحذف وترسل
+from bot.handlers import get_handlers_router
 
 # تسجيل الراوتر
-dp.include_router(main_router)
+dp.include_router(get_handlers_router())
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message, i18n: I18nContext, bot: Bot):
+    _ = i18n.get
     # جلب بيانات المستخدم والاشتراك (سريع جداً الآن)
     user, subscription, created = await get_user_and_subscription(
-        tg_user_id=message.from_user.id, 
-        full_name=message.from_user.full_name,
+        tg_user=message.from_user,
         bot_token=bot.token  
     )
+    is_system_admin = message.from_user.id in ADMIN_IDS
     
     if not subscription:
         return # أو إرسال رسالة تخبره أن البوت غير مسجل
+    
+    # 🔥 التعديل الأهم: فرض لغة الاشتراك على السياق الحالي
+    await i18n.set_locale(subscription.language)
 
     # اختيار النص بناءً على حالة الاشتراك
     key = "welcome-new" if created else "welcome-back"
-    text = i18n.get(key, full_name=user.full_name)
+    text = _(key, full_name=user.full_name)
     
     # استخدام الواجهة المتجددة (حذف الرسالة القديمة وتثبيت الجديدة)
     await update_main_interface(
@@ -35,7 +40,11 @@ async def cmd_start(message: types.Message, i18n: I18nContext, bot: Bot):
         chat_id=message.chat.id,
         subscription=subscription,
         text=text,
-        reply_markup=get_main_keyboard(i18n, user.is_partner)
+        reply_markup=get_main_keyboard(
+            i18n,
+            is_admin=is_system_admin,
+            is_partner=user.is_partner
+            )
     )
 
 async def main():

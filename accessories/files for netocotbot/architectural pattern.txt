@@ -16,6 +16,26 @@ netoctobot/ (المستودع الرئيسي)
 │   └── middlewares/     # وسيط لربط البوت بـ Django ORM
 ├── dashboard/           # مجلد مشروع React (مستقبلاً)
 └── requirements.txt     # المكتبات المطلوبة
+===============================================================
+netoctobot/
+├── apps/                 # تطبيقات Django (قاعدة البيانات والـ Models)
+│   ├── accounts/         # إدارة المستخدمين
+│   ├── bots/             # إدارة بيانات البوتات الفرعية (Tokens, Stats)
+│   └── services/         # الخدمات التي يقدمها الأخطبوط (المنطق الفعلي)
+├── bot/                  # واجهة التيليجرام (Master Bot UI)
+│   ├── core/             # الإعدادات المركزية (config, loader, states)
+│   ├── handlers/         # تقسيم المعالجات حسب الوظيفة
+│   │   ├── common/       # /start, /help
+│   │   ├── my_bots/      # إضافة وإدارة البوتات الخاصة بالمستخدم
+│   │   └── admin/        # لوحة تحكم النظام
+│   ├── keyboards/        # تقسيم الأزرار
+│   │   ├── inline/       # أزرار الإنلاين (callback)
+│   │   └── reply/        # أزرار الكيبورد العادية
+│   ├── middlewares/      # i18n, ACL, Database session
+│   ├── utils/            # دوال مساعدة (helpers, formatters)
+│   └── locales/          # ملفات الترجمة (ar, en)
+├── main.py               # نقطة الانطلاق (Entry Point)
+└── manage.py             # ملف إدارة Django
 
 
 =============================================================

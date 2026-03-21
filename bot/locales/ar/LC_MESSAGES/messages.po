@@ -6,10 +6,37 @@ msgid "welcome-new"
 msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"
 
 msgid "welcome-back"
-msgstr "أهلاً بعودتك يا {full_name}! ✨"
+msgstr "أهلاً يا {full_name}! ✨"
 
 msgid "btn-change-lang"
 msgstr "تغيير اللغة 🌐"
 
 msgid "msg-select-language"
 msgstr "الرجاء اختيار اللغة المطلوبة:\n Please select your language"
+
+msgid "btn-my-profile"
+msgstr "👤 ملفي الشخصي"
+
+msgid "btn-support"
+msgstr "🎧 الدعم الفني"
+
+msgid "btn-partner-panel"
+msgstr "💼 لوحة الشركاء"
+
+msgid "btn-manage-bots"
+msgstr "🐙 إدارة البوتات"
+
+msgid "btn-admin-stats"
+msgstr "📊 الإحصائيات العامة"
+
+msgid "btn-cancel"
+msgstr "إلغاء العملية"
+
+msgid "msg-operation-cancelled"
+msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."
+
+msgid "toast-cancelled"
+msgstr "تم الإلغاء"
+
+msgid "btn-back-main"
+msgstr "العودة للقائمة الرئيسية"

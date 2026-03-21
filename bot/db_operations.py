@@ -33,11 +33,18 @@ def activate_partner_wallet(user):
 
 # دالة سريعة جداً تعتمد على البحث المباشر
 @sync_to_async
-def get_user_and_subscription(tg_user_id: int, full_name: str, bot_token: str):
+def get_user_and_subscription(tg_user: types.User, bot_token: str):
+
+    detected_lang = tg_user.language_code if tg_user.language_code else 'en'
+    final_lang = detected_lang if detected_lang in ['ar', 'en'] else 'en'
+
     # 1. جلب المستخدم (ضروري)
     user, _ = TelegramUser.objects.get_or_create(
-        telegram_id=tg_user_id,
-        defaults={'full_name': full_name}
+        telegram_id=tg_user.id,
+        defaults={
+            'full_name': tg_user.full_name,
+            'username': tg_user.username,
+        }
     )
 
     # 2. جلب البوت (سريع جداً لأنه بالـ token الفريد)
@@ -46,7 +53,10 @@ def get_user_and_subscription(tg_user_id: int, full_name: str, bot_token: str):
         bot_inst = SubBot.objects.get(token=bot_token)
         subscription, created = BotSubscription.objects.get_or_create(
             bot=bot_inst,
-            user=user
+            user=user,
+            defaults={
+                'language': final_lang  # حفظ اللغة في ملف المستخدم العام
+            }
         )
         return user, subscription, created
     except SubBot.DoesNotExist:
