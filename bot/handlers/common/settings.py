@@ -12,7 +12,7 @@ router = Router()
 async def show_language_options(callback: types.CallbackQuery, i18n: I18nContext):
     await callback.message.edit_text(
         text=i18n.get("msg-select-language"),
-        reply_markup=get_language_keyboard(i18n)
+        reply_markup=get_language_keyboard()
     )
     await callback.answer()
 

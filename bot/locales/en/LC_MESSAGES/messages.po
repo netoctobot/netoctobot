@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 07:50-0700\n"
+"POT-Creation-Date: 2026-03-21 08:07-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -42,6 +42,14 @@ msgstr "Operation cancelled successfully. You can return to the main menu."
 msgid "toast-cancelled"
 msgstr "Cancelled"
 
+#: bot/keyboards/main_menu.py:10
+msgid "btn-add-my-bot"
+msgstr "➕ Add Bot"
+
+#: bot/keyboards/main_menu.py:11
+msgid "btn-my-bots"
+msgstr "🤖 My Bots"
+
 #: bot/keyboards/main_menu.py:14
 msgid "btn-my-profile"
 msgstr "👤 My Profile"
@@ -55,7 +63,6 @@ msgid "btn-partner-panel"
 msgstr "💼 Partner Panel"
 
 #: bot/keyboards/main_menu.py:23
-#, fuzzy
 msgid "btn-manage-octopus"
 msgstr "🐙 Manage Bots"
 
@@ -75,16 +82,17 @@ msgstr "Cancel"
 msgid "btn-back-main"
 msgstr "Back to Main Menu"
 
-#~ msgid "welcome-new"
-#~ msgstr "Welcome, {full_name}, to the Octopus Bot! 🐙"
+msgid "welcome-new"
+msgstr "Welcome, {full_name}, to the Octopus Bot! 🐙"
 
-#~ msgid "welcome-back"
-#~ msgstr "Welcome back, {full_name}! ✨"
+msgid "welcome-back"
+msgstr "Welcome back, {full_name}! ✨"
 
-#~ msgid "msg-select-language"
-#~ msgstr ""
-#~ "Please select your preferred language:\n"
-#~ "الرجاء اختيار اللغة المطلوبة"
+msgid "msg-select-language"
+msgstr ""
+"Please select your preferred language:\n"
+"الرجاء اختيار اللغة المطلوبة"
 
-#~ msgid "btn-admin-stats"
-#~ msgstr "📊 Statistics"
+msgid "btn-admin-stats"
+msgstr "📊 Statistics"
+

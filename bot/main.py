@@ -8,7 +8,7 @@ from .config import ADMIN_IDS
 from .loader import dp, bot
 from .db_operations import get_user_and_subscription
 from .keyboards.main_menu import get_main_keyboard
-from .utils import setup_master_bot_sync, update_main_interface # الدالة التي تحذف وترسل
+from .utils.interface import setup_master_bot_sync, update_main_interface # الدالة التي تحذف وترسل
 from bot.handlers import get_handlers_router
 
 # تسجيل الراوتر

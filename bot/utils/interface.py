@@ -2,7 +2,7 @@ from aiogram.exceptions import TelegramBadRequest
 from asgiref.sync import sync_to_async
 from apps.accounts.models import TelegramUser
 from apps.bots.models import SubBot
-from .config import BOT_TOKEN, ADMIN_IDS
+from ..config import BOT_TOKEN, ADMIN_IDS
 
 async def update_main_interface(bot, chat_id, subscription, text, reply_markup):
     # محاولة حذف الرسالة السابقة لهذا البوت تحديداً
@@ -18,6 +18,7 @@ async def update_main_interface(bot, chat_id, subscription, text, reply_markup):
         text=text,
         reply_markup=reply_markup
     )
+
 
     # تحديث الـ ID في قاعدة البيانات (Async)
     subscription.last_main_message_id = new_msg.message_id

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 08:02-0700\n"
+"POT-Creation-Date: 2026-03-21 08:07-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -43,6 +43,14 @@ msgstr ""
 
 #: bot/handlers/my_bots/add_bot.py:70
 msgid "toast-cancelled"
+msgstr ""
+
+#: bot/keyboards/main_menu.py:10
+msgid "btn-add-my-bot"
+msgstr ""
+
+#: bot/keyboards/main_menu.py:11
+msgid "btn-my-bots"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:14
