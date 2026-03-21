@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 08:07-0700\n"
+"POT-Creation-Date: 2026-03-21 08:54-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -15,37 +15,47 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/my_bots/add_bot.py:19
-msgid "msg-send-bot-token"
-msgstr "الرجاء إرسال رمز البوت (Token) الخاص بك."
+msgid "type-list"
+msgstr "بوت قائمة دعم"
 
-#: bot/handlers/my_bots/add_bot.py:31
-msgid "msg-checking-token"
-msgstr "جاري التحقق من الرمز، يرجى الانتظار..."
+msgid "type-contact"
+msgstr "بوت تواصل"
 
-#: bot/handlers/my_bots/add_bot.py:45
+#: bot/handlers/my_bots/add_bot.py:26
+msgid "msg-select-bot-type"
+msgstr "الرجاء تحديد نوع البوت الذي تريد إضافته:"
+
+#: bot/handlers/my_bots/add_bot.py:39
+msgid "msg-send-token-now"
+msgstr "الرجاء إرسال رمز البوت (Token) الآن:"
+
+#: bot/handlers/my_bots/add_bot.py:74
 msgid "msg-bot-added-success"
-msgstr "تمت إضافة البوت بنجاح! ✅"
+msgstr "تمت إضافة البوت ({bot_name}) بنجاح! ✅"
 
-#: bot/handlers/my_bots/add_bot.py:50
+#: bot/handlers/my_bots/add_bot.py:83
 msgid "err-token-already-registered"
-msgstr "هذا الرمز مسجل مسبقاً. يرجى استخدام رمز آخر."
+msgstr "هذا الـ(token) مسجل مسبقاً. يرجى استخدام رمز آخر."
 
-#: bot/handlers/my_bots/add_bot.py:53
-msgid "err-invalid-token"
-msgstr "الرمز غير صالح. يرجى التأكد من رمز البوت وإعادة المحاولة."
+#: bot/handlers/my_bots/add_bot.py:92
+msgid "err-token-invalid"
+msgstr "❌ التوكن الذي أرسلته غير صحيح أو انتهت صلاحيته، تأكد منه من @BotFather."
 
-#: bot/handlers/my_bots/add_bot.py:67
+#: bot/handlers/my_bots/add_bot.py:101
+msgid "err-system-error"
+msgstr "⚙️ حدث خطأ تقني أثناء الربط. يرجى المحاولة لاحقاً. (الخطأ: {error_detail})"
+
+#: bot/handlers/my_bots/add_bot.py:117
 msgid "msg-operation-cancelled"
 msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."
 
-#: bot/handlers/my_bots/add_bot.py:70
+#: bot/handlers/my_bots/add_bot.py:120
 msgid "toast-cancelled"
 msgstr "تم الإلغاء"
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
-msgstr "➕ إضافة بوت"
+msgstr "➕ إضافة بوتي"
 
 #: bot/keyboards/main_menu.py:11
 msgid "btn-my-bots"
@@ -80,8 +90,16 @@ msgid "btn-cancel"
 msgstr "إلغاء العملية"
 
 #: bot/keyboards/inline/bot_management.py:19
+#: bot/keyboards/inline/bot_management.py:46
 msgid "btn-back-main"
 msgstr "العودة للقائمة الرئيسية"
+
+#: bot/keyboards/inline/bot_management.py:40
+msgid "btn-add-another-bot"
+msgstr "➕ إضافة بوت آخر"
+
+msgid "msg-checking-token"
+msgstr "جاري التحقق من الرمز، يرجى الانتظار..."
 
 msgid "welcome-new"
 msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"

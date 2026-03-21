@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 08:07-0700\n"
+"POT-Creation-Date: 2026-03-21 08:54-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -14,37 +14,49 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/my_bots/add_bot.py:19
-msgid "msg-send-bot-token"
-msgstr "Please send your bot token."
+#: bot/handlers/my_bots/add_bot.py:21
+msgid "type-list"
+msgstr "Support List Bot"
 
-#: bot/handlers/my_bots/add_bot.py:31
-msgid "msg-checking-token"
-msgstr "Checking token, please wait..."
+#: bot/handlers/my_bots/add_bot.py:22
+msgid "type-contact"
+msgstr "Contact Bot"
 
-#: bot/handlers/my_bots/add_bot.py:45
+#: bot/handlers/my_bots/add_bot.py:26
+msgid "msg-select-bot-type"
+msgstr "Please select the type of bot you want to add:"
+
+#: bot/handlers/my_bots/add_bot.py:39
+msgid "msg-send-token-now"
+msgstr "Please send your bot token now:"
+
+#: bot/handlers/my_bots/add_bot.py:74
 msgid "msg-bot-added-success"
-msgstr "Bot added successfully! ✅"
+msgstr "Bot ({bot_name}) added successfully! ✅"
 
-#: bot/handlers/my_bots/add_bot.py:50
+#: bot/handlers/my_bots/add_bot.py:83
 msgid "err-token-already-registered"
 msgstr "This token is already registered. Please use another token."
 
-#: bot/handlers/my_bots/add_bot.py:53
-msgid "err-invalid-token"
+#: bot/handlers/my_bots/add_bot.py:92
+msgid "err-token-invalid"
 msgstr "Invalid token. Please verify your bot token and try again."
 
-#: bot/handlers/my_bots/add_bot.py:67
+#: bot/handlers/my_bots/add_bot.py:101
+msgid "err-system-error"
+msgstr "⚙️ A technical error occurred while connecting. Please try again later. (Error: {error_detail})"
+
+#: bot/handlers/my_bots/add_bot.py:117
 msgid "msg-operation-cancelled"
 msgstr "Operation cancelled successfully. You can return to the main menu."
 
-#: bot/handlers/my_bots/add_bot.py:70
+#: bot/handlers/my_bots/add_bot.py:120
 msgid "toast-cancelled"
 msgstr "Cancelled"
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
-msgstr "➕ Add Bot"
+msgstr "➕ Add Another Bot"
 
 #: bot/keyboards/main_menu.py:11
 msgid "btn-my-bots"
@@ -79,8 +91,16 @@ msgid "btn-cancel"
 msgstr "Cancel"
 
 #: bot/keyboards/inline/bot_management.py:19
+#: bot/keyboards/inline/bot_management.py:46
 msgid "btn-back-main"
 msgstr "Back to Main Menu"
+
+#: bot/keyboards/inline/bot_management.py:40
+msgid "btn-add-another-bot"
+msgstr "➕ Add Another Bot"
+
+msgid "msg-checking-token"
+msgstr "Checking token, please wait..."
 
 msgid "welcome-new"
 msgstr "Welcome, {full_name}, to the Octopus Bot! 🐙"

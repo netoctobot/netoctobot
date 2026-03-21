@@ -23,7 +23,7 @@ async def validate_and_register_bot(token: str, owner_user):
                 owner=owner_user,
                 token=token,
                 name=bot_info.full_name,
-                bot_type='SUP', # النوع الافتراضي حالياً
+                bot_type='CON', # النوع الافتراضي حالياً
                 is_active=True
             )
             return new_bot, "success"

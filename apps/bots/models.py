@@ -24,7 +24,6 @@ class AdminChannel(BaseModel):
 class SubBot(BaseModel):
     """بيانات البوتات الفرعية"""
     class BotType(models.TextChoices):
-        SUPPORT = 'SUP', _('Support Bot')
         CONTACT = 'CON', _('Contact Bot')
         LIST = 'LST', _('List Bot')
 
