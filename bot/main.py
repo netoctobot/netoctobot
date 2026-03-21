@@ -1,20 +1,24 @@
 import asyncio
 import logging
-from aiogram import types, Bot
+from aiogram import types, Bot, F
 from aiogram.filters import CommandStart
 from aiogram_i18n import I18nContext
 from .config import ADMIN_IDS
+from asgiref.sync import sync_to_async
 # الاستيرادات الخاصة بك
 from .loader import dp, bot
 from .db_operations import get_user_and_subscription
 from .keyboards.main_menu import get_main_keyboard
 from .utils.interface import setup_master_bot_sync, update_main_interface # الدالة التي تحذف وترسل
 from bot.handlers import get_handlers_router
+from apps.bots.models import SubBot
+from aiogram.client.default import DefaultBotProperties 
+from .config import BOT_TOKEN
 
 # تسجيل الراوتر
 dp.include_router(get_handlers_router())
 
-@dp.message(CommandStart())
+@dp.message(CommandStart(), F.bot.token == BOT_TOKEN)
 async def cmd_start(message: types.Message, i18n: I18nContext, bot: Bot):
     _ = i18n.get
     # جلب بيانات المستخدم والاشتراك (سريع جداً الآن)
@@ -48,16 +52,32 @@ async def cmd_start(message: types.Message, i18n: I18nContext, bot: Bot):
     )
 
 async def main():
-    # 1. تجهيز البوت الرئيسي في قاعدة البيانات (مرة واحدة فقط عند التشغيل)
-    print("🛠️ Checking Master Bot in Database...")
+    # 1. تجهيز البوت الرئيسي
     await setup_master_bot_sync()
     
-    # 2. بدء استلام الرسائل
-    print("🚀 Bot is running...")
-    await dp.start_polling(bot)
+    # 2. جلب البوتات الفرعية
+    active_sub_bots = await sync_to_async(list)(SubBot.objects.filter(is_active=True))
+
+    # 3. إنشاء القائمة مع التعديل الجديد للـ parse_mode
+    all_bots = [bot] # الماستر بوت (تأكد من تعديله في loader.py أيضاً)
+
+    for bot_data in active_sub_bots:
+        try:
+            # التعديل هنا ليتوافق مع aiogram 3.7+
+            sub_bot_instance = Bot(
+                token=bot_data.token, 
+                default=DefaultBotProperties(parse_mode="HTML") 
+            )
+            all_bots.append(sub_bot_instance)
+            print(f"✅ تم تشغيل: {bot_data.name}")
+        except Exception as e:
+            print(f"❌ فشل تشغيل {bot_data.name}: {e}")
+
+    # 4. بدء التشغيل
+    await dp.start_polling(*all_bots)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO) # لإظهار أي أخطاء في الـ Terminal
+    logging.basicConfig(level=logging.INFO)
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):

@@ -4,6 +4,7 @@ from aiogram_i18n import I18nContext
 from bot.config import ADMIN_IDS
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.utils.interface import update_main_interface
+from bot.db_operations import get_user_and_subscription
 
 # تعريف الراوتر الخاص بهذا الملف
 router = Router()
@@ -46,14 +47,12 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext, i18n:
     "manage_sub_bots", 
     "admin_settings"
 }))
+
 async def placeholder_handler(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
     _ = i18n.get
     
     # 1. جلب بيانات الاشتراك لتحديث الواجهة (نفس الرسالة الأساسية)
-    from bot.db_operations import get_user_and_subscription
-    from bot.keyboards.main_menu import get_main_keyboard
-    
-    user, subscription, _ = await get_user_and_subscription(callback.from_user, bot.token)
+    user, subscription, __ = await get_user_and_subscription(callback.from_user, bot.token)
     
     # 2. نص الرسالة
     text = f"⚠️ <b>{_('msg-feature-not-ready')}</b>\n\n{_('msg-stay-tuned')}"

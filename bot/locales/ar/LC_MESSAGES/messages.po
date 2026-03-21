@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 12:08-0700\n"
+"POT-Creation-Date: 2026-03-21 12:37-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -15,13 +15,25 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/navigation.py:29
+#: bot/handlers/common/navigation.py:31
 msgid "welcome-back"
 msgstr "أهلاً يا {full_name}! ✨"
 
-#: bot/handlers/common/navigation.py:38
+#: bot/handlers/common/navigation.py:40
 msgid "toast-cancelled"
 msgstr "تم الإلغاء"
+
+#: bot/handlers/common/navigation.py:59
+msgid "msg-feature-not-ready"
+msgstr "هذا القسم لم يكتمل إعداده بعد"
+
+#: bot/handlers/common/navigation.py:59
+msgid "msg-stay-tuned"
+msgstr "نحن نعمل على إنهاء البرمجة قريباً، شكراً لانتظارك! 🐙"
+
+#: bot/handlers/common/navigation.py:63
+msgid "btn-back-to-main"
+msgstr "🔙 العودة للقائمة الرئيسية"
 
 #: bot/handlers/my_bots/add_bot.py:21
 msgid "type-list"
@@ -39,26 +51,26 @@ msgstr "الرجاء تحديد نوع البوت الذي تريد إضافته
 msgid "msg-send-token-now"
 msgstr "الرجاء إرسال رمز البوت (Token) الآن:"
 
-#: bot/handlers/my_bots/add_bot.py:64
+#: bot/handlers/my_bots/add_bot.py:63
 msgid "msg-checking-token"
 msgstr "جاري التحقق من الرمز، يرجى الانتظار..."
 
-#: bot/handlers/my_bots/add_bot.py:87
+#: bot/handlers/my_bots/add_bot.py:85
 msgid "msg-bot-added-success"
 msgstr ""
 "🎉 مبروك! تم ربط البوت <b>{bot_name}</b> بنجاح.\n"
 "\n"
 "يمكنك الآن التحكم به من القائمة أدناه:"
 
-#: bot/handlers/my_bots/add_bot.py:95
+#: bot/handlers/my_bots/add_bot.py:93
 msgid "err-token-already-registered"
 msgstr "هذا الـ(token) مسجل مسبقاً. يرجى استخدام رمز آخر."
 
-#: bot/handlers/my_bots/add_bot.py:105
+#: bot/handlers/my_bots/add_bot.py:103
 msgid "err-token-invalid"
 msgstr "❌ التوكن الذي أرسلته غير صحيح أو انتهت صلاحيته، تأكد منه من @BotFather."
 
-#: bot/handlers/my_bots/add_bot.py:113
+#: bot/handlers/my_bots/add_bot.py:111
 msgid "err-system-error"
 msgstr "⚙️ حدث خطأ تقني أثناء الربط. يرجى المحاولة لاحقاً. (الخطأ: {error_detail})"
 
@@ -114,7 +126,10 @@ msgstr "❌ لا، تراجع"
 
 #: bot/handlers/my_bots/list_bots.py:129
 msgid "msg-are-you-sure-delete"
-msgstr "⚠️ <b>هل أنت متأكد من حذف هذا البوت؟</b>\n\nسيتم مسح جميع البيانات المرتبطة به ولا يمكن التراجع عن هذا الإجراء."
+msgstr ""
+"⚠️ <b>هل أنت متأكد من حذف هذا البوت؟</b>\n"
+"\n"
+"سيتم مسح جميع البيانات المرتبطة به ولا يمكن التراجع عن هذا الإجراء."
 
 #: bot/handlers/my_bots/list_bots.py:154
 msgid "msg-bot-deleted-successfully"
