@@ -58,3 +58,5 @@ i18n_middleware = I18nMiddleware(
 i18n_middleware.setup(dp)
 
 print(f"✅ i18n configured with path: {LOCALES_PATH}")
+
+print(f"✅ initialize master bot")
