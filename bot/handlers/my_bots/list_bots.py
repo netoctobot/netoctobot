@@ -1,8 +1,9 @@
 from aiogram import Router, F, types, Bot
 from aiogram_i18n import I18nContext
-from bot.db_operations import get_user_and_subscription, get_user_bots, get_sub_bot_by_id, toggle_sub_bot_status
+from bot.db_operations import get_user_and_subscription, get_user_bots, get_sub_bot_by_id, toggle_sub_bot_status, delete_sub_bot
 from bot.keyboards.inline.bot_management import get_my_bots_keyboard, get_bot_settings_keyboard
 from bot.utils.interface import update_main_interface
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 router = Router()
 
@@ -110,3 +111,49 @@ async def toggle_bot_handler(callback: types.CallbackQuery, i18n: I18nContext, b
     # إشعار سريع للمستخدم بنجاح العملية
     alert_msg = _("msg-bot-activated") if updated_bot.is_active else _("msg-bot-deactivated")
     await callback.answer(alert_msg)
+
+@router.callback_query(F.data.startswith("confirm_delete_"))
+async def ask_confirm_delete(callback: types.CallbackQuery, i18n: I18nContext):
+    _ = i18n.get
+    bot_id = callback.data.split("_")[-1]
+    
+    builder = InlineKeyboardBuilder()
+    # زر التأكيد النهائي
+    builder.button(text=_("btn-yes-delete"), callback_data=f"final_delete_{bot_id}")
+    # زر التراجع (يعود لإعدادات البوت نفسه)
+    builder.button(text=_("btn-no-cancel"), callback_data=f"manage_bot_{bot_id}")
+    
+    builder.adjust(2)
+    
+    await callback.message.edit_text(
+        text=_("msg-are-you-sure-delete"),
+        reply_markup=builder.as_markup()
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("final_delete_"))
+async def process_final_delete(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
+    _ = i18n.get
+    bot_id = callback.data.split("_")[-1]
+    
+    # 1. جلب بيانات المستخدم واشتراكه
+    user, subscription, create = await get_user_and_subscription(callback.from_user, bot.token)
+    
+    # 2. تنفيذ الحذف
+    success = await delete_sub_bot(bot_id, user)
+    
+    if success:
+        # جلب القائمة المحدثة بعد الحذف
+        from bot.db_operations import get_user_bots
+        user_bots = await get_user_bots(user)
+        
+        await update_main_interface(
+            bot=bot,
+            chat_id=callback.message.chat.id,
+            subscription=subscription,
+            text=_("msg-bot-deleted-successfully"),
+            reply_markup=get_my_bots_keyboard(i18n, user_bots)
+        )
+        await callback.answer(_("toast-deleted-success"), show_alert=True)
+    else:
+        await callback.answer(_("err-delete-failed"), show_alert=True)

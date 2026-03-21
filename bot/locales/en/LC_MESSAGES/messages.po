@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 11:48-0700\n"
+"POT-Creation-Date: 2026-03-21 12:37-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -14,13 +14,26 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/navigation.py:29
+#: bot/handlers/common/navigation.py:31
 msgid "welcome-back"
 msgstr "Welcome back, {full_name}! ✨"
 
-#: bot/handlers/common/navigation.py:38
+#: bot/handlers/common/navigation.py:40
 msgid "toast-cancelled"
 msgstr "Cancelled"
+
+#: bot/handlers/common/navigation.py:59
+msgid "msg-feature-not-ready"
+msgstr ""
+
+#: bot/handlers/common/navigation.py:59
+msgid "msg-stay-tuned"
+msgstr ""
+
+#: bot/handlers/common/navigation.py:63
+#, fuzzy
+msgid "btn-back-to-main"
+msgstr "🔙 Back to Main Menu"
 
 #: bot/handlers/my_bots/add_bot.py:21
 msgid "type-list"
@@ -38,11 +51,11 @@ msgstr "Please select the type of bot you want to add:"
 msgid "msg-send-token-now"
 msgstr "Please send your bot token now:"
 
-#: bot/handlers/my_bots/add_bot.py:64
+#: bot/handlers/my_bots/add_bot.py:63
 msgid "msg-checking-token"
 msgstr "Checking token, please wait..."
 
-#: bot/handlers/my_bots/add_bot.py:87
+#: bot/handlers/my_bots/add_bot.py:85
 msgid "msg-bot-added-success"
 msgstr ""
 "🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
@@ -50,50 +63,86 @@ msgstr ""
 "\n"
 "You can now manage it from the menu below:"
 
-#: bot/handlers/my_bots/add_bot.py:95
+#: bot/handlers/my_bots/add_bot.py:93
 msgid "err-token-already-registered"
 msgstr "This token is already registered. Please use another token."
 
-#: bot/handlers/my_bots/add_bot.py:105
+#: bot/handlers/my_bots/add_bot.py:103
 msgid "err-token-invalid"
 msgstr "Invalid token. Please verify your bot token and try again."
 
-#: bot/handlers/my_bots/add_bot.py:113
+#: bot/handlers/my_bots/add_bot.py:111
 msgid "err-system-error"
 msgstr ""
 "⚙️ A technical error occurred while connecting. Please try again later. "
 "(Error: {error_detail})"
 
-#: bot/handlers/my_bots/list_bots.py:24
+#: bot/handlers/my_bots/list_bots.py:25
 msgid "msg-no-bots-found"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:26
+#: bot/handlers/my_bots/list_bots.py:27
 msgid "msg-select-bot-to-manage"
 msgstr "Please select the type of bot you want to add:"
 
-#: bot/handlers/my_bots/list_bots.py:50 bot/handlers/my_bots/list_bots.py:87
+#: bot/handlers/my_bots/list_bots.py:51 bot/handlers/my_bots/list_bots.py:88
 msgid "err-bot-not-found"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:54 bot/handlers/my_bots/list_bots.py:91
+#: bot/handlers/my_bots/list_bots.py:55 bot/handlers/my_bots/list_bots.py:92
 msgid "status-active"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:54 bot/handlers/my_bots/list_bots.py:91
+#: bot/handlers/my_bots/list_bots.py:55 bot/handlers/my_bots/list_bots.py:92
 msgid "status-stopped"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:57 bot/handlers/my_bots/list_bots.py:94
+#: bot/handlers/my_bots/list_bots.py:58 bot/handlers/my_bots/list_bots.py:95
 msgid "msg-bot-settings-header"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:111
+#: bot/handlers/my_bots/list_bots.py:112
 msgid "msg-bot-activated"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:111
+#: bot/handlers/my_bots/list_bots.py:112
 msgid "msg-bot-deactivated"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:122
+#, fuzzy
+msgid "btn-yes-delete"
+msgstr "➕ Add Another Bot"
+
+#: bot/handlers/my_bots/list_bots.py:124
+#, fuzzy
+msgid "btn-no-cancel"
+msgstr "Cancel"
+
+#: bot/handlers/my_bots/list_bots.py:129
+msgid "msg-are-you-sure-delete"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:154
+#, fuzzy
+msgid "msg-bot-deleted-successfully"
+msgstr ""
+"🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
+"\n"
+"\n"
+"You can now manage it from the menu below:"
+
+#: bot/handlers/my_bots/list_bots.py:157
+#, fuzzy
+msgid "toast-deleted-success"
+msgstr ""
+"🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
+"\n"
+"\n"
+"You can now manage it from the menu below:"
+
+#: bot/handlers/my_bots/list_bots.py:159
+msgid "err-delete-failed"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:10

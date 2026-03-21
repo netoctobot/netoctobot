@@ -2,6 +2,7 @@ from asgiref.sync import sync_to_async
 from apps.accounts.models import TelegramUser, Wallet
 from apps.bots.models import SubBot, BotSubscription
 from aiogram import types
+from bot.config import BOT_TOKEN
 
 @sync_to_async
 def get_user_and_subscription(tg_user: types.User, bot_token: str):
@@ -60,9 +61,16 @@ def get_or_create_user(tg_user: types.User):
     return user, created
 
 @sync_to_async
-def get_user_bots(user):
-    """جلب قائمة بوتات المستخدم (بترتيب الأحدث أولاً)"""
-    return list(SubBot.objects.filter(owner=user).order_by('-created_at'))
+def get_user_bots(user, master_token=BOT_TOKEN): # <-- أضف master_token هنا
+    """جلب بوتات المستخدم مع استثناء البوت الماستر"""
+    from apps.bots.models import SubBot
+    
+    # نقوم باستبعاد (exclude) البوت الذي يحمل توكن الماستر لكي لا يظهر في قائمة الحذف
+    return list(
+        SubBot.objects.filter(owner=user)
+        .exclude(token=master_token)
+        .order_by('-created_at')
+    )
 
 @sync_to_async
 def get_sub_bot_by_id(bot_id, owner):
@@ -82,3 +90,13 @@ def toggle_sub_bot_status(bot_id, owner):
         return sub_bot
     except Exception:
         return None
+    
+@sync_to_async
+def delete_sub_bot(bot_id, owner):
+    """حذف البوت نهائياً من قاعدة البيانات"""
+    try:
+        sub_bot = SubBot.objects.get(id=bot_id, owner=owner)
+        sub_bot.delete()
+        return True
+    except Exception:
+        return False

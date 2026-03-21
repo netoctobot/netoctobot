@@ -7,7 +7,7 @@ from bot.core.states import AddBotSG
 from bot.keyboards.inline.bot_management import get_cancel_keyboard, get_manage_bot_keyboard, get_my_bots_keyboard
 from bot.keyboards.main_menu import get_main_keyboard # القائمة الرئيسية
 from apps.bots.services import validate_and_register_bot
-from bot.db_operations import activate_partner_wallet, get_user_and_subscription, get_user_bots
+from bot.db_operations import get_user_and_subscription, activate_partner_wallet, get_user_bots
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.utils.interface import update_main_interface
 
@@ -48,7 +48,6 @@ async def process_token_cleanly(message: types.Message, state: FSMContext, i18n:
     _ = i18n.get
     
     # 1. جلب بيانات المستخدم والاشتراك أولاً (لكي نعرف أي رسالة سنعدل)
-    from bot.db_operations import get_user_and_subscription, activate_partner_wallet, get_user_bots
     user, subscription, create = await get_user_and_subscription(message.from_user, bot.token)
 
     # 2. حذف رسالة التوكن فوراً
@@ -70,7 +69,6 @@ async def process_token_cleanly(message: types.Message, state: FSMContext, i18n:
     bot_type = data.get("chosen_type", "CON")
 
     # 5. استدعاء خدمة التحقق والتسجيل
-    from apps.bots.services import validate_and_register_bot
     new_bot, status = await validate_and_register_bot(token, user, bot_type)
 
     if status == "success":
