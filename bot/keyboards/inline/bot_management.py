@@ -27,25 +27,29 @@ def get_my_bots_keyboard(i18n: I18nContext, bots_list):
     _ = i18n.get
     builder = InlineKeyboardBuilder()
 
-    # 1. إنشاء زر لكل بوت موجود لدى المستخدم
+    # إنشاء زر لكل بوت موجود لدى المستخدم
     for bot_item in bots_list:
         status_emoji = "✅" if bot_item.is_active else "❌"
         builder.button(
-            text=f"{status_emoji} {bot_item.name} (@{bot_item.username if bot_item.username else 'bot'})",
+            text=f"{status_emoji} (@{bot_item.username if bot_item.username else 'bot'})",
             callback_data=f"manage_bot_{bot_item.id}" # نستخدم ID البوت للتحكم به لاحقاً
         )
 
-    # 2. زر لإضافة بوت جديد دائماً في الأسفل
-    builder.button(
-        text=f"➕ {_( 'btn-add-another-bot')}", 
-        callback_data="add_new_bot"
-    )
+    # حساب عدد الصفوف المطلوبة للبوتات (كل 2 في صف)
+    num_bots = len(bots_list)
+    rows = [2] * (num_bots // 2) # صفوف تحتوي على زرين
+    if num_bots % 2 != 0:
+        rows.append(1) # إذا كان العدد فردياً، البوت الأخير يأخذ صفاً وحده
 
-    # 3. زر العودة للقائمة الرئيسية
-    builder.button(
-        text=f"🔙 {_( 'btn-back-main')}", 
-        callback_data="back_to_main"
-    )
+    # أزرار التحكم الثابتة (كل واحد في صف مستقل)
+    builder.button(text=f"➕ {_( 'btn-add-another-bot')}", callback_data="add_new_bot")
+    builder.button(text=f"🔙 {_( 'btn-back-main')}", callback_data="back_to_main")
+
+    # إضافة صفين للأزرار الأخيرة (كل صف فيه زر واحد)
+    rows.extend([1, 1])
+
+    # تطبيق التوزيع
+    builder.adjust(*rows)
 
     # تنظيم الأزرار: كل بوت في سطر، والأزرار الأخيرة في سطر مستقل
     builder.adjust(1) 
