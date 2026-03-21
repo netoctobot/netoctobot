@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 11:27-0700\n"
+"POT-Creation-Date: 2026-03-21 11:48-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -73,21 +73,36 @@ msgstr ""
 "\n"
 "اختر بوتاً من القائمة أدناه لإدارته أو عرض إحصائياته:"
 
-#: bot/handlers/my_bots/list_bots.py:50
+#: bot/handlers/my_bots/list_bots.py:50 bot/handlers/my_bots/list_bots.py:87
 msgid "err-bot-not-found"
 msgstr "⚠️ البوت غير موجود"
 
-#: bot/handlers/my_bots/list_bots.py:54
+#: bot/handlers/my_bots/list_bots.py:54 bot/handlers/my_bots/list_bots.py:91
 msgid "status-active"
 msgstr "🟢 نشط"
 
-#: bot/handlers/my_bots/list_bots.py:54
+#: bot/handlers/my_bots/list_bots.py:54 bot/handlers/my_bots/list_bots.py:91
 msgid "status-stopped"
-msgstr "🔴 معطل"
+msgstr "🔴 متوقف"
 
-#: bot/handlers/my_bots/list_bots.py:57
+#: bot/handlers/my_bots/list_bots.py:57 bot/handlers/my_bots/list_bots.py:94
 msgid "msg-bot-settings-header"
-msgstr "⚙️ <b>إعدادات البوت: {bot_name}</b>\n\n<b>المعرف:</b> @{bot_username}\n<b>الحالة:</b> {status}\n<b>تاريخ الربط:</b> {created_at}\n\nاختر من الأزرار أدناه للتحكم في البوت:"
+msgstr ""
+"⚙️ <b>إعدادات البوت: {bot_name}</b>\n"
+"\n"
+"<b>المعرف:</b> @{bot_username}\n"
+"<b>الحالة:</b> {status}\n"
+"<b>تاريخ الربط:</b> {created_at}\n"
+"\n"
+"اختر من الأزرار أدناه للتحكم في البوت:"
+
+#: bot/handlers/my_bots/list_bots.py:111
+msgid "msg-bot-activated"
+msgstr "⚡️ تم تشغيل البوت بنجاح!"
+
+#: bot/handlers/my_bots/list_bots.py:111
+msgid "msg-bot-deactivated"
+msgstr msgstr "💤 تم إيقاف البوت مؤقتاً."
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
