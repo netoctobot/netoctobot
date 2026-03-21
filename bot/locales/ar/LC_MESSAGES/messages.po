@@ -31,7 +31,7 @@ msgstr "الرجاء إرسال رمز البوت (Token) الآن:"
 
 #: bot/handlers/my_bots/add_bot.py:74
 msgid "msg-bot-added-success"
-msgstr "تمت إضافة البوت ({bot_name}) بنجاح! ✅"
+msgstr "🎉 مبروك! تم ربط البوت <b>{bot_name}</b> بنجاح.\n\nيمكنك الآن التحكم به من القائمة أدناه:"
 
 #: bot/handlers/my_bots/add_bot.py:83
 msgid "err-token-already-registered"

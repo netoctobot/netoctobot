@@ -32,7 +32,7 @@ msgstr "Please send your bot token now:"
 
 #: bot/handlers/my_bots/add_bot.py:74
 msgid "msg-bot-added-success"
-msgstr "Bot ({bot_name}) added successfully! ✅"
+msgstr "🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected.\n\nYou can now manage it from the menu below:"
 
 #: bot/handlers/my_bots/add_bot.py:83
 msgid "err-token-already-registered"

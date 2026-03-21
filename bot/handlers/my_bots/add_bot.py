@@ -4,10 +4,10 @@ from aiogram import Router, F, types, Bot
 from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
 from bot.core.states import AddBotSG
-from bot.keyboards.inline.bot_management import get_cancel_keyboard, get_manage_bot_keyboard
+from bot.keyboards.inline.bot_management import get_cancel_keyboard, get_manage_bot_keyboard, get_my_bots_keyboard
 from bot.keyboards.main_menu import get_main_keyboard # القائمة الرئيسية
 from apps.bots.services import validate_and_register_bot
-from bot.db_operations import activate_partner_wallet, get_user_and_subscription
+from bot.db_operations import activate_partner_wallet, get_user_and_subscription, get_user_bots
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.utils.interface import update_main_interface
 
@@ -72,7 +72,7 @@ async def process_token_cleanly(message: types.Message, state: FSMContext, i18n:
             chat_id=message.chat.id,
             subscription=subscription,
             text=_("msg-bot-added-success", bot_name=new_bot.name),
-            reply_markup=get_my_bots_keyboard(i18n, user) 
+            reply_markup=get_my_bots_keyboard(i18n, get_user_bots(user)) 
         )
 
     elif status == "exists":
