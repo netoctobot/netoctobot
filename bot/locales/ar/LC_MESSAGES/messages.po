@@ -63,7 +63,6 @@ msgid "msg-no-bots-found"
 msgstr "📭 لم تقم بإضافة أي بوتات حتى الآن. ابدأ بإضافة بوترك الأول!"
 
 #: bot/handlers/my_bots/list_bots.py:26
-#, fuzzy
 msgid "msg-select-bot-to-manage"
 msgstr "🤖 لديك <b>{count}</b> بوتات مرتبطة بحسابك.\n\nاختر بوتاً من القائمة أدناه لإدارته أو عرض إحصائياته:"
 
@@ -106,7 +105,7 @@ msgstr "إلغاء العملية"
 #: bot/keyboards/inline/bot_management.py:19
 #: bot/keyboards/inline/bot_management.py:46
 msgid "btn-back-main"
-msgstr "العودة للقائمة الرئيسية"
+msgstr "🔙 العودة للقائمة الرئيسية"
 
 #: bot/keyboards/inline/bot_management.py:40
 msgid "btn-add-another-bot"

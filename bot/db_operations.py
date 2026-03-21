@@ -62,4 +62,4 @@ def get_or_create_user(tg_user: types.User):
 @sync_to_async
 def get_user_bots(user):
     """جلب قائمة بوتات المستخدم (بترتيب الأحدث أولاً)"""
-    return list(SubBot.objects.filter(owner=user).order_id('-created_at'))
+    return list(SubBot.objects.filter(owner=user).order_by('-created_at'))

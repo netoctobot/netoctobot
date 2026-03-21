@@ -11,7 +11,7 @@ async def show_bots_list(callback: types.CallbackQuery, i18n: I18nContext, bot: 
     _ = i18n.get
     
     # 1. جلب بيانات المستخدم واشتراكه
-    user, subscription, _ = await get_user_and_subscription(
+    user, subscription, created = await get_user_and_subscription(
         tg_user=callback.from_user,
         bot_token=bot.token
     )

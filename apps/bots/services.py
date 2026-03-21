@@ -3,7 +3,7 @@ from aiogram.exceptions import TelegramUnauthorizedError
 from asgiref.sync import sync_to_async
 from .models import SubBot
 
-async def validate_and_register_bot(token: str, owner_user):
+async def validate_and_register_bot(token: str, owner_user,bot_type: str):
     """
     التحقق من صحة التوكن عبر تيليجرام ثم حفظه في قاعدة البيانات.
     """
@@ -23,7 +23,8 @@ async def validate_and_register_bot(token: str, owner_user):
                 owner=owner_user,
                 token=token,
                 name=bot_info.full_name,
-                bot_type='CON', # النوع الافتراضي حالياً
+                username=bot_info.username,
+                bot_type=bot_type,
                 is_active=True
             )
             return new_bot, "success"

@@ -16,7 +16,7 @@ def get_manage_bot_keyboard(i18n: I18nContext):
     """أزرار بعد إضافة البوت بنجاح أو العودة"""
     _ = i18n.get
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"🔙 {_('btn-back-main')}", callback_data="back_to_main")
+    builder.button(text=f"{_('btn-back-main')}", callback_data="back_to_main")
     return builder.as_markup()
 
 def get_my_bots_keyboard(i18n: I18nContext, bots_list):
@@ -42,8 +42,8 @@ def get_my_bots_keyboard(i18n: I18nContext, bots_list):
         rows.append(1) # إذا كان العدد فردياً، البوت الأخير يأخذ صفاً وحده
 
     # أزرار التحكم الثابتة (كل واحد في صف مستقل)
-    builder.button(text=f"➕ {_( 'btn-add-another-bot')}", callback_data="add_new_bot")
-    builder.button(text=f"🔙 {_( 'btn-back-main')}", callback_data="back_to_main")
+    builder.button(text=f"{_( 'btn-add-another-bot')}", callback_data="add_new_bot")
+    builder.button(text=f"{_( 'btn-back-main')}", callback_data="back_to_main")
 
     # إضافة صفين للأزرار الأخيرة (كل صف فيه زر واحد)
     rows.extend([1, 1])

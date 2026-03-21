@@ -107,7 +107,7 @@ msgstr "Cancel"
 #: bot/keyboards/inline/bot_management.py:19
 #: bot/keyboards/inline/bot_management.py:46
 msgid "btn-back-main"
-msgstr "Back to Main Menu"
+msgstr "🔙 Back to Main Menu"
 
 #: bot/keyboards/inline/bot_management.py:40
 msgid "btn-add-another-bot"

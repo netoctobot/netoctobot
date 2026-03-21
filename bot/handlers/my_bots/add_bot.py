@@ -47,36 +47,48 @@ async def process_token_cleanly(message: types.Message, state: FSMContext, i18n:
     token = message.text.strip()
     _ = i18n.get
     
-    # 1. حذف رسالة التوكن فوراً (أمان ونظافة)
+    # 1. جلب بيانات المستخدم والاشتراك أولاً (لكي نعرف أي رسالة سنعدل)
+    from bot.db_operations import get_user_and_subscription, activate_partner_wallet, get_user_bots
+    user, subscription, create = await get_user_and_subscription(message.from_user, bot.token)
+
+    # 2. حذف رسالة التوكن فوراً
     try:
         await message.delete()
     except: pass 
 
-    # 2. جلب بيانات الجلسة (النوع المختار)
+    # 3. إظهار رسالة "جاري التحقق" (الآن subscription متاح ولن يحدث خطأ)
+    await update_main_interface(
+        bot=bot,
+        chat_id=message.chat.id,
+        subscription=subscription,
+        text=_("msg-checking-token"),
+        reply_markup=get_cancel_keyboard(i18n)
+    )
+
+    # 4. جلب نوع البوت من الحالة
     data = await state.get_data()
     bot_type = data.get("chosen_type", "CON")
 
-    # 3. جلب بيانات الاشتراك لتعديل الرسالة الأساسية
-    user, subscription, created = await get_user_and_subscription(message.from_user, bot.token)
-
-    # 4. استدعاء خدمة التحقق والتسجيل
+    # 5. استدعاء خدمة التحقق والتسجيل
+    from apps.bots.services import validate_and_register_bot
     new_bot, status = await validate_and_register_bot(token, user, bot_type)
 
     if status == "success":
-        # حالة النجاح: تفعيل المحفظة، تنظيف الحالة، الانتقال لـ "بوتاتي"
         await activate_partner_wallet(user)
         await state.clear()
+        
+        # جلب قائمة البوتات المحدثة
+        user_bots = await get_user_bots(user)
         
         await update_main_interface(
             bot=bot,
             chat_id=message.chat.id,
             subscription=subscription,
             text=_("msg-bot-added-success", bot_name=new_bot.name),
-            reply_markup=get_my_bots_keyboard(i18n, get_user_bots(user)) 
+            reply_markup=get_my_bots_keyboard(i18n, user_bots) 
         )
 
     elif status == "exists":
-        # حالة التوكن مسجل مسبقاً: نعدل الرسالة ونبقى في نفس الحالة (State)
         await bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=subscription.last_main_message_id,
@@ -84,8 +96,9 @@ async def process_token_cleanly(message: types.Message, state: FSMContext, i18n:
             reply_markup=get_cancel_keyboard(i18n)
         )
 
-    elif status == "err-invalid-token":
-        # حالة التوكن غير صحيح برمجياً: نعدل الرسالة ونبقى في نفس الحالة
+    # ملاحظة: تأكد أن الحالة في الخدمة تعيد "invalid" وليس "err-invalid-token" 
+    # لكي تتطابق مع الشرط أدناه أو اجعلهما متطابقين
+    elif status == "invalid" or status == "err-invalid-token":
         await bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=subscription.last_main_message_id,
@@ -94,27 +107,9 @@ async def process_token_cleanly(message: types.Message, state: FSMContext, i18n:
         )
 
     else:
-        # حالة خطأ تقني غير متوقع (Exception): إبلاغ المستخدم ومحاولة تبسيط الخطأ
         await bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=subscription.last_main_message_id,
-            text=_("err-system-error", error_detail=status), # تمرير نص الخطأ للترجمة إذا أردت
+            text=_("err-system-error", error_detail=status),
             reply_markup=get_cancel_keyboard(i18n)
         )
-
-@router.callback_query(F.data == "cancel_operation")
-async def cancel_handler(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
-    """معالج زر الإلغاء: يمسح الحالة ويعيد المستخدم للقائمة الرئيسية"""
-    _ = i18n.get
-    current_state = await state.get_state()
-    if current_state is None:
-        return
-
-    await state.clear()
-    # العودة للقائمة الرئيسية (نحتاج لجلب بيانات المستخدم للأزرار)
-    # ملاحظة: يمكنك استخدام دالة get_user_and_subscription هنا إذا لزم الأمر
-    await callback.message.edit_text(
-        text=_("msg-operation-cancelled"),
-        reply_markup=get_manage_bot_keyboard(i18n)
-    )
-    await callback.answer(_("toast-cancelled"))
