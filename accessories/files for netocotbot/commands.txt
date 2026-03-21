@@ -1,8 +1,27 @@
 // امر الباندل الخاص بالبوت
 pybabel extract . -F babel.cfg -o bot/locales/messages.pot
 pybabel compile -d bot/locales -D messages
+# إنشاء ملف الترجمة للغة العربية
+pybabel init -i bot/locales/messages.pot -d bot/locales -l ar
 
+# للغة الإنجليزية (اختياري)
+pybabel init -i bot/locales/messages.pot -d bot/locales -l en
+تعديل السابق
+pybabel update -i bot/locales/messages.pot -d bot/locales
 
+================================================================================
+# 1. استخرج النصوص الجديدة (هذا يجدد messages.pot)
+pybabel extract . -F babel.cfg -o bot/locales/messages.pot
+
+# 2. قم بتحديث ملفات الترجمة الموجودة (هذا يضيف النصوص الجديدة ويحتفظ بالترجمات القديمة)
+pybabel update -i bot/locales/messages.pot -d bot/locales
+
+# 3. الآن افتح ملفات .po وقم بترجمة النصوص الجديدة فقط
+# (النصوص القديمة محفوظة ولن تضيع)
+
+# 4. بعد الانتهاء من الترجمة، قم بتجميع
+pybabel compile -d bot/locales
+================================================================================
 // امر اعتماد الباندل في جانقو
 python manage.py makemessages -l ar -i accessories -i venv
 python manage.py compilemessages

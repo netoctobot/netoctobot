@@ -4,7 +4,7 @@ from ...db_operations import get_user_and_subscription
 from asgiref.sync import sync_to_async
 # استيراد الأزرار من المجلد الجديد
 from ...keyboards.main_menu import get_main_keyboard
-from ...keyboards.settings import get_language_keyboard
+from ...keyboards.inline.settings import get_language_keyboard
 
 router = Router()
 

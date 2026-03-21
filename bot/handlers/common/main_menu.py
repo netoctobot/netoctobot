@@ -3,7 +3,7 @@ from aiogram_i18n import I18nContext
 from ...db_operations import get_user_and_subscription
 # استيراد الأزرار من المجلد الجديد
 from ...keyboards.main_menu import get_main_keyboard
-from ...keyboards.settings import get_language_keyboard
+from ...keyboards.inline.settings import get_language_keyboard
 router = Router()
 
 @router.callback_query(F.data == "back_to_main")

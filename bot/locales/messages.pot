@@ -1,14 +1,17 @@
-
+# Translations template for PROJECT.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 07:50-0700\n"
+"POT-Creation-Date: 2026-03-21 08:02-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: en\n"
-"Language-Team: en <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -16,75 +19,61 @@ msgstr ""
 
 #: bot/handlers/my_bots/add_bot.py:19
 msgid "msg-send-bot-token"
-msgstr "Please send your bot token."
+msgstr ""
 
 #: bot/handlers/my_bots/add_bot.py:31
 msgid "msg-checking-token"
-msgstr "Checking token, please wait..."
+msgstr ""
 
 #: bot/handlers/my_bots/add_bot.py:45
 msgid "msg-bot-added-success"
-msgstr "Bot added successfully! ✅"
+msgstr ""
 
 #: bot/handlers/my_bots/add_bot.py:50
 msgid "err-token-already-registered"
-msgstr "This token is already registered. Please use another token."
+msgstr ""
 
 #: bot/handlers/my_bots/add_bot.py:53
 msgid "err-invalid-token"
-msgstr "Invalid token. Please verify your bot token and try again."
+msgstr ""
 
 #: bot/handlers/my_bots/add_bot.py:67
 msgid "msg-operation-cancelled"
-msgstr "Operation cancelled successfully. You can return to the main menu."
+msgstr ""
 
 #: bot/handlers/my_bots/add_bot.py:70
 msgid "toast-cancelled"
-msgstr "Cancelled"
+msgstr ""
 
 #: bot/keyboards/main_menu.py:14
 msgid "btn-my-profile"
-msgstr "👤 My Profile"
+msgstr ""
 
 #: bot/keyboards/main_menu.py:15
 msgid "btn-support"
-msgstr "🎧 Support"
+msgstr ""
 
 #: bot/keyboards/main_menu.py:19
 msgid "btn-partner-panel"
-msgstr "💼 Partner Panel"
+msgstr ""
 
 #: bot/keyboards/main_menu.py:23
-#, fuzzy
 msgid "btn-manage-octopus"
-msgstr "🐙 Manage Bots"
+msgstr ""
 
 #: bot/keyboards/main_menu.py:24
 msgid "btn-system-settings"
-msgstr "⚙️ System Settings"
+msgstr ""
 
 #: bot/keyboards/main_menu.py:27
 msgid "btn-change-lang"
-msgstr "Change Language 🌐"
+msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:10
 msgid "btn-cancel"
-msgstr "Cancel"
+msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:19
 msgid "btn-back-main"
-msgstr "Back to Main Menu"
+msgstr ""
 
-#~ msgid "welcome-new"
-#~ msgstr "Welcome, {full_name}, to the Octopus Bot! 🐙"
-
-#~ msgid "welcome-back"
-#~ msgstr "Welcome back, {full_name}! ✨"
-
-#~ msgid "msg-select-language"
-#~ msgstr ""
-#~ "Please select your preferred language:\n"
-#~ "الرجاء اختيار اللغة المطلوبة"
-
-#~ msgid "btn-admin-stats"
-#~ msgstr "📊 Statistics"
