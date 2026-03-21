@@ -30,7 +30,7 @@ class SubBot(BaseModel):
     owner = models.ForeignKey(TelegramUser, on_delete=models.CASCADE, related_name='my_bots', verbose_name=_("Owner"))
     token = models.CharField(max_length=255, unique=True, verbose_name=_("Bot Token"))
     name = models.CharField(max_length=255, verbose_name=_("Bot Name"))
-    bot_type = models.CharField(max_length=3, choices=BotType.choices, default=BotType.SUPPORT, verbose_name=_("Bot Type"))
+    bot_type = models.CharField(max_length=3, choices=BotType.choices, default=BotType.CONTACT, verbose_name=_("Bot Type"))
     is_active = models.BooleanField(default=True, verbose_name=_("Is Active"))
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"))
 
