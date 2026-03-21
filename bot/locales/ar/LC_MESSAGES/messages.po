@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 09:23-0700\n"
+"POT-Creation-Date: 2026-03-21 11:27-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -14,6 +14,14 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
+
+#: bot/handlers/common/navigation.py:29
+msgid "welcome-back"
+msgstr "أهلاً يا {full_name}! ✨"
+
+#: bot/handlers/common/navigation.py:38
+msgid "toast-cancelled"
+msgstr "تم الإلغاء"
 
 #: bot/handlers/my_bots/add_bot.py:21
 msgid "type-list"
@@ -31,32 +39,28 @@ msgstr "الرجاء تحديد نوع البوت الذي تريد إضافته
 msgid "msg-send-token-now"
 msgstr "الرجاء إرسال رمز البوت (Token) الآن:"
 
-#: bot/handlers/my_bots/add_bot.py:74
+#: bot/handlers/my_bots/add_bot.py:64
+msgid "msg-checking-token"
+msgstr "جاري التحقق من الرمز، يرجى الانتظار..."
+
+#: bot/handlers/my_bots/add_bot.py:87
 msgid "msg-bot-added-success"
 msgstr ""
 "🎉 مبروك! تم ربط البوت <b>{bot_name}</b> بنجاح.\n"
 "\n"
 "يمكنك الآن التحكم به من القائمة أدناه:"
 
-#: bot/handlers/my_bots/add_bot.py:83
+#: bot/handlers/my_bots/add_bot.py:95
 msgid "err-token-already-registered"
 msgstr "هذا الـ(token) مسجل مسبقاً. يرجى استخدام رمز آخر."
 
-#: bot/handlers/my_bots/add_bot.py:92
+#: bot/handlers/my_bots/add_bot.py:105
 msgid "err-token-invalid"
 msgstr "❌ التوكن الذي أرسلته غير صحيح أو انتهت صلاحيته، تأكد منه من @BotFather."
 
-#: bot/handlers/my_bots/add_bot.py:101
+#: bot/handlers/my_bots/add_bot.py:113
 msgid "err-system-error"
 msgstr "⚙️ حدث خطأ تقني أثناء الربط. يرجى المحاولة لاحقاً. (الخطأ: {error_detail})"
-
-#: bot/handlers/my_bots/add_bot.py:117
-msgid "msg-operation-cancelled"
-msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."
-
-#: bot/handlers/my_bots/add_bot.py:120
-msgid "toast-cancelled"
-msgstr "تم الإلغاء"
 
 #: bot/handlers/my_bots/list_bots.py:24
 msgid "msg-no-bots-found"
@@ -64,7 +68,26 @@ msgstr "📭 لم تقم بإضافة أي بوتات حتى الآن. ابدأ 
 
 #: bot/handlers/my_bots/list_bots.py:26
 msgid "msg-select-bot-to-manage"
-msgstr "🤖 لديك <b>{count}</b> بوتات مرتبطة بحسابك.\n\nاختر بوتاً من القائمة أدناه لإدارته أو عرض إحصائياته:"
+msgstr ""
+"🤖 لديك <b>{count}</b> بوتات مرتبطة بحسابك.\n"
+"\n"
+"اختر بوتاً من القائمة أدناه لإدارته أو عرض إحصائياته:"
+
+#: bot/handlers/my_bots/list_bots.py:50
+msgid "err-bot-not-found"
+msgstr "⚠️ البوت غير موجود"
+
+#: bot/handlers/my_bots/list_bots.py:54
+msgid "status-active"
+msgstr "🟢 نشط"
+
+#: bot/handlers/my_bots/list_bots.py:54
+msgid "status-stopped"
+msgstr "🔴 معطل"
+
+#: bot/handlers/my_bots/list_bots.py:57
+msgid "msg-bot-settings-header"
+msgstr "⚙️ <b>إعدادات البوت: {bot_name}</b>\n\n<b>المعرف:</b> @{bot_username}\n<b>الحالة:</b> {status}\n<b>تاريخ الربط:</b> {created_at}\n\nاختر من الأزرار أدناه للتحكم في البوت:"
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
@@ -107,18 +130,31 @@ msgstr "إلغاء العملية"
 msgid "btn-back-main"
 msgstr "🔙 العودة للقائمة الرئيسية"
 
-#: bot/keyboards/inline/bot_management.py:40
+#: bot/keyboards/inline/bot_management.py:45
 msgid "btn-add-another-bot"
 msgstr "➕ إضافة بوت آخر"
 
-msgid "msg-checking-token"
-msgstr "جاري التحقق من الرمز، يرجى الانتظار..."
+#: bot/keyboards/inline/bot_management.py:63
+msgid "btn-stop-bot"
+msgstr "🛑 إيقاف البوت"
+
+#: bot/keyboards/inline/bot_management.py:63
+msgid "btn-start-bot"
+msgstr "⚡️ تشغيل البوت"
+
+#: bot/keyboards/inline/bot_management.py:68
+msgid "btn-delete-bot"
+msgstr "🗑️ حذف البوت نهائياً"
+
+#: bot/keyboards/inline/bot_management.py:71
+msgid "btn-back-to-list"
+msgstr "🔙 العودة لقائمة البوتات"
+
+msgid "msg-operation-cancelled"
+msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."
 
 msgid "welcome-new"
 msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"
-
-msgid "welcome-back"
-msgstr "أهلاً يا {full_name}! ✨"
 
 msgid "msg-select-language"
 msgstr ""
@@ -127,3 +163,4 @@ msgstr ""
 
 msgid "btn-admin-stats"
 msgstr "📊 الإحصائيات العامة"
+

@@ -63,3 +63,22 @@ def get_or_create_user(tg_user: types.User):
 def get_user_bots(user):
     """جلب قائمة بوتات المستخدم (بترتيب الأحدث أولاً)"""
     return list(SubBot.objects.filter(owner=user).order_by('-created_at'))
+
+@sync_to_async
+def get_sub_bot_by_id(bot_id, owner):
+    """جلب بوت معين والتأكد من أنه يخص المستخدم الحالي"""
+    try:
+        return SubBot.objects.get(id=bot_id, owner=owner)
+    except Exception:
+        return None
+
+@sync_to_async
+def toggle_sub_bot_status(bot_id, owner):
+    """تغيير حالة البوت من نشط إلى متوقف والعكس"""
+    try:
+        sub_bot = SubBot.objects.get(id=bot_id, owner=owner)
+        sub_bot.is_active = not sub_bot.is_active
+        sub_bot.save()
+        return sub_bot
+    except Exception:
+        return None

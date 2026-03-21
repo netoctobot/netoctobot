@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 09:23-0700\n"
+"POT-Creation-Date: 2026-03-21 11:47-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -13,6 +13,14 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
+
+#: bot/handlers/common/navigation.py:29
+msgid "welcome-back"
+msgstr "Welcome back, {full_name}! ✨"
+
+#: bot/handlers/common/navigation.py:38
+msgid "toast-cancelled"
+msgstr "Cancelled"
 
 #: bot/handlers/my_bots/add_bot.py:21
 msgid "type-list"
@@ -30,7 +38,11 @@ msgstr "Please select the type of bot you want to add:"
 msgid "msg-send-token-now"
 msgstr "Please send your bot token now:"
 
-#: bot/handlers/my_bots/add_bot.py:74
+#: bot/handlers/my_bots/add_bot.py:64
+msgid "msg-checking-token"
+msgstr "Checking token, please wait..."
+
+#: bot/handlers/my_bots/add_bot.py:87
 msgid "msg-bot-added-success"
 msgstr ""
 "🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
@@ -38,27 +50,19 @@ msgstr ""
 "\n"
 "You can now manage it from the menu below:"
 
-#: bot/handlers/my_bots/add_bot.py:83
+#: bot/handlers/my_bots/add_bot.py:95
 msgid "err-token-already-registered"
 msgstr "This token is already registered. Please use another token."
 
-#: bot/handlers/my_bots/add_bot.py:92
+#: bot/handlers/my_bots/add_bot.py:105
 msgid "err-token-invalid"
 msgstr "Invalid token. Please verify your bot token and try again."
 
-#: bot/handlers/my_bots/add_bot.py:101
+#: bot/handlers/my_bots/add_bot.py:113
 msgid "err-system-error"
 msgstr ""
 "⚙️ A technical error occurred while connecting. Please try again later. "
 "(Error: {error_detail})"
-
-#: bot/handlers/my_bots/add_bot.py:117
-msgid "msg-operation-cancelled"
-msgstr "Operation cancelled successfully. You can return to the main menu."
-
-#: bot/handlers/my_bots/add_bot.py:120
-msgid "toast-cancelled"
-msgstr "Cancelled"
 
 #: bot/handlers/my_bots/list_bots.py:24
 msgid "msg-no-bots-found"
@@ -67,6 +71,30 @@ msgstr ""
 #: bot/handlers/my_bots/list_bots.py:26
 msgid "msg-select-bot-to-manage"
 msgstr "Please select the type of bot you want to add:"
+
+#: bot/handlers/my_bots/list_bots.py:50 bot/handlers/my_bots/list_bots.py:87
+msgid "err-bot-not-found"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:54 bot/handlers/my_bots/list_bots.py:91
+msgid "status-active"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:54 bot/handlers/my_bots/list_bots.py:91
+msgid "status-stopped"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:57 bot/handlers/my_bots/list_bots.py:94
+msgid "msg-bot-settings-header"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:111
+msgid "msg-bot-activated"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:111
+msgid "msg-bot-deactivated"
+msgstr ""
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
@@ -109,23 +137,41 @@ msgstr "Cancel"
 msgid "btn-back-main"
 msgstr "🔙 Back to Main Menu"
 
-#: bot/keyboards/inline/bot_management.py:40
+#: bot/keyboards/inline/bot_management.py:45
 msgid "btn-add-another-bot"
 msgstr "➕ Add Another Bot"
 
-msgid "msg-checking-token"
-msgstr "Checking token, please wait..."
+#: bot/keyboards/inline/bot_management.py:63
+#, fuzzy
+msgid "btn-stop-bot"
+msgstr "🎧 Support"
 
-msgid "welcome-new"
-msgstr "Welcome, {full_name}, to the Octopus Bot! 🐙"
+#: bot/keyboards/inline/bot_management.py:63
+#, fuzzy
+msgid "btn-start-bot"
+msgstr "🤖 My Bots"
 
-msgid "welcome-back"
-msgstr "Welcome back, {full_name}! ✨"
+#: bot/keyboards/inline/bot_management.py:68
+#, fuzzy
+msgid "btn-delete-bot"
+msgstr "➕ Add Another Bot"
 
-msgid "msg-select-language"
-msgstr ""
-"Please select your preferred language:\n"
-"الرجاء اختيار اللغة المطلوبة"
+#: bot/keyboards/inline/bot_management.py:71
+#, fuzzy
+msgid "btn-back-to-list"
+msgstr "🔙 Back to Main Menu"
 
-msgid "btn-admin-stats"
-msgstr "📊 Statistics"
+#~ msgid "msg-operation-cancelled"
+#~ msgstr "Operation cancelled successfully. You can return to the main menu."
+
+#~ msgid "welcome-new"
+#~ msgstr "Welcome, {full_name}, to the Octopus Bot! 🐙"
+
+#~ msgid "msg-select-language"
+#~ msgstr ""
+#~ "Please select your preferred language:\n"
+#~ "الرجاء اختيار اللغة المطلوبة"
+
+#~ msgid "btn-admin-stats"
+#~ msgstr "📊 Statistics"
+

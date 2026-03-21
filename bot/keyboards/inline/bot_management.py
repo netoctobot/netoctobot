@@ -54,3 +54,21 @@ def get_my_bots_keyboard(i18n: I18nContext, bots_list):
     # تنظيم الأزرار: كل بوت في سطر، والأزرار الأخيرة في سطر مستقل
     builder.adjust(1) 
     return builder.as_markup()
+
+def get_bot_settings_keyboard(i18n: I18nContext, sub_bot):
+    _ = i18n.get
+    builder = InlineKeyboardBuilder()
+
+    # زر حالة البوت (إيقاف أو تشغيل)
+    toggle_text = _("btn-stop-bot") if sub_bot.is_active else _("btn-start-bot")
+    toggle_data = f"toggle_bot_{sub_bot.id}"
+    builder.button(text=toggle_text, callback_data=toggle_data)
+
+    # زر حذف البوت
+    builder.button(text=_("btn-delete-bot"), callback_data=f"confirm_delete_{sub_bot.id}")
+
+    # زر العودة لقائمة "بوتاتي"
+    builder.button(text=_("btn-back-to-list"), callback_data="list_my_bots")
+
+    builder.adjust(1)
+    return builder.as_markup()
