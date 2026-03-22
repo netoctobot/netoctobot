@@ -26,6 +26,11 @@ class SubBot(BaseModel):
     class BotType(models.TextChoices):
         CONTACT = 'CON', _('Contact Bot')
         LIST = 'LST', _('List Bot')
+    
+    class ParseMode(models.TextChoices):
+        HTML = 'HTML', 'HTML'
+        MARKDOWN = 'MDV2', 'Markdown V2'
+        PLAIN = 'PLAIN', _('Plain Text')
 
     owner = models.ForeignKey(TelegramUser, on_delete=models.CASCADE, related_name='my_bots', verbose_name=_("Owner"))
     token = models.CharField(max_length=255, unique=True, verbose_name=_("Bot Token"))
@@ -33,7 +38,13 @@ class SubBot(BaseModel):
     username = models.CharField(max_length=255, null=True, blank=True)
     bot_type = models.CharField(max_length=3, choices=BotType.choices, default=BotType.CONTACT, verbose_name=_("Bot Type"))
     is_active = models.BooleanField(default=True, verbose_name=_("Is Active"))
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"))
+    welcome_msg = models.TextField(
+        blank=True, 
+        null=True, 
+        verbose_name=_("Welcome Message"),
+        help_text=_("The message shown to users when they send /start"),
+        default=_("Default Welcome Message")
+    )
 
     # القنوات التي يفرضها صاحب البوت
     # ملاحظة: يمكن للبوت الواحد فرض عدة قنوات

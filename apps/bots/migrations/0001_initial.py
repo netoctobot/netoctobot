@@ -55,7 +55,7 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True, verbose_name='Updated At')),
                 ('token', models.CharField(max_length=255, unique=True, verbose_name='Bot Token')),
                 ('name', models.CharField(max_length=255, verbose_name='Bot Name')),
-                ('bot_type', models.CharField(choices=[('SUP', 'Support Bot'), ('CON', 'Contact Bot'), ('LST', 'List Bot')], default='SUP', max_length=3, verbose_name='Bot Type')),
+                ('bot_type', models.CharField(choices=[('CON', 'Contact Bot'), ('LST', 'List Bot')], default='CON', max_length=3, verbose_name='Bot Type')),
                 ('is_active', models.BooleanField(default=True, verbose_name='Is Active')),
                 ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='Created At')),
                 ('force_msg', models.TextField(blank=True, null=True, verbose_name='Force Subscribe Message')),

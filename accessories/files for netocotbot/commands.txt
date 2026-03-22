@@ -23,7 +23,7 @@ pybabel update -i bot/locales/messages.pot -d bot/locales
 pybabel compile -d bot/locales
 ================================================================================
 // امر اعتماد الباندل في جانقو
-python manage.py makemessages -l ar -i accessories -i venv
+python manage.py makemessages -l ar -i accessories -i venv -i bot
 python manage.py compilemessages
 
 

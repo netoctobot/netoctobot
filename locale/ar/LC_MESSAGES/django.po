@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-19 05:20-0700\n"
+"POT-Creation-Date: 2026-03-22 01:47-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -27,7 +27,7 @@ msgstr "معرف تيليغرام"
 msgid "Full Name"
 msgstr "الاسم الكامل"
 
-#: .\apps\accounts\models.py:22
+#: .\apps\accounts\models.py:22 .\apps\bots\models.py:15
 msgid "Username"
 msgstr "اسم المستخدم"
 
@@ -63,7 +63,7 @@ msgstr "تحويل بنكي"
 msgid "Local Wallet (Cash)"
 msgstr "محفظة محلية (نقدي)"
 
-#: .\apps\accounts\models.py:55 .\apps\bots\models.py:51
+#: .\apps\accounts\models.py:55 .\apps\bots\models.py:97
 msgid "User"
 msgstr "المستخدم"
 
@@ -131,7 +131,7 @@ msgstr "المبلغ"
 msgid "Transaction Type"
 msgstr "نوع المعاملة"
 
-#: .\apps\accounts\models.py:135 .\apps\bots\models.py:38
+#: .\apps\accounts\models.py:135 .\apps\bots\models.py:84
 msgid "Status"
 msgstr "الحالة"
 
@@ -155,105 +155,141 @@ msgstr "المعاملات"
 msgid "Subscribers"
 msgstr "المشتركون"
 
-#: .\apps\bots\models.py:8
-msgid "Support Bot"
-msgstr "بوت الدعم"
-
-#: .\apps\bots\models.py:9
-msgid "Contact Bot"
-msgstr "بوت التواصل"
-
-#: .\apps\bots\models.py:10
-msgid "List Bot"
-msgstr "بوت القائمة"
-
-#: .\apps\bots\models.py:12 .\apps\bots\models.py:34
-msgid "Owner"
-msgstr "المالك"
-
-#: .\apps\bots\models.py:13
-msgid "Bot Token"
-msgstr "رمز البوت"
-
-#: .\apps\bots\models.py:14
-msgid "Bot Name"
-msgstr "اسم البوت"
-
-#: .\apps\bots\models.py:15
-msgid "Bot Type"
-msgstr "نوع البوت"
-
-#: .\apps\bots\models.py:16
-msgid "Is Active"
-msgstr "هل هو نشط"
-
-#: .\apps\bots\models.py:17
-msgid "Created At"
-msgstr "تاريخ الإنشاء"
-
-#: .\apps\bots\models.py:23
-msgid "Sub Bot"
-msgstr "بوت فرعي"
-
-#: .\apps\bots\models.py:24
-msgid "Sub Bots"
-msgstr "البوتات الفرعية"
-
-#: .\apps\bots\models.py:29
-msgid "Active"
-msgstr "نشط"
-
-#: .\apps\bots\models.py:30
-msgid "Bot Left"
-msgstr "غادر البوت"
-
-#: .\apps\bots\models.py:31
-msgid "Banned"
-msgstr "محظور"
-
-#: .\apps\bots\models.py:32
-msgid "Needs Refresh"
-msgstr "يحتاج تحديث"
-
-#: .\apps\bots\models.py:35
+#: .\apps\bots\models.py:9 .\apps\bots\models.py:81
 msgid "Channel ID"
 msgstr "معرف القناة"
 
+#: .\apps\bots\models.py:21 .\apps\bots\models.py:62
+msgid "Force Subscribe Message"
+msgstr "رسالة الاشتراك الإجباري"
+
+#: .\apps\bots\models.py:27
+msgid "Contact Bot"
+msgstr "بوت التواصل"
+
+#: .\apps\bots\models.py:28
+msgid "List Bot"
+msgstr "بوت القائمة"
+
+#: .\apps\bots\models.py:33
+msgid "Plain Text"
+msgstr "نص عادي"
+
+#: .\apps\bots\models.py:35 .\apps\bots\models.py:80
+msgid "Owner"
+msgstr "المالك"
+
 #: .\apps\bots\models.py:36
+msgid "Bot Token"
+msgstr "رمز البوت"
+
+#: .\apps\bots\models.py:37
+msgid "Bot Name"
+msgstr "اسم البوت"
+
+#: .\apps\bots\models.py:39
+msgid "Bot Type"
+msgstr "نوع البوت"
+
+#: .\apps\bots\models.py:40
+msgid "Is Active"
+msgstr "هل هو نشط"
+
+#: .\apps\bots\models.py:44
+msgid "Welcome Message"
+msgstr "رسالة الترحيب"
+
+#: .\apps\bots\models.py:45
+msgid "The message shown to users when they send /start"
+msgstr "الرسالة التي تظهر للمستخدمين عند إرسالهم /start"
+
+#: .\apps\bots\models.py:46
+msgid "Default Welcome Message"
+msgstr "👋 أهلاً بك"
+
+#: .\apps\bots\models.py:55
+msgid "Force Subscribe Channels"
+msgstr "قنوات الاشتراك الإجباري"
+
+#: .\apps\bots\models.py:69
+msgid "Sub Bot"
+msgstr "بوت فرعي"
+
+#: .\apps\bots\models.py:70
+msgid "Sub Bots"
+msgstr "البوتات الفرعية"
+
+#: .\apps\bots\models.py:75
+msgid "Active"
+msgstr "نشط"
+
+#: .\apps\bots\models.py:76
+msgid "Bot Left"
+msgstr "غادر البوت"
+
+#: .\apps\bots\models.py:77
+msgid "Banned"
+msgstr "محظور"
+
+#: .\apps\bots\models.py:78
+msgid "Needs Refresh"
+msgstr "يحتاج تحديث"
+
+#: .\apps\bots\models.py:82
 msgid "Channel Title"
 msgstr "عنوان القناة"
 
-#: .\apps\bots\models.py:37
+#: .\apps\bots\models.py:83
 msgid "Member Count"
 msgstr "عدد الأعضاء"
 
-#: .\apps\bots\models.py:39
+#: .\apps\bots\models.py:85
 msgid "Last Sync"
 msgstr "آخر مزامنة"
 
-#: .\apps\bots\models.py:45
+#: .\apps\bots\models.py:91
 msgid "Channel"
 msgstr "القناة"
 
-#: .\apps\bots\models.py:46
+#: .\apps\bots\models.py:92
 msgid "Channels"
 msgstr "القنوات"
 
-#: .\apps\bots\models.py:50
+#: .\apps\bots\models.py:96
 msgid "Bot"
 msgstr "البوت"
 
-#: .\apps\bots\models.py:52
+#: .\apps\bots\models.py:101
+msgid "Last Main Message ID"
+msgstr "آخر معرف للرسالة الرئيسية"
+
+#: .\apps\bots\models.py:107
+msgid "Language"
+msgstr "اللغة"
+
+#: .\apps\bots\models.py:109
 msgid "Joined At"
 msgstr "تاريخ الانضمام"
 
-#: .\apps\bots\models.py:56
+#: .\apps\bots\models.py:113
 msgid "Bot Subscription"
 msgstr "اشتراك البوت"
 
-#: .\apps\bots\models.py:57
+#: .\apps\bots\models.py:114
 msgid "Bot Subscriptions"
 msgstr "اشتراكات البوت"
+
+#: .\apps\core\models.py:14
+msgid "Created At"
+msgstr "تاريخ الإنشاء"
+
+#: .\apps\core\models.py:15
+msgid "Updated At"
+msgstr "تاريخ التحديث"
+
+#: .\apps\core\models.py:25
+msgid "Created By"
+msgstr "تم الإنشاء بواسطة"
 
 #: .\core\settings.py:120
 msgid "Arabic"

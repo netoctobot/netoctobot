@@ -81,6 +81,14 @@ def get_sub_bot_by_id(bot_id, owner):
         return None
 
 @sync_to_async
+def get_sub_bot_by_token(bot_token, owner):
+    """جلب بوت معين والتأكد من أنه يخص المستخدم الحالي"""
+    try:
+        return SubBot.objects.get(token=bot_token, owner=owner)
+    except Exception:
+        return None
+
+@sync_to_async
 def toggle_sub_bot_status(bot_id, owner):
     """تغيير حالة البوت من نشط إلى متوقف والعكس"""
     try:

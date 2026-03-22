@@ -1,20 +1,60 @@
 import re
 from aiogram import Router, types, F, Bot
-from aiogram.filters import Command
+from bot.keyboards.main_menu import get_main_keyboard
+from bot.utils.interface import setup_master_bot_sync, update_main_interface # الدالة التي تحذف وترسل
+from aiogram.client.default import DefaultBotProperties 
+from aiogram.filters import Command, CommandStart
 from aiogram_i18n import I18nContext
 from asgiref.sync import sync_to_async
 from apps.bots.models import SubBot
 from apps.accounts.models import TelegramUser
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from bot.config import BOT_TOKEN
+from bot.config import BOT_TOKEN, ADMIN_IDS
+from bot.db_operations import get_user_and_subscription, get_sub_bot_by_token
 
 router = Router()
 router.message.filter(F.bot.token != BOT_TOKEN)
 
-@router.message(Command("start"))
-async def sub_bot_start(message: types.Message, i18n: I18nContext):
-    # رسالة ترحيب مخصصة لبوت التواصل
-    await message.answer("مرحباً بك! يمكنك إرسال رسالتك هنا وسيتم تحويلها للإدارة فوراً.")
+@router.message(CommandStart())
+async def sub_bot_start(message: types.Message, i18n: I18nContext, bot: Bot):
+    _ = i18n.get
+    # جلب بيانات المستخدم والاشتراك (سريع جداً الآن)
+    user, subscription, created = await get_user_and_subscription(
+        tg_user=message.from_user,
+        bot_token=bot.token  
+    )
+    is_system_admin = message.from_user.id in ADMIN_IDS
+    
+    sub_bot = await get_sub_bot_by_token(token=bot.token,owner=user)
+    
+    if sub_bot:
+        raw_welcome = sub_bot.welcome_msg or "مرحباً بك {name} في بوت التواصل الخاص بي!"
+        p_mode = sub_bot.welcome_parse_mode # القيمة المخزنة (HTML أو MDV2)
+        
+        # 1. تنسيق النص بالبيانات الشخصية
+        personalized_text = format_personal_message(raw_welcome, message.from_user, p_mode)
+        
+        # 2. إضافة التوقيع (Branding)
+        signature = f'\n\n<a href="https://t.me/net_octobot">Created via NerOcto 🐙</a>'
+        
+        await message.answer(
+            text=personalized_text + signature,
+            parse_mode=p_mode if p_mode != "PLAIN" else None,
+            disable_web_page_preview=True
+        )
+    
+    # استخدام الواجهة المتجددة (حذف الرسالة القديمة وتثبيت الجديدة)
+    await update_main_interface(
+        bot=bot,
+        chat_id=message.chat.id,
+        subscription=subscription,
+        text=text,
+        reply_markup=get_main_keyboard(
+            i18n,
+            is_admin=is_system_admin,
+            is_partner=user.is_partner
+            )
+    )
 
 @router.message(F.chat.type == "private")
 async def handle_sub_bot_messages(message: types.Message, bot: Bot):
