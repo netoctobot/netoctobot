@@ -9,7 +9,6 @@ from bot.keyboards.main_menu import get_main_keyboard # القائمة الرئ�
 from apps.bots.services import validate_and_register_bot
 from bot.db_operations import get_user_and_subscription, activate_partner_wallet, get_user_bots
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from bot.utils.interface import update_main_interface
 
 router = Router()
 
@@ -56,13 +55,12 @@ async def process_token_cleanly(message: types.Message, state: FSMContext, i18n:
     except: pass 
 
     # 3. إظهار رسالة "جاري التحقق" (الآن subscription متاح ولن يحدث خطأ)
-    await update_main_interface(
-        bot=bot,
+    await bot.edit_message_text(
         chat_id=message.chat.id,
-        subscription=subscription,
+        message_id=subscription.last_main_message_id,
         text=_("msg-checking-token"),
         reply_markup=get_cancel_keyboard(i18n)
-    )
+        )
 
     # 4. جلب نوع البوت من الحالة
     data = await state.get_data()
@@ -78,13 +76,12 @@ async def process_token_cleanly(message: types.Message, state: FSMContext, i18n:
         # جلب قائمة البوتات المحدثة
         user_bots = await get_user_bots(user)
         
-        await update_main_interface(
-            bot=bot,
+        await bot.edit_message_text(
             chat_id=message.chat.id,
-            subscription=subscription,
+            message_id=subscription.last_main_message_id,
             text=_("msg-bot-added-success", bot_name=new_bot.name),
             reply_markup=get_my_bots_keyboard(i18n, user_bots) 
-        )
+            )
 
     elif status == "exists":
         await bot.edit_message_text(

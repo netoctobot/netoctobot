@@ -2,7 +2,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram_i18n import I18nContext
 
 def get_cancel_keyboard(i18n: I18nContext):
-    """زر إلغاء العملية أثناء إدخال التوكن"""
+    """زر إلغاء عملية أثناء الإدخال"""
     _ = i18n.get
     builder = InlineKeyboardBuilder()
     # نستخدم callback_data مميز للإلغاء
@@ -74,4 +74,14 @@ def get_bot_settings_keyboard(i18n: I18nContext, sub_bot):
     builder.button(text=_("btn-back-to-list"), callback_data="list_my_bots")
 
     builder.adjust(2)
+    return builder.as_markup()
+
+def get_parse_mode_keyboard(i18n: I18nContext, bot_id):
+    _ = i18n.get
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_("HTML-recommanded"), callback_data="set_mode_HTML")
+    builder.button(text="Markdown V2", callback_data="set_mode_MDV2")
+    builder.button(text=_("btn-plain-text"), callback_data="set_mode_PLAIN")
+    builder.button(text=_("btn-back"), callback_data=f"manage_bot_{bot_id}") # العودة لإعدادات البوت
+    builder.adjust(2, 1)
     return builder.as_markup()

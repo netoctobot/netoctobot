@@ -1,8 +1,8 @@
 from aiogram import Router, F, types, Bot
 from aiogram_i18n import I18nContext
 from bot.db_operations import get_user_and_subscription, get_user_bots, get_sub_bot_by_id, toggle_sub_bot_status, delete_sub_bot
-from bot.keyboards.inline.bot_management import get_my_bots_keyboard, get_bot_settings_keyboard
-from bot.utils.interface import update_main_interface
+from bot.keyboards.inline.bot_management import get_my_bots_keyboard, get_bot_settings_keyboard, get_cancel_keyboard, get_parse_mode_keyboard
+from bot.utils.interface import update_main_interface, return_to_bot_settings
 from bot.utils.formatters import format_personal_message # الدالة التي صنعناها
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
@@ -80,40 +80,22 @@ async def manage_single_bot(callback: types.CallbackQuery, i18n: I18nContext, bo
 @router.callback_query(F.data.startswith("toggle_bot_"))
 async def toggle_bot_handler(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
     _ = i18n.get
-    # جلب الـ UUID كنص (String)
     bot_id = callback.data.split("_")[-1]
     
-    # 1. جلب بيانات المستخدم والاشتراك
-    user, subscription, create = await get_user_and_subscription(callback.from_user, bot.token)
+    # 1. جلب بيانات المستخدم (للتأكد من الصلاحية)
+    user, subscription, __ = await get_user_and_subscription(callback.from_user, bot.token)
     
     # 2. تغيير الحالة في قاعدة البيانات
     updated_bot = await toggle_sub_bot_status(bot_id, user)
     
     if not updated_bot:
-        await callback.answer(_("err-bot-not-found"), show_alert=True)
-        return
+        return await callback.answer(_("err-bot-not-found"), show_alert=True)
 
-    # 3. تجهيز النصوص الجديدة بناءً على الحالة المحدثة
-    status_str = _("status-active") if updated_bot.is_active else _("status-stopped")
+    # 3. استخدام الدالة الموحدة لتحديث الواجهة بالكامل (نفس الرسالة)
+    # هذه الدالة ستحل محل الخطوة (3 و 4) القديمة
+    await return_to_bot_settings(callback, bot_id, i18n, bot)
     
-    text = _(
-        "msg-bot-settings-header",
-        bot_name=updated_bot.name,
-        bot_username=updated_bot.username or "N/A",
-        status=status_str,
-        created_at=updated_bot.created_at.strftime("%Y-%m-%d")
-    )
-
-    # 4. تحديث الواجهة فوراً باستخدام الكيبورد المحدث
-    await update_main_interface(
-        bot=bot,
-        chat_id=callback.message.chat.id,
-        subscription=subscription,
-        text=text,
-        reply_markup=get_bot_settings_keyboard(i18n, updated_bot)
-    )
-    
-    # إشعار سريع للمستخدم بنجاح العملية
+    # 4. إشعار سريع للمستخدم بنجاح العملية (Toast)
     alert_msg = _("msg-bot-activated") if updated_bot.is_active else _("msg-bot-deactivated")
     await callback.answer(alert_msg)
 
@@ -173,16 +155,10 @@ async def start_edit_welcome(callback: types.CallbackQuery, state: FSMContext, i
     await state.update_data(target_bot_id=bot_id)
     await state.set_state(SubBotSettingsSG.waiting_for_parse_mode)
     
-    # اختيار التنسيق أولاً
-    builder = InlineKeyboardBuilder()
-    builder.button(text=_("HTML-recommanded"), callback_data="set_mode_HTML")
-    builder.button(text="Markdown V2", callback_data="set_mode_MDV2")
-    builder.button(text=_("btn-plain-text"), callback_data="set_mode_PLAIN")
-    builder.adjust(2)
 
     await callback.message.edit_text(
         text=_("msg-select-parse-mode"),
-        reply_markup=builder.as_markup()
+        reply_markup=get_parse_mode_keyboard(i18n,bot_id)
     )
     await callback.answer()
 
@@ -199,7 +175,10 @@ async def set_parse_mode(callback: types.CallbackQuery, state: FSMContext, i18n:
     # تذكير المستخدم بالكلمات الدلالية
     instruction += "\n\n<code>{name}</code>, <code>{username}</code>, <code>{mention}</code>, <code>{id}</code>"
     
-    await callback.message.edit_text(text=instruction)
+    await callback.message.edit_text(
+        text=instruction,
+        reply_markup=get_cancel_keyboard(i18n)
+        )
     await callback.answer()
 
 # --- 3. استقبال النص، التحقق، والحفظ ---
