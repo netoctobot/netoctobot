@@ -33,6 +33,53 @@ async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
             disable_web_page_preview=True
         )
 
+@router.message(F.reply_to_message)
+async def handle_owner_reply_smart(message: types.Message, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    reply = message.reply_to_message
+    user_id = None
+
+    sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).select_related('owner').first)()
+    if not sub_bot: return
+    if message.from_user.id != sub_bot.owner.telegram_id:
+        # إذا لم يكن المالك، نخرج ونترك المعالج الآخر يتولى الأمر
+        return await handle_sub_bot_messages(message, bot, i18n)
+
+    # الحالة 1: الرد على رسالة موجهة مباشرة (Forward)
+    if reply.forward_from:
+        user_id = reply.forward_from.id
+    # جلب الـ ID من أزرار الـ Inline (أضمن طريقة)
+    elif reply.reply_markup:
+        for row in reply.reply_markup.inline_keyboard:
+            for button in row:
+                if button.callback_data and button.callback_data.startswith("view_sender_"):
+                    user_id = int(button.callback_data.split("_")[-1])
+                    break
+    # الحالة 2: الرد على رسالة البوت التوضيحية (استخراج الـ ID من النص)
+    if not user_id and reply.html_text:
+        # نبحث عن نمط الرقم (ID) في نص الرسالة التي يرد عليها صاحب البوت
+        # جلب النمط من الترجمة
+        raw_pattern = _("search-sender-id") 
+        match = re.search(raw_pattern, reply.html_text)
+
+        if match:
+            user_id = int(match.group(1))
+
+    # تنفيذ الإرسال إذا تم إيجاد الـ ID
+    if user_id:
+        try:
+            await bot.copy_message(
+                chat_id=user_id,
+                from_chat_id=message.chat.id,
+                message_id=message.message_id
+            )
+            await message.react([types.ReactionTypeEmoji(emoji="👍")])
+        except Exception as e:
+            await message.reply(_("msg-err-reply",e=e))
+    else:
+        await message.reply(_("msg-not-user-id"))
+
+
 @router.message(F.chat.type == "private")
 async def handle_sub_bot_messages(message: types.Message, bot: Bot, i18n: I18nContext):
     
@@ -42,10 +89,9 @@ async def handle_sub_bot_messages(message: types.Message, bot: Bot, i18n: I18nCo
     if not sub_bot: return
     
     owner_id = sub_bot.owner.telegram_id
-    if owner_id == message.from_user:
+    if owner_id == message.from_user.id:
         warning_msg = await message.reply(text=_("msg-warning-reply-required"))
         asyncio.create_task(delete_message_after(warning_msg))
-        asyncio.create_task(delete_message_after(message))
         return
 
     # 2. محاولة إعادة التوجيه
@@ -77,38 +123,6 @@ async def handle_sub_bot_messages(message: types.Message, bot: Bot, i18n: I18nCo
     # 5. التفاعل للمرسل دائماً لتأكيد الاستلام
     await message.react([types.ReactionTypeEmoji(emoji="👍")])
 
-@router.message(F.reply_to_message)
-async def handle_owner_reply_smart(message: types.Message, bot: Bot):
-    reply = message.reply_to_message
-    user_id = None
-
-    # الحالة 1: الرد على رسالة موجهة مباشرة (Forward)
-    if reply.forward_from:
-        user_id = reply.forward_from.id
-    
-    # الحالة 2: الرد على رسالة البوت التوضيحية (استخراج الـ ID من النص)
-    else:
-        # نبحث عن نمط الرقم (ID) في نص الرسالة التي يرد عليها صاحب البوت
-        match = re.search(r"آيدي المرسل:<\/b> <code>(\d+)<\/code>", reply.html_text)
-        if match:
-            user_id = int(match.group(1))
-
-    # تنفيذ الإرسال إذا تم إيجاد الـ ID
-    if user_id:
-        try:
-            await bot.copy_message(
-                chat_id=user_id,
-                from_chat_id=message.chat.id,
-                message_id=message.message_id
-            )
-            await message.react([types.ReactionTypeEmoji(emoji="✅")])
-        except Exception as e:
-            await message.reply(f"❌ <b>فشل التوصيل:</b> المستخدم أغلق البوت.\n<code>{e}</code>")
-    else:
-        await message.reply(
-            "⚠️ <b>تعذر تحديد المستلم!</b>\n\n"
-            "يرجى الرد (Reply) على رسالة البوت التي تحتوي على 'آيدي المرسل'."
-        )
 
 @router.callback_query(F.data.startswith("view_sender_"))
 async def view_sender_profile(callback: types.CallbackQuery):

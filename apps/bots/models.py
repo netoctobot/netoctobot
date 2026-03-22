@@ -1,3 +1,5 @@
+from aiogram import Bot
+from aiogram.client.default import DefaultBotProperties 
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from apps.accounts.models import TelegramUser
@@ -69,6 +71,10 @@ class SubBot(BaseModel):
         verbose_name=_("Force Subscribe Message")
     )
 
+    def get_bot_instance(self):
+        """إرجاع نسخة جاهزة من البوت للتشغيل"""
+        return Bot(token=self.token,default=DefaultBotProperties(parse_mode="HTML"))
+    
     def __str__(self):
         return f"{self.name} ({self.get_bot_type_display()})"
 

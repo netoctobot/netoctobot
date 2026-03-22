@@ -1,4 +1,4 @@
-
+import asyncio
 from asgiref.sync import sync_to_async
 from aiogram import Router, F, types, Bot
 from aiogram.fsm.context import FSMContext
@@ -72,6 +72,11 @@ async def process_token_cleanly(message: types.Message, state: FSMContext, i18n:
     if status == "success":
         await activate_partner_wallet(user)
         await state.clear()
+        
+        # 🚀 تشغيل البوت الجديد فوراً في الخلفية
+        from bot.main import dp # استيراد الـ Dispatcher الأساسي
+        # نقوم بتشغيل مهمة (Task) جديدة لهذا البوت دون انتظارها لكي لا يتوقف البوت الرئيسي
+        asyncio.create_task(dp.start_polling(new_bot.get_bot_instance()))
         
         # جلب قائمة البوتات المحدثة
         user_bots = await get_user_bots(user)

@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 11:13-0700\n"
+"POT-Creation-Date: 2026-03-22 12:03-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -222,7 +222,21 @@ msgstr "هذا هو نص الترحيب الحالي:"
 msgid "msg-defult-welcome"
 msgstr "مرحباً بك {name} في بوت التواصل الخاص بي!"
 
-#: bot/handlers/sub_bots/contact_logic.py:47
+#: bot/handlers/sub_bots/contact_logic.py:63
+msgid "search-sender-id"
+msgstr "<code>(\\d+)</code>"
+
+#: bot/handlers/sub_bots/contact_logic.py:78
+msgid "msg-err-reply"
+msgstr "❌ <b>فشل التوصيل:</b> المستخدم أغلق البوت.\n<code>{e}</code>"
+
+#: bot/handlers/sub_bots/contact_logic.py:84
+msgid "msg-not-user-id"
+msgstr ""
+"⚠️ <b>تعذر تحديد المستلم!</b>\n\n"
+"يرجى الرد (Reply) على رسالة البوت التي تحتوي على 'آيدي المرسل'."
+
+#: bot/handlers/sub_bots/contact_logic.py:97
 msgid "msg-warning-reply-required"
 msgstr "⚠️ قم بالرد على الرسالة المعاد توجيهها للتواصل وتسليم الرسالة للمستخدم"
 

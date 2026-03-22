@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 11:13-0700\n"
+"POT-Creation-Date: 2026-03-22 12:03-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -221,7 +221,19 @@ msgstr ""
 msgid "msg-defult-welcome"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:47
+#: bot/handlers/sub_bots/contact_logic.py:63
+msgid "search-sender-id"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:78
+msgid "msg-err-reply"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:84
+msgid "msg-not-user-id"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:97
 msgid "msg-warning-reply-required"
 msgstr ""
 
