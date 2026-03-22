@@ -2,7 +2,7 @@ from aiogram import Router, F, types, Bot
 from aiogram_i18n import I18nContext
 from bot.db_operations import get_user_and_subscription, get_user_bots, get_sub_bot_by_id, toggle_sub_bot_status, delete_sub_bot
 from bot.keyboards.inline.bot_management import get_my_bots_keyboard, get_bot_settings_keyboard, get_cancel_keyboard, get_parse_mode_keyboard
-from bot.utils.interface import return_to_bot_settings
+from bot.utils.interface import return_to_bot_settings, update_main_interface
 from bot.utils.formatters import format_personal_message # الدالة التي صنعناها
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
@@ -166,10 +166,11 @@ async def set_parse_mode(callback: types.CallbackQuery, state: FSMContext, i18n:
     # تذكير المستخدم بالكلمات الدلالية
     instruction += "\n\n<code>{name}</code>, <code>{username}</code>, <code>{mention}</code>, <code>{id}</code>"
     
-    await callback.message.edit_text(
+    msg = await callback.message.edit_text(
         text=instruction,
         reply_markup=get_cancel_keyboard(i18n)
         )
+    await state.update_data(last_msg_id=msg.message_id)
     await callback.answer()
 
 # --- 3. استقبال النص وعمل معاينة (بدون حفظ) ---
@@ -177,39 +178,62 @@ async def set_parse_mode(callback: types.CallbackQuery, state: FSMContext, i18n:
 async def preview_welcome_msg(message: types.Message, state: FSMContext, i18n: I18nContext, bot: Bot):
     _ = i18n.get
     data = await state.get_data()
-    mode = data['chosen_mode']
+    mode = data.get('chosen_mode')
     
-    # التقاط النص
+    # 1. جلب النص الخام
     raw_text = message.html_text if mode == "HTML" else message.text
     
     try:
-        # معاينة بدون توقيع (show_signature=False)
+        # 2. تجهيز المعاينة (بدون توقيع)
         preview_text = format_personal_message(raw_text, message.from_user, mode, i18n, show_signature=False)
-        
-        # تخزين النص في الـ State مؤقتاً لحين الضغط على "تأكيد"
         await state.update_data(temp_welcome_text=raw_text)
 
-        # تجهيز أزرار التأكيد
+        # 3. تجهيز الأزرار
         builder = InlineKeyboardBuilder()
         builder.button(text=_("btn-confirm-save"), callback_data="confirm_save_welcome")
-        builder.button(text=_("btn-re-edit"), callback_data=f"set_mode_{mode}") # يعيده لخطوة الإرسال
+        builder.button(text=_("btn-re-edit"), callback_data=f"set_mode_{mode}")
         builder.button(text=_("btn-cancel"), callback_data="cancel_operation")
         builder.adjust(2, 1)
 
-        # 1. إرسال المعاينة (رسالة جديدة للمعاينة لتكون واضحة)
-        # ملاحظة: تعديل رسالة المستخدم نفسه غير ممكن، لذا سنعدل رسالة البوت السابقة
-        # أو نرسل رسالة المعاينة ونحذف القديمة
-        await message.answer(
-            text=f"<b>{_('msg-preview-header')}</b>\n\n{preview_text}",
-            parse_mode="HTML" if mode == "HTML" else ("MarkdownV2" if mode == "MDV2" else None),
-            reply_markup=builder.as_markup()
-        )
+        # 4. جلب البيانات من DB والـ State
+        __, subscription, __ = await get_user_and_subscription(message.from_user, bot.token)
+        # تحديد الآيدي الصحيح للتعديل
+        target_id = subscription.last_main_message_id or data.get('last_msg_id')
+
+        # 5. توحيد الـ Parse Mode (هام جداً)
+        # بما أن العنوان يحتوي على <b>، سنحول الرسالة كاملة لـ HTML للمعاينة لضمان عدم حدوث تصادم
+        final_parse_mode = "HTML" 
+        header = f"<b>{_('msg-preview-header')}</b>\n\n"
         
-        # حذف رسالة المستخدم التي تحتوي النص الخام
-        try: await message.delete() 
-        except: pass
+        try:
+            # ✅ الإصلاح هنا: استخدمنا target_id بدلاً من last_msg_id
+            await bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=target_id,
+                text=f"{header}{preview_text}",
+                parse_mode=final_parse_mode,
+                reply_markup=builder.as_markup(),
+                disable_web_page_preview=True
+            )
+        except Exception:
+            # إذا فشل التعديل، نستخدم الـ Interface لإرسال رسالة جديدة وتنظيف القديم
+            await update_main_interface(
+                bot=bot,
+                chat_id=message.chat.id,
+                subscription=subscription,
+                text=f"{header}{preview_text}",
+                reply_markup=builder.as_markup(),
+                parse_mode=final_parse_mode
+            )
+        
+        # 6. حذف رسالة المستخدم التي تحتوي النص الخام
+        try: 
+            await message.delete() 
+        except: 
+            pass
 
     except Exception as e:
+        # إذا كان هناك خطأ في تنسيق HTML الذي أدخله المستخدم
         await message.reply(_("err-invalid-format", error=str(e)))
 
 # --- 4. معالج التأكيد النهائي والحفظ ---
@@ -217,12 +241,12 @@ async def preview_welcome_msg(message: types.Message, state: FSMContext, i18n: I
 async def final_save_welcome(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext, bot: Bot):
     _ = i18n.get
     data = await state.get_data()
-    bot_id = data['target_bot_id']
+    bot_id = data.get('target_bot_id')
     raw_text = data['temp_welcome_text']
     mode = data['chosen_mode']
 
     # الحفظ في قاعدة البيانات
-    user, subscription, _ = await get_user_and_subscription(callback.from_user, bot.token)
+    user, subscription, __ = await get_user_and_subscription(callback.from_user, bot.token)
     sub_bot = await get_sub_bot_by_id(bot_id, user)
     
     if sub_bot:

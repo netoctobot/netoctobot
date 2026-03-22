@@ -10,7 +10,7 @@ from bot.db_operations import get_user_and_subscription, get_sub_bot_by_id
 from bot.keyboards.inline.bot_management import get_bot_settings_keyboard
 
 
-async def update_main_interface(bot, chat_id, subscription, text, reply_markup):
+async def update_main_interface(bot, chat_id, subscription, text, reply_markup,parse_mode="HTML"):
     # محاولة حذف الرسالة السابقة لهذا البوت تحديداً
     if subscription.last_main_message_id:
         try:
@@ -22,6 +22,7 @@ async def update_main_interface(bot, chat_id, subscription, text, reply_markup):
     new_msg = await bot.send_message(
         chat_id=chat_id,
         text=text,
+        parse_mode = parse_mode,
         reply_markup=reply_markup
     )
 
