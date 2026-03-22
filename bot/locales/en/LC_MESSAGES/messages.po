@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 12:37-0700\n"
+"POT-Creation-Date: 2026-03-22 02:04-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -14,26 +14,31 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/navigation.py:31
+#: bot/handlers/common/navigation.py:32
 msgid "welcome-back"
 msgstr "Welcome back, {full_name}! ✨"
 
-#: bot/handlers/common/navigation.py:40
+#: bot/handlers/common/navigation.py:41
 msgid "toast-cancelled"
 msgstr "Cancelled"
 
-#: bot/handlers/common/navigation.py:59
+#: bot/handlers/common/navigation.py:58
 msgid "msg-feature-not-ready"
 msgstr ""
 
-#: bot/handlers/common/navigation.py:59
+#: bot/handlers/common/navigation.py:58
 msgid "msg-stay-tuned"
 msgstr ""
 
-#: bot/handlers/common/navigation.py:63
+#: bot/handlers/common/navigation.py:62
 #, fuzzy
 msgid "btn-back-to-main"
 msgstr "🔙 Back to Main Menu"
+
+#: bot/handlers/common/settings.py:15
+#, fuzzy
+msgid "msg-select-language"
+msgstr "Please select the type of bot you want to add:"
 
 #: bot/handlers/my_bots/add_bot.py:21
 msgid "type-list"
@@ -143,6 +148,10 @@ msgstr ""
 
 #: bot/handlers/my_bots/list_bots.py:159
 msgid "err-delete-failed"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:24
+msgid "msg-defult-welcome"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:10

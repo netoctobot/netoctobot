@@ -16,19 +16,12 @@ router = Router()
 router.message.filter(F.bot.token != BOT_TOKEN)
 
 @router.message(CommandStart())
-async def sub_bot_start(message: types.Message, i18n: I18nContext, bot: Bot):
+async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
     _ = i18n.get
-    # جلب بيانات المستخدم والاشتراك (سريع جداً الآن)
-    user, subscription, created = await get_user_and_subscription(
-        tg_user=message.from_user,
-        bot_token=bot.token  
-    )
-    is_system_admin = message.from_user.id in ADMIN_IDS
-    
-    sub_bot = await get_sub_bot_by_token(token=bot.token,owner=user)
+    sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).first)()
     
     if sub_bot:
-        raw_welcome = sub_bot.welcome_msg or "مرحباً بك {name} في بوت التواصل الخاص بي!"
+        raw_welcome = sub_bot.welcome_msg or _("msg-defult-welcome")
         p_mode = sub_bot.welcome_parse_mode # القيمة المخزنة (HTML أو MDV2)
         
         # 1. تنسيق النص بالبيانات الشخصية

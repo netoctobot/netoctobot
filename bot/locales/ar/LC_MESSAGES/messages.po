@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-21 12:37-0700\n"
+"POT-Creation-Date: 2026-03-22 02:04-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -15,25 +15,31 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/navigation.py:31
+#: bot/handlers/common/navigation.py:32
 msgid "welcome-back"
 msgstr "أهلاً يا {full_name}! ✨"
 
-#: bot/handlers/common/navigation.py:40
+#: bot/handlers/common/navigation.py:41
 msgid "toast-cancelled"
 msgstr "تم الإلغاء"
 
-#: bot/handlers/common/navigation.py:59
+#: bot/handlers/common/navigation.py:58
 msgid "msg-feature-not-ready"
 msgstr "هذا القسم لم يكتمل إعداده بعد"
 
-#: bot/handlers/common/navigation.py:59
+#: bot/handlers/common/navigation.py:58
 msgid "msg-stay-tuned"
 msgstr "نحن نعمل على إنهاء البرمجة قريباً، شكراً لانتظارك! 🐙"
 
-#: bot/handlers/common/navigation.py:63
+#: bot/handlers/common/navigation.py:62
 msgid "btn-back-to-main"
 msgstr "🔙 العودة للقائمة الرئيسية"
+
+#: bot/handlers/common/settings.py:15
+msgid "msg-select-language"
+msgstr ""
+"الرجاء اختيار اللغة المطلوبة:\n"
+" Please select your language"
 
 #: bot/handlers/my_bots/add_bot.py:21
 msgid "type-list"
@@ -143,6 +149,10 @@ msgstr "تم الحذف بنجاح!"
 msgid "err-delete-failed"
 msgstr "فشل الحذف!"
 
+#: bot/handlers/sub_bots/contact_logic.py:24
+msgid "msg-defult-welcome"
+msgstr "مرحباً بك {name} في بوت التواصل الخاص بي!"
+
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
 msgstr "➕ إضافة بوتي"
@@ -204,17 +214,12 @@ msgstr "🗑️ حذف البوت نهائياً"
 msgid "btn-back-to-list"
 msgstr "🔙 العودة لقائمة البوتات"
 
-msgid "msg-operation-cancelled"
-msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."
+#~ msgid "msg-operation-cancelled"
+#~ msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."
+
+#~ msgid "btn-admin-stats"
+#~ msgstr "📊 الإحصائيات العامة"
 
 msgid "welcome-new"
 msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"
-
-msgid "msg-select-language"
-msgstr ""
-"الرجاء اختيار اللغة المطلوبة:\n"
-" Please select your language"
-
-msgid "btn-admin-stats"
-msgstr "📊 الإحصائيات العامة"
 

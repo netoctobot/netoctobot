@@ -42,8 +42,7 @@ class SubBot(BaseModel):
         blank=True, 
         null=True, 
         verbose_name=_("Welcome Message"),
-        help_text=_("The message shown to users when they send /start"),
-        default=_("Default Welcome Message")
+        help_text=_("The message shown to users when they send /start")
     )
 
     # القنوات التي يفرضها صاحب البوت

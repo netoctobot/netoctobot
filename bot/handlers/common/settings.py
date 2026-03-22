@@ -10,8 +10,9 @@ router = Router()
 
 @router.callback_query(F.data == "change_lang")
 async def show_language_options(callback: types.CallbackQuery, i18n: I18nContext):
+    _ = i18n.get
     await callback.message.edit_text(
-        text=i18n.get("msg-select-language"),
+        text=_("msg-select-language"),
         reply_markup=get_language_keyboard()
     )
     await callback.answer()
@@ -20,7 +21,7 @@ async def show_language_options(callback: types.CallbackQuery, i18n: I18nContext
 async def set_user_language(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
     new_lang = callback.data.split("_")[2]
     
-    user, subscription, _ = await get_user_and_subscription(
+    user, subscription, __ = await get_user_and_subscription(
         tg_user=callback.from_user,
         bot_token=bot.token
     )
