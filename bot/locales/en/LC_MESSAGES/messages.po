@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 03:23-0700\n"
+"POT-Creation-Date: 2026-03-22 04:56-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -14,23 +14,20 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/navigation.py:32
-msgid "welcome-back"
-msgstr "Welcome back, {full_name}! ✨"
+#: bot/handlers/common/navigation.py:32 bot/handlers/my_bots/list_bots.py:151
+#, fuzzy
+msgid "msg-select-parse-mode"
+msgstr "Please select the type of bot you want to add:"
 
-#: bot/handlers/common/navigation.py:41
-msgid "toast-cancelled"
-msgstr "Cancelled"
-
-#: bot/handlers/common/navigation.py:58
+#: bot/handlers/common/navigation.py:65
 msgid "msg-feature-not-ready"
 msgstr ""
 
-#: bot/handlers/common/navigation.py:58
+#: bot/handlers/common/navigation.py:65
 msgid "msg-stay-tuned"
 msgstr ""
 
-#: bot/handlers/common/navigation.py:62
+#: bot/handlers/common/navigation.py:69
 #, fuzzy
 msgid "btn-back-to-main"
 msgstr "🔙 Back to Main Menu"
@@ -40,27 +37,27 @@ msgstr "🔙 Back to Main Menu"
 msgid "msg-select-language"
 msgstr "Please select the type of bot you want to add:"
 
-#: bot/handlers/my_bots/add_bot.py:21
+#: bot/handlers/my_bots/add_bot.py:20
 msgid "type-list"
 msgstr "Support List Bot"
 
-#: bot/handlers/my_bots/add_bot.py:22
+#: bot/handlers/my_bots/add_bot.py:21
 msgid "type-contact"
 msgstr "Contact Bot"
 
-#: bot/handlers/my_bots/add_bot.py:26
+#: bot/handlers/my_bots/add_bot.py:25
 msgid "msg-select-bot-type"
 msgstr "Please select the type of bot you want to add:"
 
-#: bot/handlers/my_bots/add_bot.py:39
+#: bot/handlers/my_bots/add_bot.py:38
 msgid "msg-send-token-now"
 msgstr "Please send your bot token now:"
 
-#: bot/handlers/my_bots/add_bot.py:63
+#: bot/handlers/my_bots/add_bot.py:61
 msgid "msg-checking-token"
 msgstr "Checking token, please wait..."
 
-#: bot/handlers/my_bots/add_bot.py:85
+#: bot/handlers/my_bots/add_bot.py:82
 msgid "msg-bot-added-success"
 msgstr ""
 "🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
@@ -68,15 +65,15 @@ msgstr ""
 "\n"
 "You can now manage it from the menu below:"
 
-#: bot/handlers/my_bots/add_bot.py:93
+#: bot/handlers/my_bots/add_bot.py:90
 msgid "err-token-already-registered"
 msgstr "This token is already registered. Please use another token."
 
-#: bot/handlers/my_bots/add_bot.py:103
+#: bot/handlers/my_bots/add_bot.py:100
 msgid "err-token-invalid"
 msgstr "Invalid token. Please verify your bot token and try again."
 
-#: bot/handlers/my_bots/add_bot.py:111
+#: bot/handlers/my_bots/add_bot.py:108
 msgid "err-system-error"
 msgstr ""
 "⚙️ A technical error occurred while connecting. Please try again later. "
@@ -90,45 +87,46 @@ msgstr ""
 msgid "msg-select-bot-to-manage"
 msgstr "Please select the type of bot you want to add:"
 
-#: bot/handlers/my_bots/list_bots.py:56 bot/handlers/my_bots/list_bots.py:93
+#: bot/handlers/my_bots/list_bots.py:53 bot/handlers/my_bots/list_bots.py:86
+#: bot/utils/interface.py:84
 msgid "err-bot-not-found"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:60 bot/handlers/my_bots/list_bots.py:97
+#: bot/handlers/my_bots/list_bots.py:57 bot/utils/interface.py:86
 msgid "status-active"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:60 bot/handlers/my_bots/list_bots.py:97
+#: bot/handlers/my_bots/list_bots.py:57 bot/utils/interface.py:86
 msgid "status-stopped"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:63 bot/handlers/my_bots/list_bots.py:100
+#: bot/handlers/my_bots/list_bots.py:60 bot/utils/interface.py:88
 msgid "msg-bot-settings-header"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:117
+#: bot/handlers/my_bots/list_bots.py:93
 msgid "msg-bot-activated"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:117
+#: bot/handlers/my_bots/list_bots.py:93
 msgid "msg-bot-deactivated"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:127
+#: bot/handlers/my_bots/list_bots.py:103
 #, fuzzy
 msgid "btn-yes-delete"
 msgstr "➕ Add Another Bot"
 
-#: bot/handlers/my_bots/list_bots.py:129
+#: bot/handlers/my_bots/list_bots.py:105
 #, fuzzy
 msgid "btn-no-cancel"
 msgstr "Cancel"
 
-#: bot/handlers/my_bots/list_bots.py:134
+#: bot/handlers/my_bots/list_bots.py:110
 msgid "msg-are-you-sure-delete"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:159
+#: bot/handlers/my_bots/list_bots.py:132
 #, fuzzy
 msgid "msg-bot-deleted-successfully"
 msgstr ""
@@ -137,7 +135,7 @@ msgstr ""
 "\n"
 "You can now manage it from the menu below:"
 
-#: bot/handlers/my_bots/list_bots.py:162
+#: bot/handlers/my_bots/list_bots.py:135
 #, fuzzy
 msgid "toast-deleted-success"
 msgstr ""
@@ -146,37 +144,38 @@ msgstr ""
 "\n"
 "You can now manage it from the menu below:"
 
-#: bot/handlers/my_bots/list_bots.py:164
+#: bot/handlers/my_bots/list_bots.py:137
 msgid "err-delete-failed"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:178
-msgid "HTML-recommanded"
-msgstr ""
-
-#: bot/handlers/my_bots/list_bots.py:180
-msgid "btn-plain-text"
-msgstr ""
-
-#: bot/handlers/my_bots/list_bots.py:184
-#, fuzzy
-msgid "msg-select-parse-mode"
-msgstr "Please select the type of bot you want to add:"
-
-#: bot/handlers/my_bots/list_bots.py:198
+#: bot/handlers/my_bots/list_bots.py:165
 msgid "msg-send-your-welcome-text"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:224
+#: bot/handlers/my_bots/list_bots.py:194
+msgid "btn-confirm-save"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:195
+#, fuzzy
+msgid "btn-re-edit"
+msgstr "➕ Add Another Bot"
+
+#: bot/handlers/my_bots/list_bots.py:196
+#: bot/keyboards/inline/bot_management.py:10
+msgid "btn-cancel"
+msgstr "Cancel"
+
+#: bot/handlers/my_bots/list_bots.py:203
 msgid "msg-preview-header"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:230
+#: bot/handlers/my_bots/list_bots.py:213
 #, fuzzy
 msgid "err-invalid-format"
 msgstr "Invalid token. Please verify your bot token and try again."
 
-#: bot/handlers/my_bots/list_bots.py:244
+#: bot/handlers/my_bots/list_bots.py:233
 #, fuzzy
 msgid "msg-welcome-saved-success"
 msgstr ""
@@ -184,6 +183,39 @@ msgstr ""
 "\n"
 "\n"
 "You can now manage it from the menu below:"
+
+#: bot/handlers/my_bots/list_bots.py:243
+#, fuzzy
+msgid "btn-view-current-welcome"
+msgstr "➕ Add Another Bot"
+
+#: bot/handlers/my_bots/list_bots.py:244
+#, fuzzy
+msgid "btn-edit-welcome"
+msgstr "➕ Add Another Bot"
+
+#: bot/handlers/my_bots/list_bots.py:245 bot/handlers/my_bots/list_bots.py:275
+#: bot/keyboards/inline/bot_management.py:85
+#, fuzzy
+msgid "btn-back"
+msgstr "🔙 Back to Main Menu"
+
+#: bot/handlers/my_bots/list_bots.py:249
+msgid "msg-choose-welcome-action"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:262
+#, fuzzy
+msgid "msg-no-welcome-set"
+msgstr ""
+"🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
+"\n"
+"\n"
+"You can now manage it from the menu below:"
+
+#: bot/handlers/my_bots/list_bots.py:278
+msgid "msg-current-welcome-is"
+msgstr ""
 
 #: bot/handlers/sub_bots/contact_logic.py:22
 msgid "msg-defult-welcome"
@@ -221,10 +253,6 @@ msgstr "⚙️ System Settings"
 msgid "btn-change-lang"
 msgstr "Change Language 🌐"
 
-#: bot/keyboards/inline/bot_management.py:10
-msgid "btn-cancel"
-msgstr "Cancel"
-
 #: bot/keyboards/inline/bot_management.py:19
 #: bot/keyboards/inline/bot_management.py:46
 msgid "btn-back-main"
@@ -259,9 +287,21 @@ msgstr "➕ Add Another Bot"
 msgid "btn-back-to-list"
 msgstr "🔙 Back to Main Menu"
 
+#: bot/keyboards/inline/bot_management.py:82
+msgid "HTML-recommanded"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:84
+msgid "btn-plain-text"
+msgstr ""
+
 #: bot/utils/formatters.py:9
 msgid "bot-signature"
 msgstr ""
+
+#: bot/utils/interface.py:47
+msgid "welcome-back"
+msgstr "Welcome back, {full_name}! ✨"
 
 #~ msgid "msg-operation-cancelled"
 #~ msgstr "Operation cancelled successfully. You can return to the main menu."
@@ -276,4 +316,7 @@ msgstr ""
 
 #~ msgid "btn-admin-stats"
 #~ msgstr "📊 Statistics"
+
+#~ msgid "toast-cancelled"
+#~ msgstr "Cancelled"
 

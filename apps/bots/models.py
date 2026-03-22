@@ -46,6 +46,12 @@ class SubBot(BaseModel):
         verbose_name=_("Welcome Message"),
         help_text=_("The message shown to users when they send /start")
     )
+    welcome_parse_mode = models.CharField(
+        max_length=5, 
+        choices=ParseMode.choices, 
+        default=ParseMode.HTML,
+        verbose_name=_("Welcome Message Format")
+    )
 
     # القنوات التي يفرضها صاحب البوت
     # ملاحظة: يمكن للبوت الواحد فرض عدة قنوات

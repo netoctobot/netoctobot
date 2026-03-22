@@ -3,7 +3,7 @@ from aiogram import types
 from aiogram.utils.markdown import markdown_decoration as md # استيراد المصحح
 from aiogram_i18n import I18nContext
 
-def format_personal_message(raw_text: str, user: types.User, parse_mode: str, i18n: I18nContext):
+def format_personal_message(raw_text: str, user: types.User, parse_mode: str, i18n: I18nContext, show_signature: bool = True):
     _ = i18n.get
     master_link = "https://t.me/net_octobot"
     signature_text = _("bot-signature")
@@ -36,4 +36,8 @@ def format_personal_message(raw_text: str, user: types.User, parse_mode: str, i1
                              .replace("{id}", str(user.id))\
                              .replace("{mention}", mention)
     
+    if not show_signature:
+        return formatted_text
+        
+    # منطق التوقيع (Signature) هنا
     return formatted_text + signature_html

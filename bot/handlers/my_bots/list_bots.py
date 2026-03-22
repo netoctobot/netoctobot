@@ -2,7 +2,7 @@ from aiogram import Router, F, types, Bot
 from aiogram_i18n import I18nContext
 from bot.db_operations import get_user_and_subscription, get_user_bots, get_sub_bot_by_id, toggle_sub_bot_status, delete_sub_bot
 from bot.keyboards.inline.bot_management import get_my_bots_keyboard, get_bot_settings_keyboard, get_cancel_keyboard, get_parse_mode_keyboard
-from bot.utils.interface import update_main_interface, return_to_bot_settings
+from bot.utils.interface import return_to_bot_settings
 from bot.utils.formatters import format_personal_message # الدالة التي صنعناها
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
@@ -32,13 +32,10 @@ async def show_bots_list(callback: types.CallbackQuery, i18n: I18nContext, bot: 
         text = _("msg-select-bot-to-manage", count=len(user_bots))
     
     # 4. تحديث الواجهة (تعديل الرسالة نفسها)
-    await update_main_interface(
-        bot=bot,
-        chat_id=callback.message.chat.id,
-        subscription=subscription,
-        text=text,
-        reply_markup=get_my_bots_keyboard(i18n, user_bots)
-    )
+    await callback.message.edit_text(
+            text=text,
+            reply_markup=get_my_bots_keyboard(i18n, user_bots)
+            )
     await callback.answer()
 
 @router.callback_query(F.data.startswith("manage_bot_"))
@@ -68,13 +65,10 @@ async def manage_single_bot(callback: types.CallbackQuery, i18n: I18nContext, bo
     )
 
     # 4. تحديث الواجهة
-    await update_main_interface(
-        bot=bot,
-        chat_id=callback.message.chat.id,
-        subscription=subscription,
+    await callback.message.edit_text(
         text=text,
         reply_markup=get_bot_settings_keyboard(i18n, sub_bot)
-    )
+        )
     await callback.answer()
 
 @router.callback_query(F.data.startswith("toggle_bot_"))
@@ -134,13 +128,10 @@ async def process_final_delete(callback: types.CallbackQuery, i18n: I18nContext,
         from bot.db_operations import get_user_bots
         user_bots = await get_user_bots(user)
         
-        await update_main_interface(
-            bot=bot,
-            chat_id=callback.message.chat.id,
-            subscription=subscription,
+        await callback.message.edit_text(
             text=_("msg-bot-deleted-successfully"),
             reply_markup=get_my_bots_keyboard(i18n, user_bots)
-        )
+            )
         await callback.answer(_("toast-deleted-success"), show_alert=True)
     else:
         await callback.answer(_("err-delete-failed"), show_alert=True)
@@ -181,49 +172,110 @@ async def set_parse_mode(callback: types.CallbackQuery, state: FSMContext, i18n:
         )
     await callback.answer()
 
-# --- 3. استقبال النص، التحقق، والحفظ ---
+# --- 3. استقبال النص وعمل معاينة (بدون حفظ) ---
 @router.message(SubBotSettingsSG.waiting_for_welcome_msg)
-async def save_welcome_msg(message: types.Message, state: FSMContext, i18n: I18nContext, bot: Bot):
+async def preview_welcome_msg(message: types.Message, state: FSMContext, i18n: I18nContext, bot: Bot):
+    _ = i18n.get
+    data = await state.get_data()
+    mode = data['chosen_mode']
+    
+    # التقاط النص
+    raw_text = message.html_text if mode == "HTML" else message.text
+    
+    try:
+        # معاينة بدون توقيع (show_signature=False)
+        preview_text = format_personal_message(raw_text, message.from_user, mode, i18n, show_signature=False)
+        
+        # تخزين النص في الـ State مؤقتاً لحين الضغط على "تأكيد"
+        await state.update_data(temp_welcome_text=raw_text)
+
+        # تجهيز أزرار التأكيد
+        builder = InlineKeyboardBuilder()
+        builder.button(text=_("btn-confirm-save"), callback_data="confirm_save_welcome")
+        builder.button(text=_("btn-re-edit"), callback_data=f"set_mode_{mode}") # يعيده لخطوة الإرسال
+        builder.button(text=_("btn-cancel"), callback_data="cancel_operation")
+        builder.adjust(2, 1)
+
+        # 1. إرسال المعاينة (رسالة جديدة للمعاينة لتكون واضحة)
+        # ملاحظة: تعديل رسالة المستخدم نفسه غير ممكن، لذا سنعدل رسالة البوت السابقة
+        # أو نرسل رسالة المعاينة ونحذف القديمة
+        await message.answer(
+            text=f"<b>{_('msg-preview-header')}</b>\n\n{preview_text}",
+            parse_mode="HTML" if mode == "HTML" else ("MarkdownV2" if mode == "MDV2" else None),
+            reply_markup=builder.as_markup()
+        )
+        
+        # حذف رسالة المستخدم التي تحتوي النص الخام
+        try: await message.delete() 
+        except: pass
+
+    except Exception as e:
+        await message.reply(_("err-invalid-format", error=str(e)))
+
+# --- 4. معالج التأكيد النهائي والحفظ ---
+@router.callback_query(F.data == "confirm_save_welcome")
+async def final_save_welcome(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext, bot: Bot):
     _ = i18n.get
     data = await state.get_data()
     bot_id = data['target_bot_id']
+    raw_text = data['temp_welcome_text']
     mode = data['chosen_mode']
-    
-    # التقاط النص مع التنسيق إذا كان HTML
-    raw_text = message.html_text if mode == "HTML" else message.text
 
-    # 1. اختبار التنسيق (Validation)
-    try:
-        # نمرر i18n للدالة لجلب التوقيع المترجم
-        test_msg = format_personal_message(raw_text, message.from_user, mode, i18n)
-        
-        # محاولة إرسال المعاينة
-        parse_mode_map = {"HTML": "HTML", "MDV2": "MarkdownV2", "PLAIN": None}
-        await message.answer(
-            text=f"{_('msg-preview-header')}\n\n{test_msg}",
-            parse_mode=parse_mode_map.get(mode),
-            disable_web_page_preview=True
-        )
-    except Exception as e:
-        # إذا فشل التنسيق، نطلب منه المحاولة مرة أخرى دون الخروج من الحالة
-        await message.reply(_("err-invalid-format", error=str(e)))
-        return
-
-    # 2. الحفظ النهائي في قاعدة البيانات
-    from bot.db_operations import get_sub_bot_by_id
-    from asgiref.sync import sync_to_async
+    # الحفظ في قاعدة البيانات
+    user, subscription, _ = await get_user_and_subscription(callback.from_user, bot.token)
+    sub_bot = await get_sub_bot_by_id(bot_id, user)
     
-    # (تأكد من جلب الكائن وحفظه)
-    sub_bot = await get_sub_bot_by_id(bot_id, message.from_user.id) # عدل حسب دوال DB لديك
     if sub_bot:
         sub_bot.welcome_msg = raw_text
         sub_bot.welcome_parse_mode = mode
         await sync_to_async(sub_bot.save)()
         
-        await message.answer(_("msg-welcome-saved-success"))
+        await callback.answer(_("msg-welcome-saved-success"), show_alert=True)
+        await return_to_bot_settings(callback, bot_id, i18n, bot)
         await state.clear()
-        # هنا يمكننا إعادته لواجهة التحكم بالبوت الرئيسي
-     # حذف الرسالة فوراً
-    try:
-        await message.delete()
-    except: pass 
+
+@router.callback_query(F.data.startswith("welcome_options_"))
+async def show_welcome_options(callback: types.CallbackQuery, i18n: I18nContext):
+    _ = i18n.get
+    bot_id = callback.data.split("_")[-1]
+    
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_("btn-view-current-welcome"), callback_data=f"view_welcome_{bot_id}")
+    builder.button(text=_("btn-edit-welcome"), callback_data=f"edit_welcome_{bot_id}")
+    builder.button(text=_("btn-back"), callback_data=f"manage_bot_{bot_id}")
+    builder.adjust(1)
+
+    await callback.message.edit_text(
+        text=_("msg-choose-welcome-action"),
+        reply_markup=builder.as_markup()
+    )
+
+@router.callback_query(F.data.startswith("view_welcome_"))
+async def view_current_welcome(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
+    _ = i18n.get
+    bot_id = callback.data.split("_")[-1]
+    
+    user, __, __ = await get_user_and_subscription(callback.from_user, bot.token)
+    sub_bot = await get_sub_bot_by_id(bot_id, user)
+    
+    if not sub_bot or not sub_bot.welcome_msg:
+        await callback.answer(_("msg-no-welcome-set"), show_alert=True)
+        return
+
+    # عرض المعاينة بدون توقيع
+    preview = format_personal_message(
+        sub_bot.welcome_msg, 
+        callback.from_user, 
+        sub_bot.welcome_parse_mode, 
+        i18n, 
+        show_signature=False
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_("btn-back"), callback_data=f"welcome_options_{bot_id}")
+
+    await callback.message.edit_text(
+        text=f"📝 <b>{_('msg-current-welcome-is')}</b>\n\n{preview}",
+        parse_mode="HTML" if sub_bot.welcome_parse_mode == "HTML" else None, # حسب نوعها
+        reply_markup=builder.as_markup()
+    )
