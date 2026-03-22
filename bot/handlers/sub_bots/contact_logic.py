@@ -1,8 +1,6 @@
 import re
 from aiogram import Router, types, F, Bot
-from bot.keyboards.main_menu import get_main_keyboard
-from bot.utils.interface import setup_master_bot_sync, update_main_interface # الدالة التي تحذف وترسل
-from aiogram.client.default import DefaultBotProperties 
+from bot.utils.formatters import format_personal_message
 from aiogram.filters import Command, CommandStart
 from aiogram_i18n import I18nContext
 from asgiref.sync import sync_to_async
@@ -26,28 +24,12 @@ async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
         
         # 1. تنسيق النص بالبيانات الشخصية
         personalized_text = format_personal_message(raw_welcome, message.from_user, p_mode)
-        
-        # 2. إضافة التوقيع (Branding)
-        signature = f'\n\n<a href="https://t.me/net_octobot">Created via NerOcto 🐙</a>'
-        
+                
         await message.answer(
-            text=personalized_text + signature,
+            text=personalized_text,
             parse_mode=p_mode if p_mode != "PLAIN" else None,
             disable_web_page_preview=True
         )
-    
-    # استخدام الواجهة المتجددة (حذف الرسالة القديمة وتثبيت الجديدة)
-    await update_main_interface(
-        bot=bot,
-        chat_id=message.chat.id,
-        subscription=subscription,
-        text=text,
-        reply_markup=get_main_keyboard(
-            i18n,
-            is_admin=is_system_admin,
-            is_partner=user.is_partner
-            )
-    )
 
 @router.message(F.chat.type == "private")
 async def handle_sub_bot_messages(message: types.Message, bot: Bot):

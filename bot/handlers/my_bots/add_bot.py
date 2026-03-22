@@ -3,7 +3,7 @@ from asgiref.sync import sync_to_async
 from aiogram import Router, F, types, Bot
 from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
-from bot.core.states import AddBotSG
+from bot.states.main_states import AddBotSG
 from bot.keyboards.inline.bot_management import get_cancel_keyboard, get_manage_bot_keyboard, get_my_bots_keyboard
 from bot.keyboards.main_menu import get_main_keyboard # القائمة الرئيسية
 from apps.bots.services import validate_and_register_bot

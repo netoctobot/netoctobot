@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 02:04-0700\n"
+"POT-Creation-Date: 2026-03-22 02:21-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -150,7 +150,7 @@ msgstr ""
 msgid "err-delete-failed"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:24
+#: bot/handlers/sub_bots/contact_logic.py:26
 msgid "msg-defult-welcome"
 msgstr ""
 
@@ -218,6 +218,10 @@ msgstr "➕ Add Another Bot"
 #, fuzzy
 msgid "btn-back-to-list"
 msgstr "🔙 Back to Main Menu"
+
+#: bot/utils/formatters.py:9
+msgid "bot-signature"
+msgstr ""
 
 #~ msgid "msg-operation-cancelled"
 #~ msgstr "Operation cancelled successfully. You can return to the main menu."

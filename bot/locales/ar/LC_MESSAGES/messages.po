@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 02:04-0700\n"
+"POT-Creation-Date: 2026-03-22 02:21-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -149,7 +149,7 @@ msgstr "تم الحذف بنجاح!"
 msgid "err-delete-failed"
 msgstr "فشل الحذف!"
 
-#: bot/handlers/sub_bots/contact_logic.py:24
+#: bot/handlers/sub_bots/contact_logic.py:26
 msgid "msg-defult-welcome"
 msgstr "مرحباً بك {name} في بوت التواصل الخاص بي!"
 
@@ -213,6 +213,10 @@ msgstr "🗑️ حذف البوت نهائياً"
 #: bot/keyboards/inline/bot_management.py:71
 msgid "btn-back-to-list"
 msgstr "🔙 العودة لقائمة البوتات"
+
+#: bot/utils/formatters.py:9
+msgid "bot-signature"
+msgstr "تم الإنشاء بواسطة Net Octobot 🐙"
 
 #~ msgid "msg-operation-cancelled"
 #~ msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."
