@@ -173,6 +173,27 @@ async def set_parse_mode(callback: types.CallbackQuery, state: FSMContext, i18n:
     await state.update_data(last_msg_id=msg.message_id)
     await callback.answer()
 
+
+@router.callback_query(F.data.startswith("re_edit_"))
+async def re_edite_mode(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
+    _ = i18n.get
+    mode = callback.data.split("_")[-1]
+    await state.update_data(chosen_mode=mode)
+    
+    await state.set_state(SubBotSettingsSG.waiting_for_welcome_msg)
+    
+    instruction = _("msg-send-your-welcome-text", mode=mode)
+    # تذكير المستخدم بالكلمات الدلالية
+    instruction += "\n\n<code>{name}</code>, <code>{username}</code>, <code>{mention}</code>, <code>{id}</code>"
+    
+    msg = await callback.message.edit_text(
+        text=instruction,
+        reply_markup=get_cancel_keyboard(i18n)
+        )
+    await state.update_data(last_msg_id=msg.message_id)
+    await callback.answer()
+
+
 # --- 3. استقبال النص وعمل معاينة (بدون حفظ) ---
 @router.message(SubBotSettingsSG.waiting_for_welcome_msg)
 async def preview_welcome_msg(message: types.Message, state: FSMContext, i18n: I18nContext, bot: Bot):
@@ -191,7 +212,7 @@ async def preview_welcome_msg(message: types.Message, state: FSMContext, i18n: I
         # 3. تجهيز الأزرار
         builder = InlineKeyboardBuilder()
         builder.button(text=_("btn-confirm-save"), callback_data="confirm_save_welcome")
-        builder.button(text=_("btn-re-edit"), callback_data=f"set_mode_{mode}")
+        builder.button(text=_("btn-re-edit"), callback_data=f"re_edit_{mode}")
         builder.button(text=_("btn-cancel"), callback_data="cancel_operation")
         builder.adjust(2, 1)
 

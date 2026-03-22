@@ -23,7 +23,7 @@ async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
         p_mode = sub_bot.welcome_parse_mode # القيمة المخزنة (HTML أو MDV2)
         
         # 1. تنسيق النص بالبيانات الشخصية
-        personalized_text = format_personal_message(raw_welcome, message.from_user, p_mode)
+        personalized_text = format_personal_message(raw_welcome, message.from_user, p_mode,i18n)
                 
         await message.answer(
             text=personalized_text,
