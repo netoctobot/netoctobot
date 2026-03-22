@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 02:50-0700\n"
+"POT-Creation-Date: 2026-03-22 03:19-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -159,21 +159,36 @@ msgstr "نص عادي"
 
 #: bot/handlers/my_bots/list_bots.py:184
 msgid "msg-select-parse-mode"
-msgstr "🛠️ **اختر نوع التنسيق لرسالة الترحيب:**\n\n• <b>HTML:</b> يدعم الروابط والأكواد.\n• <b>Markdown:</b> للمحترفين.\n• <b>Plain:</b> نص عادي بسيط."
+msgstr ""
+"🛠️ **اختر نوع التنسيق لرسالة الترحيب:**\n"
+"\n"
+"• <b>HTML:</b> يدعم الروابط والأكواد.\n"
+"• <b>Markdown:</b> للمحترفين.\n"
+"• <b>Plain:</b> نص عادي بسيط."
 
 #: bot/handlers/my_bots/list_bots.py:198
 msgid "msg-send-your-welcome-text"
-msgstr "📝 **أرسل الآن نص الترحيب بنمط {mode}:**\n\nيمكنك استخدام الرموز التالية:\n- <code>{name}</code> : اسم المستخدم\n- <code>{mention}</code> : تاغ للحساب\n- <code>{username}</code> : اليوزرنيم\n- <code>{id}</code> : الآيدي"
+msgstr ""
+"📝 **أرسل الآن نص الترحيب بنمط {mode}:**\n"
+"\n"
+"يمكنك استخدام الرموز التالية:\n"
+"- <code>{name}</code> : اسم المستخدم\n"
+"- <code>{mention}</code> : تاغ للحساب\n"
+"- <code>{username}</code> : اليوزرنيم\n"
+"- <code>{id}</code> : الآيدي"
 
-#: bot/handlers/my_bots/list_bots.py:220
+#: bot/handlers/my_bots/list_bots.py:224
 msgid "msg-preview-header"
 msgstr "👁️ **معاينة الرسالة كما ستظهر للمشتركين:**"
 
-#: bot/handlers/my_bots/list_bots.py:225
+#: bot/handlers/my_bots/list_bots.py:230
 msgid "err-invalid-format"
-msgstr "❌ **خطأ في التنسيق!**\nيرجى التأكد من إغلاق الوسوم بشكل صحيح.\nالخطأ: {error}"
+msgstr ""
+"❌ **خطأ في التنسيق!**\n"
+"يرجى التأكد من إغلاق الوسوم بشكل صحيح.\n"
+"الخطأ: {error}"
 
-#: bot/handlers/my_bots/list_bots.py:237
+#: bot/handlers/my_bots/list_bots.py:244
 msgid "msg-welcome-saved-success"
 msgstr "✅ تم حفظ رسالة الترحيب وتفعيلها بنجاح!"
 
