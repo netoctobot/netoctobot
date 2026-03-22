@@ -1,6 +1,6 @@
 from aiogram import Router, F, types, Bot
 from aiogram_i18n import I18nContext
-from bot.db_operations import get_user_and_subscription, get_user_bots, get_sub_bot_by_id, toggle_sub_bot_status, delete_sub_bot
+from bot.db_operations import get_user_and_subscription, get_user_bots, get_sub_bot_by_id
 from bot.keyboards.inline.bot_management import get_my_bots_keyboard, get_bot_settings_keyboard, get_cancel_keyboard, get_parse_mode_keyboard
 from bot.utils.interface import return_to_bot_settings, update_main_interface
 from bot.utils.formatters import format_personal_message # الدالة التي صنعناها
@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from bot.states.sub_bot_states import SubBotSettingsSG
 from apps.bots.models import SubBot
 from asgiref.sync import sync_to_async
+from bot.bot_manager import toggle_sub_bot_full_cycle, delete_sub_bot_full_cycle
 
 router = Router()
 
@@ -80,7 +81,7 @@ async def toggle_bot_handler(callback: types.CallbackQuery, i18n: I18nContext, b
     user, subscription, __ = await get_user_and_subscription(callback.from_user, bot.token)
     
     # 2. تغيير الحالة في قاعدة البيانات
-    updated_bot = await toggle_sub_bot_status(bot_id, user)
+    updated_bot = await toggle_sub_bot_full_cycle(bot_id, user)
     
     if not updated_bot:
         return await callback.answer(_("err-bot-not-found"), show_alert=True)
@@ -121,7 +122,7 @@ async def process_final_delete(callback: types.CallbackQuery, i18n: I18nContext,
     user, subscription, create = await get_user_and_subscription(callback.from_user, bot.token)
     
     # 2. تنفيذ الحذف
-    success = await delete_sub_bot(bot_id, user)
+    success = await delete_sub_bot_full_cycle(bot_id, user)
     
     if success:
         # جلب القائمة المحدثة بعد الحذف

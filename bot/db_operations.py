@@ -118,7 +118,8 @@ def delete_sub_bot(bot_id, owner):
     """حذف البوت نهائياً من قاعدة البيانات"""
     try:
         sub_bot = SubBot.objects.get(id=bot_id, owner=owner)
+        token = sub_bot.token
         sub_bot.delete()
-        return True
+        return token
     except Exception:
-        return False
+        return None
