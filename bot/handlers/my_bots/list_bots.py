@@ -210,35 +210,40 @@ async def save_welcome_msg(message: types.Message, state: FSMContext, i18n: I18n
     bot_id = data['target_bot_id']
     mode = data['chosen_mode']
     
+    # التقاط النص مع التنسيق إذا كان HTML
     raw_text = message.html_text if mode == "HTML" else message.text
-   
-    # 🔥 اختبار التنسيق قبل الحفظ (Validation)
+
+    # 1. اختبار التنسيق (Validation)
     try:
+        # نمرر i18n للدالة لجلب التوقيع المترجم
         test_msg = format_personal_message(raw_text, message.from_user, mode, i18n)
-        # محاولة إرسال رسالة تجريبية للتأكد من أن تيليجرام يقبل التنسيق
+        
+        # محاولة إرسال المعاينة
+        parse_mode_map = {"HTML": "HTML", "MDV2": "MarkdownV2", "PLAIN": None}
         await message.answer(
-            text=_("msg-preview-header") + "\n" + "—" * 10 + "\n" + test_msg,
-            parse_mode="HTML" if mode == "HTML" else ( "MarkdownV2" if mode == "MDV2" else None),
+            text=f"{_('msg-preview-header')}\n\n{test_msg}",
+            parse_mode=parse_mode_map.get(mode),
             disable_web_page_preview=True
         )
     except Exception as e:
+        # إذا فشل التنسيق، نطلب منه المحاولة مرة أخرى دون الخروج من الحالة
         await message.reply(_("err-invalid-format", error=str(e)))
         return
 
-    # 4. الحفظ في قاعدة البيانات
-    user, subscription, __ = await get_user_and_subscription(message.from_user, bot.token)
-    sub_bot = await get_sub_bot_by_id(bot_id, user)
+    # 2. الحفظ النهائي في قاعدة البيانات
+    from bot.db_operations import get_sub_bot_by_id
+    from asgiref.sync import sync_to_async
     
+    # (تأكد من جلب الكائن وحفظه)
+    sub_bot = await get_sub_bot_by_id(bot_id, message.from_user.id) # عدل حسب دوال DB لديك
     if sub_bot:
         sub_bot.welcome_msg = raw_text
         sub_bot.welcome_parse_mode = mode
         await sync_to_async(sub_bot.save)()
         
         await message.answer(_("msg-welcome-saved-success"))
-        # العودة لواجهة البوت
         await state.clear()
-        # هنا يمكنك استدعاء manage_single_bot لإعادة عرض الإعدادات
-
+        # هنا يمكننا إعادته لواجهة التحكم بالبوت الرئيسي
      # حذف الرسالة فوراً
     try:
         await message.delete()

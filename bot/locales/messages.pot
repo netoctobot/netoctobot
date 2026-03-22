@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 02:50-0700\n"
+"POT-Creation-Date: 2026-03-22 03:19-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -149,15 +149,15 @@ msgstr ""
 msgid "msg-send-your-welcome-text"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:220
+#: bot/handlers/my_bots/list_bots.py:224
 msgid "msg-preview-header"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:225
+#: bot/handlers/my_bots/list_bots.py:230
 msgid "err-invalid-format"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:237
+#: bot/handlers/my_bots/list_bots.py:244
 msgid "msg-welcome-saved-success"
 msgstr ""
 

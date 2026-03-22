@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 02:21-0700\n"
+"POT-Creation-Date: 2026-03-22 02:50-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -82,53 +82,53 @@ msgstr ""
 "⚙️ A technical error occurred while connecting. Please try again later. "
 "(Error: {error_detail})"
 
-#: bot/handlers/my_bots/list_bots.py:25
+#: bot/handlers/my_bots/list_bots.py:30
 msgid "msg-no-bots-found"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:27
+#: bot/handlers/my_bots/list_bots.py:32
 msgid "msg-select-bot-to-manage"
 msgstr "Please select the type of bot you want to add:"
 
-#: bot/handlers/my_bots/list_bots.py:51 bot/handlers/my_bots/list_bots.py:88
+#: bot/handlers/my_bots/list_bots.py:56 bot/handlers/my_bots/list_bots.py:93
 msgid "err-bot-not-found"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:55 bot/handlers/my_bots/list_bots.py:92
+#: bot/handlers/my_bots/list_bots.py:60 bot/handlers/my_bots/list_bots.py:97
 msgid "status-active"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:55 bot/handlers/my_bots/list_bots.py:92
+#: bot/handlers/my_bots/list_bots.py:60 bot/handlers/my_bots/list_bots.py:97
 msgid "status-stopped"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:58 bot/handlers/my_bots/list_bots.py:95
+#: bot/handlers/my_bots/list_bots.py:63 bot/handlers/my_bots/list_bots.py:100
 msgid "msg-bot-settings-header"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:112
+#: bot/handlers/my_bots/list_bots.py:117
 msgid "msg-bot-activated"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:112
+#: bot/handlers/my_bots/list_bots.py:117
 msgid "msg-bot-deactivated"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:122
+#: bot/handlers/my_bots/list_bots.py:127
 #, fuzzy
 msgid "btn-yes-delete"
 msgstr "➕ Add Another Bot"
 
-#: bot/handlers/my_bots/list_bots.py:124
+#: bot/handlers/my_bots/list_bots.py:129
 #, fuzzy
 msgid "btn-no-cancel"
 msgstr "Cancel"
 
-#: bot/handlers/my_bots/list_bots.py:129
+#: bot/handlers/my_bots/list_bots.py:134
 msgid "msg-are-you-sure-delete"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:154
+#: bot/handlers/my_bots/list_bots.py:159
 #, fuzzy
 msgid "msg-bot-deleted-successfully"
 msgstr ""
@@ -137,7 +137,7 @@ msgstr ""
 "\n"
 "You can now manage it from the menu below:"
 
-#: bot/handlers/my_bots/list_bots.py:157
+#: bot/handlers/my_bots/list_bots.py:162
 #, fuzzy
 msgid "toast-deleted-success"
 msgstr ""
@@ -146,11 +146,46 @@ msgstr ""
 "\n"
 "You can now manage it from the menu below:"
 
-#: bot/handlers/my_bots/list_bots.py:159
+#: bot/handlers/my_bots/list_bots.py:164
 msgid "err-delete-failed"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:26
+#: bot/handlers/my_bots/list_bots.py:178
+msgid "HTML-recommanded"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:180
+msgid "btn-plain-text"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:184
+#, fuzzy
+msgid "msg-select-parse-mode"
+msgstr "Please select the type of bot you want to add:"
+
+#: bot/handlers/my_bots/list_bots.py:198
+msgid "msg-send-your-welcome-text"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:220
+msgid "msg-preview-header"
+msgstr ""
+
+#: bot/handlers/my_bots/list_bots.py:225
+#, fuzzy
+msgid "err-invalid-format"
+msgstr "Invalid token. Please verify your bot token and try again."
+
+#: bot/handlers/my_bots/list_bots.py:237
+#, fuzzy
+msgid "msg-welcome-saved-success"
+msgstr ""
+"🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
+"\n"
+"\n"
+"You can now manage it from the menu below:"
+
+#: bot/handlers/sub_bots/contact_logic.py:22
 msgid "msg-defult-welcome"
 msgstr ""
 

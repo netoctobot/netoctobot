@@ -1,9 +1,23 @@
 from asgiref.sync import sync_to_async
 from apps.accounts.models import TelegramUser, Wallet
-from apps.bots.models import SubBot, BotSubscription
+from apps.bots.models import SubBot, BotSubscription, AdminChannel
 from aiogram import types
 from bot.config import BOT_TOKEN
 
+@sync_to_async
+def get_main_channels_list():
+    return list(AdminChannel.objects.all())
+
+
+@sync_to_async
+def get_subbot_channels_list(bot_token):
+    # نستخدم .first() لجلب كائن البوت أولاً
+    sub_bot = SubBot.objects.filter(token=bot_token).first()
+    if sub_bot:
+        # نحول القنوات إلى قائمة لضمان فك الارتباط بقاعدة البيانات قبل العودة للـ async
+        return list(sub_bot.force_channels.all())
+    return []
+    
 @sync_to_async
 def get_user_and_subscription(tg_user: types.User, bot_token: str):
     """

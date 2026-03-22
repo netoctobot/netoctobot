@@ -6,6 +6,8 @@ from apps.core.models import BaseModel # الاستيراد من المكان ا
 class AdminChannel(BaseModel):
     channel_id = models.BigIntegerField(
         unique=True,
+        null=True, 
+        blank=True, 
         verbose_name=_("Channel ID")
     )
     username = models.CharField(
