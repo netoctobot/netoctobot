@@ -67,8 +67,11 @@ def get_bot_settings_keyboard(i18n: I18nContext, sub_bot):
     # زر حذف البوت
     builder.button(text=_("btn-delete-bot"), callback_data=f"confirm_delete_{sub_bot.id}")
 
+    # زر تعديل الرسالة الترحيبية
+    builder.button(text=_("btn-edit-welcome-bot"), callback_data=f"edit_welcome_{sub_bot.id}")
+
     # زر العودة لقائمة "بوتاتي"
     builder.button(text=_("btn-back-to-list"), callback_data="list_my_bots")
 
-    builder.adjust(1)
+    builder.adjust(2)
     return builder.as_markup()

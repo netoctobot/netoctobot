@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 03:19-0700\n"
+"POT-Creation-Date: 2026-03-22 03:23-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -254,6 +254,10 @@ msgid "btn-delete-bot"
 msgstr "🗑️ حذف البوت نهائياً"
 
 #: bot/keyboards/inline/bot_management.py:71
+msgid "btn-edit-welcome-bot"
+msgstr "👋 الرسالة الترحيبية
+
+#: bot/keyboards/inline/bot_management.py:74
 msgid "btn-back-to-list"
 msgstr "🔙 العودة لقائمة البوتات"
 
@@ -267,6 +271,6 @@ msgstr "صُنع بواسطة Net Octobot 🐙"
 #~ msgid "btn-admin-stats"
 #~ msgstr "📊 الإحصائيات العامة"
 
-#~ msgid "welcome-new"
-#~ msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"
+msgid "welcome-new"
+msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"
 

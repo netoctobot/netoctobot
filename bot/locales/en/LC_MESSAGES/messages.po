@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 03:19-0700\n"
+"POT-Creation-Date: 2026-03-22 03:23-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -250,6 +250,11 @@ msgid "btn-delete-bot"
 msgstr "➕ Add Another Bot"
 
 #: bot/keyboards/inline/bot_management.py:71
+#, fuzzy
+msgid "btn-edit-welcome-bot"
+msgstr "➕ Add Another Bot"
+
+#: bot/keyboards/inline/bot_management.py:74
 #, fuzzy
 msgid "btn-back-to-list"
 msgstr "🔙 Back to Main Menu"
