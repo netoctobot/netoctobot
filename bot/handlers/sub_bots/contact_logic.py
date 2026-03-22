@@ -1,6 +1,8 @@
 import re
+import asyncio
 from aiogram import Router, types, F, Bot
 from bot.utils.formatters import format_personal_message
+from bot.utils.common import delete_message_after
 from aiogram.filters import Command, CommandStart
 from aiogram_i18n import I18nContext
 from asgiref.sync import sync_to_async
@@ -32,13 +34,19 @@ async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
         )
 
 @router.message(F.chat.type == "private")
-async def handle_sub_bot_messages(message: types.Message, bot: Bot):
-
+async def handle_sub_bot_messages(message: types.Message, bot: Bot, i18n: I18nContext):
+    
+    _ = i18n.get
     # 1. جلب بيانات البوت والمالك
     sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).first)()
     if not sub_bot: return
     
     owner_id = sub_bot.owner.telegram_id
+    if owner_id == message.from_user:
+        warning_msg = await message.reply(text=_("msg-warning-reply-required"))
+        asyncio.create_task(delete_message_after(warning_msg))
+        asyncio.create_task(delete_message_after(message))
+        return
 
     # 2. محاولة إعادة التوجيه
     forwarded_msg = None
