@@ -18,9 +18,11 @@ router.message.filter(F.bot.token != BOT_TOKEN)
 @router.message(CommandStart())
 async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
     _ = i18n.get
+    
     sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).first)()
     
     if sub_bot:
+        __,__,__ = get_user_and_subscription(message.from_user, sub_bot.token)
         raw_welcome = sub_bot.welcome_msg or _("msg-defult-welcome")
         p_mode = sub_bot.welcome_parse_mode # القيمة المخزنة (HTML أو MDV2)
         
@@ -82,60 +84,96 @@ async def handle_owner_reply_smart(message: types.Message, bot: Bot, i18n: I18nC
 
 @router.message(F.chat.type == "private")
 async def handle_sub_bot_messages(message: types.Message, bot: Bot, i18n: I18nContext):
-    
     _ = i18n.get
+    
     # 1. جلب بيانات البوت والمالك
-    sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).first)()
+    sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).select_related('owner').first)()
     if not sub_bot: return
     
     owner_id = sub_bot.owner.telegram_id
+    
+    # التحقق إذا كان المالك هو من يرسل (تنبيهه بضرورة الرد)
     if owner_id == message.from_user.id:
         warning_msg = await message.reply(text=_("msg-warning-reply-required"))
         asyncio.create_task(delete_message_after(warning_msg))
         return
 
-    # 2. محاولة إعادة التوجيه
+    # 2. محاولة إعادة التوجيه (Forward)
     forwarded_msg = None
     try:
         forwarded_msg = await message.forward(chat_id=owner_id)
     except Exception:
-        pass # فشل التوجيه تماماً
+        pass
 
-    # 3. التحقق من الخصوصية: هل نجح التوجيه وهل الحساب متاح؟
-    # إذا كان الحساب مخفي (forward_from هو None) أو التوجيه فشل أصلاً
+    # 3. التحقق من الخصوصية
     is_private = forwarded_msg is None or forwarded_msg.forward_from is None
 
-    # 4. إرسال رسالة التحكم "فقط" عند وجود خصوصية
+    # 4. إرسال رسالة التحكم عند وجود خصوصية مشددة
     if is_private:
-        builder = InlineKeyboardBuilder()
-        # الزر الأول الحقيقي
-        builder.button(text="👤 الحساب الحقيقي", url=f"tg://user?id={message.from_user.id}")
-        # الزر الثاني للبيانات
-        builder.button(text="ℹ️ بياناتنا", callback_data=f"view_sender_{message.from_user.id}")
-        builder.adjust(2)
-        
-        await bot.send_message(
-            chat_id=owner_id,
-            text=f"📥 <b>رسالة من حساب خاص:</b>\n👤 {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>\n\n⚠️ للرد: استعمل الـ (Reply) على هذه الرسالة.",
-            reply_markup=builder.as_markup()
+        # نص الرسالة الأساسي من الترجمة
+        # تأكد أن المفتاح يحتوي في ملف الترجمة على تنسيق HTML مثل:
+        # "📥 <b>رسالة من حساب خاص:</b>\n👤 <a href='tg://user?id={user_id}'>{full_name}</a>..."
+        report_text = _(
+            "msg-private-account-report",
+            user_id=message.from_user.id,
+            full_name=message.from_user.full_name
         )
+
+        # إنشاء لوحة الأزرار
+        builder = InlineKeyboardBuilder()
+        builder.button(text=_("btn-real-account"), url=f"tg://user?id={message.from_user.id}")
+        builder.button(text=_("btn-our-data"), callback_data=f"view_sender_{message.from_user.id}")
+        builder.adjust(2)
+
+        try:
+            # محاولة الإرسال مع زر الحساب الحقيقي
+            await bot.send_message(
+                chat_id=owner_id,
+                text=report_text,
+                reply_markup=builder.as_markup(),
+                parse_mode="HTML"
+            )
+        except Exception:
+            # في حال فشل بسبب BUTTON_USER_PRIVACY_RESTRICTED
+            # نعيد المحاولة بزر "بياناتنا" فقط (لأنه آمن دائماً)
+            safe_builder = InlineKeyboardBuilder()
+            safe_builder.button(text=_("btn-our-data"), callback_data=f"view_sender_{message.from_user.id}")
+            
+            await bot.send_message(
+                chat_id=owner_id,
+                text=report_text,
+                reply_markup=safe_builder.as_markup(),
+                parse_mode="HTML"
+            )
     
     # 5. التفاعل للمرسل دائماً لتأكيد الاستلام
-    await message.react([types.ReactionTypeEmoji(emoji="👍")])
+    try:
+        await message.react([types.ReactionTypeEmoji(emoji="👍")])
+    except:
+        pass
 
 
 @router.callback_query(F.data.startswith("view_sender_"))
-async def view_sender_profile(callback: types.CallbackQuery):
+async def view_sender_profile(callback: types.CallbackQuery, i18n: I18nContext):
+    _ = i18n.get
     sender_id = callback.data.split("_")[-1]
 
+    # جلب بيانات المستخدم من قاعدة البيانات
     user = await sync_to_async(TelegramUser.objects.filter(telegram_id=sender_id).first)()
 
     if user:
-        # إظهار البيانات في بوب أب نظيف جداً
+        # جلب نص الحالة (شريك أو عادي) من الترجمة أيضاً
+        status_text = _("status-partner") if user.is_partner else _("status-regular")
+        
+        # إظهار البيانات في "بوب أب" (Alert)
+        # المفتاح 'msg-user-info-alert' يجب أن يكون بتنسيق: 👤 الاسم: {name}\n💎 الحالة: {status}
         await callback.answer(
-            text=f"👤 الاسم: {user.full_name}\n💎 الحالة: {'شريك' if user.is_partner else 'عادي'}",
+            text=_("msg-user-info-alert", name=user.full_name, status=status_text),
             show_alert=True
         )
     else:
-        # بوب أب للفشل
-        await callback.answer(text="⚠️ غير مسجل في قاعدة بياناتنا", show_alert=True)
+        # بوب أب للفشل في حال عدم وجود المستخدم في قاعدة البيانات
+        await callback.answer(
+            text=_("msg-user-not-found"), 
+            show_alert=True
+        )

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 12:03-0700\n"
+"POT-Creation-Date: 2026-03-23 08:06-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,7 +17,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/navigation.py:32 bot/handlers/my_bots/list_bots.py:151
+#: bot/handlers/common/navigation.py:32 bot/handlers/my_bots/list_bots.py:152
 msgid "msg-select-parse-mode"
 msgstr ""
 
@@ -37,150 +37,150 @@ msgstr ""
 msgid "msg-select-language"
 msgstr ""
 
-#: bot/handlers/my_bots/add_bot.py:20
+#: bot/handlers/my_bots/add_bot.py:21
 msgid "type-list"
 msgstr ""
 
-#: bot/handlers/my_bots/add_bot.py:21
+#: bot/handlers/my_bots/add_bot.py:22
 msgid "type-contact"
 msgstr ""
 
-#: bot/handlers/my_bots/add_bot.py:25
+#: bot/handlers/my_bots/add_bot.py:26
 msgid "msg-select-bot-type"
 msgstr ""
 
-#: bot/handlers/my_bots/add_bot.py:38
+#: bot/handlers/my_bots/add_bot.py:39
 msgid "msg-send-token-now"
 msgstr ""
 
-#: bot/handlers/my_bots/add_bot.py:61
+#: bot/handlers/my_bots/add_bot.py:62
 msgid "msg-checking-token"
 msgstr ""
 
-#: bot/handlers/my_bots/add_bot.py:82
+#: bot/handlers/my_bots/add_bot.py:85
 msgid "msg-bot-added-success"
 msgstr ""
 
-#: bot/handlers/my_bots/add_bot.py:90
+#: bot/handlers/my_bots/add_bot.py:93
 msgid "err-token-already-registered"
 msgstr ""
 
-#: bot/handlers/my_bots/add_bot.py:100
+#: bot/handlers/my_bots/add_bot.py:103
 msgid "err-token-invalid"
 msgstr ""
 
-#: bot/handlers/my_bots/add_bot.py:108
+#: bot/handlers/my_bots/add_bot.py:111
 msgid "err-system-error"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:30
+#: bot/handlers/my_bots/list_bots.py:31
 msgid "msg-no-bots-found"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:32
+#: bot/handlers/my_bots/list_bots.py:33
 msgid "msg-select-bot-to-manage"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:53 bot/handlers/my_bots/list_bots.py:86
+#: bot/handlers/my_bots/list_bots.py:54 bot/handlers/my_bots/list_bots.py:87
 #: bot/utils/interface.py:85
 msgid "err-bot-not-found"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:57 bot/utils/interface.py:87
+#: bot/handlers/my_bots/list_bots.py:58 bot/utils/interface.py:87
 msgid "status-active"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:57 bot/utils/interface.py:87
+#: bot/handlers/my_bots/list_bots.py:58 bot/utils/interface.py:87
 msgid "status-stopped"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:60 bot/utils/interface.py:89
+#: bot/handlers/my_bots/list_bots.py:61 bot/utils/interface.py:89
 msgid "msg-bot-settings-header"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:93
+#: bot/handlers/my_bots/list_bots.py:94
 msgid "msg-bot-activated"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:93
+#: bot/handlers/my_bots/list_bots.py:94
 msgid "msg-bot-deactivated"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:103
+#: bot/handlers/my_bots/list_bots.py:104
 msgid "btn-yes-delete"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:105
+#: bot/handlers/my_bots/list_bots.py:106
 msgid "btn-no-cancel"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:110
+#: bot/handlers/my_bots/list_bots.py:111
 msgid "msg-are-you-sure-delete"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:132
+#: bot/handlers/my_bots/list_bots.py:133
 msgid "msg-bot-deleted-successfully"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:135
+#: bot/handlers/my_bots/list_bots.py:136
 msgid "toast-deleted-success"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:137
+#: bot/handlers/my_bots/list_bots.py:138
 msgid "err-delete-failed"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:165 bot/handlers/my_bots/list_bots.py:185
+#: bot/handlers/my_bots/list_bots.py:166 bot/handlers/my_bots/list_bots.py:186
 msgid "msg-send-your-welcome-text"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:214
+#: bot/handlers/my_bots/list_bots.py:215
 msgid "btn-confirm-save"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:215
+#: bot/handlers/my_bots/list_bots.py:216
 msgid "btn-re-edit"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:216
+#: bot/handlers/my_bots/list_bots.py:217
 #: bot/keyboards/inline/bot_management.py:10
 msgid "btn-cancel"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:227
+#: bot/handlers/my_bots/list_bots.py:228
 msgid "msg-preview-header"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:258
+#: bot/handlers/my_bots/list_bots.py:259
 msgid "err-invalid-format"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:278
+#: bot/handlers/my_bots/list_bots.py:279
 msgid "msg-welcome-saved-success"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:288
+#: bot/handlers/my_bots/list_bots.py:289
 msgid "btn-view-current-welcome"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:289
+#: bot/handlers/my_bots/list_bots.py:290
 msgid "btn-edit-welcome"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:290 bot/handlers/my_bots/list_bots.py:320
+#: bot/handlers/my_bots/list_bots.py:291 bot/handlers/my_bots/list_bots.py:321
 #: bot/keyboards/inline/bot_management.py:85
 msgid "btn-back"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:294
+#: bot/handlers/my_bots/list_bots.py:295
 msgid "msg-choose-welcome-action"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:307
+#: bot/handlers/my_bots/list_bots.py:308
 msgid "msg-no-welcome-set"
 msgstr ""
 
-#: bot/handlers/my_bots/list_bots.py:323
+#: bot/handlers/my_bots/list_bots.py:324
 msgid "msg-current-welcome-is"
 msgstr ""
 
@@ -188,7 +188,7 @@ msgstr ""
 msgid "msg-defult-welcome"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:63
+#: bot/handlers/sub_bots/contact_logic.py:62
 msgid "search-sender-id"
 msgstr ""
 
@@ -196,12 +196,41 @@ msgstr ""
 msgid "msg-err-reply"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:84
+#: bot/handlers/sub_bots/contact_logic.py:80
 msgid "msg-not-user-id"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:97
+#: bot/handlers/sub_bots/contact_logic.py:95
 msgid "msg-warning-reply-required"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:115
+msgid "msg-private-account-report"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:122
+msgid "btn-real-account"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:123
+#: bot/handlers/sub_bots/contact_logic.py:138
+msgid "btn-our-data"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:164
+msgid "status-partner"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:164
+msgid "status-regular"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:169
+msgid "msg-user-info-alert"
+msgstr ""
+
+#: bot/handlers/sub_bots/contact_logic.py:175
+msgid "msg-user-not-found"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:10
