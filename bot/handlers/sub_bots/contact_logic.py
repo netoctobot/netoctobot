@@ -82,46 +82,73 @@ async def handle_owner_reply_smart(message: types.Message, bot: Bot, i18n: I18nC
 
 @router.message(F.chat.type == "private")
 async def handle_sub_bot_messages(message: types.Message, bot: Bot, i18n: I18nContext):
-    
     _ = i18n.get
+    
     # 1. جلب بيانات البوت والمالك
-    sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).first)()
+    sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).select_related('owner').first)()
     if not sub_bot: return
     
     owner_id = sub_bot.owner.telegram_id
+    
+    # التحقق إذا كان المالك هو من يرسل (تنبيهه بضرورة الرد)
     if owner_id == message.from_user.id:
         warning_msg = await message.reply(text=_("msg-warning-reply-required"))
         asyncio.create_task(delete_message_after(warning_msg))
         return
 
-    # 2. محاولة إعادة التوجيه
+    # 2. محاولة إعادة التوجيه (Forward)
     forwarded_msg = None
     try:
         forwarded_msg = await message.forward(chat_id=owner_id)
     except Exception:
-        pass # فشل التوجيه تماماً
+        pass
 
-    # 3. التحقق من الخصوصية: هل نجح التوجيه وهل الحساب متاح؟
-    # إذا كان الحساب مخفي (forward_from هو None) أو التوجيه فشل أصلاً
+    # 3. التحقق من الخصوصية
     is_private = forwarded_msg is None or forwarded_msg.forward_from is None
 
-    # 4. إرسال رسالة التحكم "فقط" عند وجود خصوصية
+    # 4. إرسال رسالة التحكم عند وجود خصوصية مشددة
     if is_private:
-        builder = InlineKeyboardBuilder()
-        # الزر الأول الحقيقي
-        builder.button(text="👤 الحساب الحقيقي", url=f"tg://user?id={message.from_user.id}")
-        # الزر الثاني للبيانات
-        builder.button(text="ℹ️ بياناتنا", callback_data=f"view_sender_{message.from_user.id}")
-        builder.adjust(2)
-        
-        await bot.send_message(
-            chat_id=owner_id,
-            text=f"📥 <b>رسالة من حساب خاص:</b>\n👤 {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>\n\n⚠️ للرد: استعمل الـ (Reply) على هذه الرسالة.",
-            reply_markup=builder.as_markup()
+        # نص الرسالة الأساسي من الترجمة
+        # تأكد أن المفتاح يحتوي في ملف الترجمة على تنسيق HTML مثل:
+        # "📥 <b>رسالة من حساب خاص:</b>\n👤 <a href='tg://user?id={user_id}'>{full_name}</a>..."
+        report_text = _(
+            "msg-private-account-report",
+            user_id=message.from_user.id,
+            full_name=message.from_user.full_name
         )
+
+        # إنشاء لوحة الأزرار
+        builder = InlineKeyboardBuilder()
+        builder.button(text=_("btn-real-account"), url=f"tg://user?id={message.from_user.id}")
+        builder.button(text=_("btn-our-data"), callback_data=f"view_sender_{message.from_user.id}")
+        builder.adjust(2)
+
+        try:
+            # محاولة الإرسال مع زر الحساب الحقيقي
+            await bot.send_message(
+                chat_id=owner_id,
+                text=report_text,
+                reply_markup=builder.as_markup(),
+                parse_mode="HTML"
+            )
+        except Exception:
+            # في حال فشل بسبب BUTTON_USER_PRIVACY_RESTRICTED
+            # نعيد المحاولة بزر "بياناتنا" فقط (لأنه آمن دائماً)
+            safe_builder = InlineKeyboardBuilder()
+            safe_builder.button(text=_("btn-our-data"), callback_data=f"view_sender_{message.from_user.id}")
+            
+            await bot.send_message(
+                chat_id=owner_id,
+                text=report_text + "\n\n⚠️ " + _("msg-privacy-restriction-notice"),
+                reply_markup=safe_builder.as_markup(),
+                parse_mode="HTML"
+            )
     
     # 5. التفاعل للمرسل دائماً لتأكيد الاستلام
-    await message.react([types.ReactionTypeEmoji(emoji="👍")])
+    try:
+        await message.react([types.ReactionTypeEmoji(emoji="👍")])
+    except:
+        pass
 
 
 @router.callback_query(F.data.startswith("view_sender_"))

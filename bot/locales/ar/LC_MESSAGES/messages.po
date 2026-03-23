@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-22 12:03-0700\n"
+"POT-Creation-Date: 2026-03-23 07:46-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -15,7 +15,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/navigation.py:32 bot/handlers/my_bots/list_bots.py:151
+#: bot/handlers/common/navigation.py:32 bot/handlers/my_bots/list_bots.py:152
 msgid "msg-select-parse-mode"
 msgstr ""
 "🛠️ <b>اختر نوع التنسيق لرسالة الترحيب:</b>\n"
@@ -42,70 +42,70 @@ msgstr ""
 "الرجاء اختيار اللغة المطلوبة:\n"
 " Please select your language"
 
-#: bot/handlers/my_bots/add_bot.py:20
+#: bot/handlers/my_bots/add_bot.py:21
 msgid "type-list"
 msgstr "بوت قائمة دعم"
 
-#: bot/handlers/my_bots/add_bot.py:21
+#: bot/handlers/my_bots/add_bot.py:22
 msgid "type-contact"
 msgstr "بوت تواصل"
 
-#: bot/handlers/my_bots/add_bot.py:25
+#: bot/handlers/my_bots/add_bot.py:26
 msgid "msg-select-bot-type"
 msgstr "الرجاء تحديد نوع البوت الذي تريد إضافته:"
 
-#: bot/handlers/my_bots/add_bot.py:38
+#: bot/handlers/my_bots/add_bot.py:39
 msgid "msg-send-token-now"
 msgstr "الرجاء إرسال رمز البوت (Token) الآن:"
 
-#: bot/handlers/my_bots/add_bot.py:61
+#: bot/handlers/my_bots/add_bot.py:62
 msgid "msg-checking-token"
 msgstr "جاري التحقق من الرمز، يرجى الانتظار..."
 
-#: bot/handlers/my_bots/add_bot.py:82
+#: bot/handlers/my_bots/add_bot.py:85
 msgid "msg-bot-added-success"
 msgstr ""
 "🎉 مبروك! تم ربط البوت <b>{bot_name}</b> بنجاح.\n"
 "\n"
 "يمكنك الآن التحكم به من القائمة أدناه:"
 
-#: bot/handlers/my_bots/add_bot.py:90
+#: bot/handlers/my_bots/add_bot.py:93
 msgid "err-token-already-registered"
 msgstr "هذا الـ(token) مسجل مسبقاً. يرجى استخدام رمز آخر."
 
-#: bot/handlers/my_bots/add_bot.py:100
+#: bot/handlers/my_bots/add_bot.py:103
 msgid "err-token-invalid"
 msgstr "❌ التوكن الذي أرسلته غير صحيح أو انتهت صلاحيته، تأكد منه من @BotFather."
 
-#: bot/handlers/my_bots/add_bot.py:108
+#: bot/handlers/my_bots/add_bot.py:111
 msgid "err-system-error"
 msgstr "⚙️ حدث خطأ تقني أثناء الربط. يرجى المحاولة لاحقاً. (الخطأ: {error_detail})"
 
-#: bot/handlers/my_bots/list_bots.py:30
+#: bot/handlers/my_bots/list_bots.py:31
 msgid "msg-no-bots-found"
 msgstr "📭 لم تقم بإضافة أي بوتات حتى الآن. ابدأ بإضافة بوتك الأول!"
 
-#: bot/handlers/my_bots/list_bots.py:32
+#: bot/handlers/my_bots/list_bots.py:33
 msgid "msg-select-bot-to-manage"
 msgstr ""
 "🤖 لديك <b>{count}</b> بوتات مرتبطة بحسابك.\n"
 "\n"
 "اختر بوتاً من القائمة أدناه لإدارته أو عرض إحصائياته:"
 
-#: bot/handlers/my_bots/list_bots.py:53 bot/handlers/my_bots/list_bots.py:86
+#: bot/handlers/my_bots/list_bots.py:54 bot/handlers/my_bots/list_bots.py:87
 #: bot/utils/interface.py:85
 msgid "err-bot-not-found"
 msgstr "⚠️ البوت غير موجود"
 
-#: bot/handlers/my_bots/list_bots.py:57 bot/utils/interface.py:87
+#: bot/handlers/my_bots/list_bots.py:58 bot/utils/interface.py:87
 msgid "status-active"
 msgstr "🟢 نشط"
 
-#: bot/handlers/my_bots/list_bots.py:57 bot/utils/interface.py:87
+#: bot/handlers/my_bots/list_bots.py:58 bot/utils/interface.py:87
 msgid "status-stopped"
 msgstr "🔴 متوقف"
 
-#: bot/handlers/my_bots/list_bots.py:60 bot/utils/interface.py:89
+#: bot/handlers/my_bots/list_bots.py:61 bot/utils/interface.py:89
 msgid "msg-bot-settings-header"
 msgstr ""
 "⚙️ <b>إعدادات البوت: {bot_name}</b>\n"
@@ -116,129 +116,149 @@ msgstr ""
 "\n"
 "اختر من الأزرار أدناه للتحكم في البوت:"
 
-#: bot/handlers/my_bots/list_bots.py:93
+#: bot/handlers/my_bots/list_bots.py:94
 msgid "msg-bot-activated"
 msgstr "⚡️ تم تشغيل البوت بنجاح!"
 
-#: bot/handlers/my_bots/list_bots.py:93
+#: bot/handlers/my_bots/list_bots.py:94
 msgid "msg-bot-deactivated"
 msgstr "💤 تم إيقاف البوت مؤقتاً."
 
-#: bot/handlers/my_bots/list_bots.py:103
+#: bot/handlers/my_bots/list_bots.py:104
 msgid "btn-yes-delete"
 msgstr "✅ نعم، احذف"
 
-#: bot/handlers/my_bots/list_bots.py:105
+#: bot/handlers/my_bots/list_bots.py:106
 msgid "btn-no-cancel"
 msgstr "❌ لا، تراجع"
 
-#: bot/handlers/my_bots/list_bots.py:110
+#: bot/handlers/my_bots/list_bots.py:111
 msgid "msg-are-you-sure-delete"
 msgstr ""
 "⚠️ <b>هل أنت متأكد من حذف هذا البوت؟</b>\n"
 "\n"
 "سيتم مسح جميع البيانات المرتبطة به ولا يمكن التراجع عن هذا الإجراء."
 
-#: bot/handlers/my_bots/list_bots.py:132
+#: bot/handlers/my_bots/list_bots.py:133
 msgid "msg-bot-deleted-successfully"
 msgstr "🗑️ تم حذف البوت بنجاح من قائمة بوتاتك."
 
-#: bot/handlers/my_bots/list_bots.py:135
+#: bot/handlers/my_bots/list_bots.py:136
 msgid "toast-deleted-success"
 msgstr "تم الحذف بنجاح!"
 
-#: bot/handlers/my_bots/list_bots.py:137
+#: bot/handlers/my_bots/list_bots.py:138
 msgid "err-delete-failed"
 msgstr "فشل الحذف!"
 
-#: bot/handlers/my_bots/list_bots.py:165 bot/handlers/my_bots/list_bots.py:185
+#: bot/handlers/my_bots/list_bots.py:166 bot/handlers/my_bots/list_bots.py:186
 msgid "msg-send-your-welcome-text"
 msgstr ""
 "📝 <b>أرسل الآن نص الترحيب بنمط {mode}:</b>\n"
 "\n"
 "يمكنك استخدام الرموز التالية:\n"
-"- <code>{name}</code> : اسم المستخدم\n"
-"- <code>{mention}</code> : تاغ للحساب\n"
-"- <code>{username}</code> : اليوزرنيم\n"
-"- <code>{id}</code> : الآيدي"
+"- <code>{{name}}</code> : اسم المستخدم\n"
+"- <code>{{mention}}</code> : تاغ للحساب\n"
+"- <code>{{username}}</code> : اليوزرنيم\n"
+"- <code>{{id}}</code> : الآيدي"
 
-#: bot/handlers/my_bots/list_bots.py:214
+#: bot/handlers/my_bots/list_bots.py:215
 msgid "btn-confirm-save"
 msgstr "حفظ التغييرات"
 
-#: bot/handlers/my_bots/list_bots.py:215
+#: bot/handlers/my_bots/list_bots.py:216
 msgid "btn-re-edit"
 msgstr "إعادة الكتابة"
 
-#: bot/handlers/my_bots/list_bots.py:216
+#: bot/handlers/my_bots/list_bots.py:217
 #: bot/keyboards/inline/bot_management.py:10
 msgid "btn-cancel"
 msgstr "إلغاء العملية"
 
-#: bot/handlers/my_bots/list_bots.py:227
+#: bot/handlers/my_bots/list_bots.py:228
 msgid "msg-preview-header"
 msgstr "👁️ <b>معاينة الرسالة كما ستظهر للمشتركين:</b>"
 
-#: bot/handlers/my_bots/list_bots.py:258
+#: bot/handlers/my_bots/list_bots.py:259
 msgid "err-invalid-format"
 msgstr ""
 "❌ <b>خطأ في التنسيق!</b>\n"
 "يرجى التأكد من إغلاق الوسوم بشكل صحيح.\n"
 "الخطأ: {error}"
 
-#: bot/handlers/my_bots/list_bots.py:278
+#: bot/handlers/my_bots/list_bots.py:279
 msgid "msg-welcome-saved-success"
 msgstr "✅ تم حفظ رسالة الترحيب وتفعيلها بنجاح!"
 
-#: bot/handlers/my_bots/list_bots.py:288
+#: bot/handlers/my_bots/list_bots.py:289
 msgid "btn-view-current-welcome"
 msgstr "👁️ عرض الرسالة الحالية"
 
-#: bot/handlers/my_bots/list_bots.py:289
+#: bot/handlers/my_bots/list_bots.py:290
 msgid "btn-edit-welcome"
 msgstr "📝 تعديل الرسالة"
 
-#: bot/handlers/my_bots/list_bots.py:290 bot/handlers/my_bots/list_bots.py:320
+#: bot/handlers/my_bots/list_bots.py:291 bot/handlers/my_bots/list_bots.py:321
 #: bot/keyboards/inline/bot_management.py:85
 msgid "btn-back"
 msgstr "⬅️ عودة"
 
-#: bot/handlers/my_bots/list_bots.py:294
+#: bot/handlers/my_bots/list_bots.py:295
 msgid "msg-choose-welcome-action"
 msgstr ""
 "⚙️ <b>إعدادات رسالة الترحيب</b>\n"
 "\n"
 "يمكنك عرض الرسالة التي تظهر للمشتركين الجدد حالياً أو القيام بتعديلها."
 
-#: bot/handlers/my_bots/list_bots.py:307
+#: bot/handlers/my_bots/list_bots.py:308
 msgid "msg-no-welcome-set"
 msgstr "⚠️ لا توجد رسالة ترحيب مخصصة لهذا البوت حالياً."
 
-#: bot/handlers/my_bots/list_bots.py:323
+#: bot/handlers/my_bots/list_bots.py:324
 msgid "msg-current-welcome-is"
 msgstr "هذا هو نص الترحيب الحالي:"
 
 #: bot/handlers/sub_bots/contact_logic.py:24
 msgid "msg-defult-welcome"
-msgstr "مرحباً بك {name} في بوت التواصل الخاص بي!"
+msgstr "مرحباً بك {{name}} في بوت التواصل الخاص بي!"
 
-#: bot/handlers/sub_bots/contact_logic.py:63
+#: bot/handlers/sub_bots/contact_logic.py:62
 msgid "search-sender-id"
 msgstr "<code>(\\d+)</code>"
 
 #: bot/handlers/sub_bots/contact_logic.py:78
 msgid "msg-err-reply"
-msgstr "❌ <b>فشل التوصيل:</b> المستخدم أغلق البوت.\n<code>{e}</code>"
+msgstr ""
+"❌ <b>فشل التوصيل:</b> المستخدم أغلق البوت.\n"
+"<code>{e}</code>"
 
-#: bot/handlers/sub_bots/contact_logic.py:84
+#: bot/handlers/sub_bots/contact_logic.py:80
 msgid "msg-not-user-id"
 msgstr ""
-"⚠️ <b>تعذر تحديد المستلم!</b>\n\n"
+"⚠️ <b>تعذر تحديد المستلم!</b>\n"
+"\n"
 "يرجى الرد (Reply) على رسالة البوت التي تحتوي على 'آيدي المرسل'."
 
-#: bot/handlers/sub_bots/contact_logic.py:97
+#: bot/handlers/sub_bots/contact_logic.py:95
 msgid "msg-warning-reply-required"
 msgstr "⚠️ قم بالرد على الرسالة المعاد توجيهها للتواصل وتسليم الرسالة للمستخدم"
+
+#: bot/handlers/sub_bots/contact_logic.py:115
+msgid "msg-private-account-report"
+msgstr "📥 <b>رسالة من حساب خاص:</b>\n👤 <a href='tg://user?id={user_id}'>{full_name}</a>\n🆔 <code>{user_id}</code>\n\n⚠️ للرد: استعمل الـ (Reply) على هذه الرسالة."
+
+#: bot/handlers/sub_bots/contact_logic.py:122
+msgid "btn-real-account"
+msgstr "👤 الحساب الحقيقي"
+
+#: bot/handlers/sub_bots/contact_logic.py:123
+#: bot/handlers/sub_bots/contact_logic.py:138
+msgid "btn-our-data"
+msgstr "ℹ️ بياناتنا"
+
+#: bot/handlers/sub_bots/contact_logic.py:142
+msgid "msg-privacy-restriction-notice"
+msgstr "تم إخفاء رابط الحساب بسبب إعدادات خصوصية المستخدم."
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
