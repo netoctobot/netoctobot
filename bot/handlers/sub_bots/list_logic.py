@@ -1,4 +1,6 @@
+# bot/handlers/sub_bots/list_logic.py
 import asyncio
+from asgiref.sync import sync_to_async
 from aiogram import Router, types, Bot, F
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -6,8 +8,8 @@ from aiogram_i18n import I18nContext
 from bot.filters import BotTypeFilter
 from bot.db_operations import get_user_and_subscription, get_sub_bot_by_token
 from bot.utils.formatters import format_personal_message
-from bot.keyboards.inline.bot_management import get_LST_owner_control_panel
-from apps.bots.models import SubBot
+from bot.keyboards.inline.bot_management import get_LST_owner_control_panel, get_channels_management_keyboard
+from apps.bots.models import SubBot, SubBotChannel
 from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
 from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
 from bot.keyboards.main_menu import get_user_main_menu
@@ -79,3 +81,46 @@ async def check_again_callback(callback: types.CallbackQuery, bot: Bot, i18n: I1
             text=sub_bot.welcome_msg or _("thank-you-for-subscribing"),
             reply_markup=get_user_main_menu(i18n, sub_bot.bot_type)
         )
+
+
+@router.callback_query(F.data == "manage_channels")
+async def manage_channels_list(callback: types.CallbackQuery, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    
+    # جلب القنوات المرتبطة بهذا البوت تحديداً
+    # نستخدم select_related لتجنب ثقل الاستعلام (N+1 problem)
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    channels = await sync_to_async(list)(
+        SubBotChannel.objects.filter(sub_bot=sub_bot).select_related('channel')
+    )
+    
+    if not channels:
+        return await callback.message.edit_text(
+            _("no-channels-added"),
+            reply_markup=get_channels_management_keyboard(i18n, [])
+        )
+
+    await callback.message.edit_text(
+        _("list-channel-management"),
+        reply_markup=get_channels_management_keyboard(i18n, channels)
+    )
+    await callback.answer()
+    
+@router.callback_query(F.data.startswith("delete_chan_"))
+async def delete_channel_from_bot(callback: types.CallbackQuery, i18n: I18nContext):
+    _ = i18n.get
+    # استخراج الـ ID من callback_data
+    sub_bot_chan_id = int(callback.data.split("_")[-1])
+    
+    # حذف الارتباط من قاعدة البيانات
+    try:
+        sub_bot_chan = await sync_to_async(SubBotChannel.objects.get)(id=sub_bot_chan_id)
+        channel_name = await sync_to_async(lambda: sub_bot_chan.channel.title)()
+        await sync_to_async(sub_bot_chan.delete)()
+        
+        await callback.answer(_("msg-deleted-from-list",name=channel_name))
+        
+        # تحديث القائمة بعد الحذف
+        await manage_channels_list(callback, callback.bot, i18n)
+    except Exception:
+        await callback.answer(_("error-occurred-during-deletion"), show_alert=True)

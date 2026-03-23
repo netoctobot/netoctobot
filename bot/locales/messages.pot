@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-23 12:27-0700\n"
+"POT-Creation-Date: 2026-03-23 13:12-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,6 +16,14 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
+
+#: bot/handlers/common/check.py:20 bot/handlers/sub_bots/list_logic.py:74
+msgid "still-not-subscribed"
+msgstr ""
+
+#: bot/handlers/common/check.py:27 bot/handlers/sub_bots/list_logic.py:81
+msgid "thank-you-for-subscribing"
+msgstr ""
 
 #: bot/handlers/common/navigation.py:32 bot/handlers/my_bots/list_bots.py:152
 msgid "msg-select-parse-mode"
@@ -169,6 +177,7 @@ msgstr ""
 
 #: bot/handlers/my_bots/list_bots.py:291 bot/handlers/my_bots/list_bots.py:321
 #: bot/keyboards/inline/bot_management.py:85
+#: bot/keyboards/inline/bot_management.py:117
 msgid "btn-back"
 msgstr ""
 
@@ -184,69 +193,77 @@ msgstr ""
 msgid "msg-current-welcome-is"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:39
+#: bot/handlers/sub_bots/contact_logic.py:37
 msgid "msg-defult-welcome"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:77
+#: bot/handlers/sub_bots/contact_logic.py:75
 msgid "search-sender-id"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:93
+#: bot/handlers/sub_bots/contact_logic.py:91
 msgid "msg-err-reply"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:95
+#: bot/handlers/sub_bots/contact_logic.py:93
 msgid "msg-not-user-id"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:110
+#: bot/handlers/sub_bots/contact_logic.py:108
 msgid "msg-warning-reply-required"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:130
+#: bot/handlers/sub_bots/contact_logic.py:128
 msgid "msg-private-account-report"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:137
+#: bot/handlers/sub_bots/contact_logic.py:135
 msgid "btn-real-account"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:138
-#: bot/handlers/sub_bots/contact_logic.py:153
+#: bot/handlers/sub_bots/contact_logic.py:136
+#: bot/handlers/sub_bots/contact_logic.py:151
 msgid "btn-our-data"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:179
+#: bot/handlers/sub_bots/contact_logic.py:177
 msgid "status-partner"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:179
+#: bot/handlers/sub_bots/contact_logic.py:177
 msgid "status-regular"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:184
+#: bot/handlers/sub_bots/contact_logic.py:182
 msgid "msg-user-info-alert"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:190
+#: bot/handlers/sub_bots/contact_logic.py:188
 msgid "msg-user-not-found"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:47
+#: bot/handlers/sub_bots/list_logic.py:49
 msgid "owner-control-panel"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:53
+#: bot/handlers/sub_bots/list_logic.py:55
 msgid "msg-list-default-welcome"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:72
-msgid "still-not-subscribed"
+#: bot/handlers/sub_bots/list_logic.py:99
+msgid "no-channels-added"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:79
-msgid "thank-you-for-subscribing"
+#: bot/handlers/sub_bots/list_logic.py:104
+msgid "list-channel-management"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:121
+msgid "msg-deleted-from-list"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:126
+msgid "error-occurred-during-deletion"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:10
@@ -344,6 +361,10 @@ msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:101
 msgid "bot-settings"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:116
+msgid "add-new-channel"
 msgstr ""
 
 #: bot/keyboards/inline/subscriptions.py:17

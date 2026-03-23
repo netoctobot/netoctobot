@@ -101,3 +101,20 @@ def get_LST_owner_control_panel(i18n, bot_type):
     builder.button(text=_("bot-settings"), callback_data="bot_settings")
     builder.adjust(2)
     return builder.as_markup()
+
+def get_channels_management_keyboard(i18n, channels):
+    _ = i18n.get
+    builder = InlineKeyboardBuilder()
+    
+    for bot_chan in channels:
+        # زر لحذف القناة
+        builder.button(
+            text=f"❌ {bot_chan.channel.title}", 
+            callback_data=f"delete_chan_{bot_chan.id}"
+        )
+    
+    builder.button(text=_("add-new-channel"), callback_data="add_channel")
+    builder.button(text=_("btn-back"), callback_data="back_to_owner_panel")
+    
+    builder.adjust(1) # جعل كل قناة في سطر
+    return builder.as_markup()
