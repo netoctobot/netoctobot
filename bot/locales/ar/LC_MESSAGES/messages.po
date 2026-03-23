@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-23 13:12-0700\n"
+"POT-Creation-Date: 2026-03-23 13:22-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -22,6 +22,14 @@ msgstr "❌ ما زلت غير مشترك في بعض القنوات!"
 #: bot/handlers/common/check.py:27 bot/handlers/sub_bots/list_logic.py:81
 msgid "thank-you-for-subscribing"
 msgstr "شكراً لاشتراكك! يمكنك الآن استخدام البوت."
+
+#: bot/handlers/common/main_menu.py:31
+msgid "welcome-new"
+msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"
+
+#: bot/handlers/common/main_menu.py:31 bot/utils/interface.py:48
+msgid "welcome-back"
+msgstr "أهلاً يا {full_name}! ✨"
 
 #: bot/handlers/common/navigation.py:32 bot/handlers/my_bots/list_bots.py:152
 msgid "msg-select-parse-mode"
@@ -305,7 +313,10 @@ msgstr "📂 لا توجد قنوات مضافة حالياً."
 
 #: bot/handlers/sub_bots/list_logic.py:104
 msgid "list-channel-management"
-msgstr "📋 <b>إدارة قنوات اللستة:</b>\n\nاضغط على اسم القناة لإزالتها من القائمة:"
+msgstr ""
+"📋 <b>إدارة قنوات اللستة:</b>\n"
+"\n"
+"اضغط على اسم القناة لإزالتها من القائمة:"
 
 #: bot/handlers/sub_bots/list_logic.py:121
 msgid "msg-deleted-from-list"
@@ -428,10 +439,6 @@ msgstr "عذراً، يجب عليك الاشتراك في القنوات الت
 msgid "bot-signature"
 msgstr "صُنع بواسطة Net Octobot 🐙"
 
-#: bot/utils/interface.py:48
-msgid "welcome-back"
-msgstr "أهلاً يا {full_name}! ✨"
-
 #~ msgid "msg-operation-cancelled"
 #~ msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."
 
@@ -443,7 +450,4 @@ msgstr "أهلاً يا {full_name}! ✨"
 
 #~ msgid "msg-privacy-restriction-notice"
 #~ msgstr "تم إخفاء رابط الحساب بسبب إعدادات خصوصية المستخدم."
-
-msgid "welcome-new"
-msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"
 

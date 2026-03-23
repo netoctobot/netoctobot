@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-23 13:12-0700\n"
+"POT-Creation-Date: 2026-03-23 13:22-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,6 +23,14 @@ msgstr ""
 
 #: bot/handlers/common/check.py:27 bot/handlers/sub_bots/list_logic.py:81
 msgid "thank-you-for-subscribing"
+msgstr ""
+
+#: bot/handlers/common/main_menu.py:31
+msgid "welcome-new"
+msgstr ""
+
+#: bot/handlers/common/main_menu.py:31 bot/utils/interface.py:48
+msgid "welcome-back"
 msgstr ""
 
 #: bot/handlers/common/navigation.py:32 bot/handlers/my_bots/list_bots.py:152
@@ -377,9 +385,5 @@ msgstr ""
 
 #: bot/utils/formatters.py:10
 msgid "bot-signature"
-msgstr ""
-
-#: bot/utils/interface.py:48
-msgid "welcome-back"
 msgstr ""
 

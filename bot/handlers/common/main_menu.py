@@ -28,8 +28,8 @@ async def cmd_start(message: types.Message, i18n: I18nContext, bot: Bot):
     await i18n.set_locale(subscription.language)
 
     # اختيار النص بناءً على حالة الاشتراك
-    key = "welcome-new" if created else "welcome-back"
-    text = _(key, full_name=user.full_name)
+    text = _("welcome-new", full_name=user.full_name) if created else _("welcome-back", full_name=user.full_name)
+    
     
     # استخدام الواجهة المتجددة (حذف الرسالة القديمة وتثبيت الجديدة)
     await update_main_interface(
