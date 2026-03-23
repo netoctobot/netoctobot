@@ -15,11 +15,12 @@ def get_handlers_router() -> Router:
     master_router.callback_query.filter(F.bot.token == BOT_TOKEN)
     
     # دمج راوترات الإدارة داخل روتر الماستر
-    master_router.include_router(main_menu.router)
-    master_router.include_router(settings.router)
-    master_router.include_router(add_bot.router)
-    master_router.include_router(list_bots.router)
-    master_router.include_router(navigation.router)
+    master_router.include_routers(
+        main_menu.router, 
+        settings.router, 
+        add_bot.router, 
+        list_bots.router
+    )
 
     # 3. روتر خاص بالبوتات الفرعية فقط (Sub-Bots Zone)
     sub_bots_parent_router = Router()

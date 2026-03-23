@@ -22,12 +22,10 @@ router.callback_query.filter(BotTypeFilter(SubBot.BotType.CONTACT))
 async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
     _ = i18n.get
     
-    u,subscription,create = await get_user_and_subscription(message.from_user, sub_bot.token)
+    u,subscription,create = await get_user_and_subscription(message.from_user, bot.token)
     sub_bot = subscription.bot
     
     if sub_bot:
-        
-        sub_bot = subscription.bot
     
         not_joined = await check_all_subscriptions(bot, message.from_user.id)
     
