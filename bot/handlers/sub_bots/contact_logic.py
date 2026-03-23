@@ -141,11 +141,7 @@ async def handle_sub_bot_messages(message: types.Message, bot: Bot, i18n: I18nCo
             
             await bot.send_message(
                 chat_id=owner_id,
-<<<<<<< HEAD
                 text=report_text,
-=======
-                text=report_text + "\n\n⚠️ " + _("msg-privacy-restriction-notice"),
->>>>>>> 5e05fc158cdc9410b34a3f2c861d93d476d9f9b9
                 reply_markup=safe_builder.as_markup(),
                 parse_mode="HTML"
             )
