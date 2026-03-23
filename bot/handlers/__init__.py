@@ -34,5 +34,6 @@ def get_handlers_router() -> Router:
     # 4. دمج المجموعتين في الروتر الأب
     main_router.include_router(master_router)
     main_router.include_router(sub_bots_parent_router)
+    main_router.include_router(navigation.router)
 
     return main_router

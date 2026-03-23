@@ -1,8 +1,15 @@
 from asgiref.sync import sync_to_async
 from apps.accounts.models import TelegramUser, Wallet
-from apps.bots.models import SubBot, BotSubscription, AdminChannel
+from apps.bots.models import (
+    SubBot,
+    BotSubscription,
+    AdminChannel,
+    SubBotChannel,
+    Channel,
+)
 from aiogram import types
 from bot.config import BOT_TOKEN
+
 
 @sync_to_async
 def get_main_channels_list():
@@ -17,50 +24,51 @@ def get_subbot_channels_list(bot_token):
         # نحول القنوات إلى قائمة لضمان فك الارتباط بقاعدة البيانات قبل العودة للـ async
         return list(sub_bot.force_channels.all())
     return []
-    
+
+
 @sync_to_async
 def get_user_and_subscription(tg_user: types.User, bot_token: str):
     """
     الدالة المركزية لجلب بيانات المستخدم واشتراكه في البوت الحالي.
     """
     # 1. تحديد اللغة الافتراضية
-    detected_lang = tg_user.language_code if tg_user.language_code else 'en'
-    final_lang = 'ar' if detected_lang.startswith('ar') else 'en'
+    detected_lang = tg_user.language_code if tg_user.language_code else "en"
+    final_lang = "ar" if detected_lang.startswith("ar") else "en"
 
     # 2. جلب أو إنشاء المستخدم العام (TelegramUser)
     user, _ = TelegramUser.objects.get_or_create(
         telegram_id=tg_user.id,
         defaults={
-            'full_name': tg_user.full_name,
-            'username': tg_user.username,
-        }
+            "full_name": tg_user.full_name,
+            "username": tg_user.username,
+        },
     )
 
     # 3. جلب البوت الفرعي (SubBot) بناءً على التوكن
     try:
         bot_inst = SubBot.objects.get(token=bot_token, is_active=True)
-        
+
         # 4. جلب أو إنشاء سجل الاشتراك (BotSubscription)
         subscription, created = BotSubscription.objects.get_or_create(
             bot=bot_inst,
             user=user,
-            defaults={
-                'language': final_lang  # تُضبط فقط عند أول دخول للبوت
-            }
+            defaults={"language": final_lang},  # تُضبط فقط عند أول دخول للبوت
         )
         return user, subscription, created
     except SubBot.DoesNotExist:
         return None, None, False
+
 
 @sync_to_async
 def activate_partner_wallet(user):
     """تحويل المستخدم لشريك وتفعيل محفظته عند إضافة أول بوت/قناة"""
     if not user.is_partner:
         user.is_partner = True
-        user.save(update_fields=['is_partner']) # تحديث حقل واحد فقط للأداء
-    
+        user.save(update_fields=["is_partner"])  # تحديث حقل واحد فقط للأداء
+
     wallet, created = Wallet.objects.get_or_create(user=user)
     return wallet, created
+
 
 @sync_to_async
 def get_or_create_user(tg_user: types.User):
@@ -68,23 +76,25 @@ def get_or_create_user(tg_user: types.User):
     user, created = TelegramUser.objects.get_or_create(
         telegram_id=tg_user.id,
         defaults={
-            'full_name': tg_user.full_name,
-            'username': tg_user.username,
-        }
+            "full_name": tg_user.full_name,
+            "username": tg_user.username,
+        },
     )
     return user, created
 
+
 @sync_to_async
-def get_user_bots(user, master_token=BOT_TOKEN): # <-- أضف master_token هنا
+def get_user_bots(user, master_token=BOT_TOKEN):  # <-- أضف master_token هنا
     """جلب بوتات المستخدم مع استثناء البوت الماستر"""
     from apps.bots.models import SubBot
-    
+
     # نقوم باستبعاد (exclude) البوت الذي يحمل توكن الماستر لكي لا يظهر في قائمة الحذف
     return list(
         SubBot.objects.filter(owner=user)
         .exclude(token=master_token)
-        .order_by('-created_at')
+        .order_by("-created_at")
     )
+
 
 @sync_to_async
 def get_sub_bot_by_id(bot_id, owner):
@@ -94,13 +104,15 @@ def get_sub_bot_by_id(bot_id, owner):
     except Exception:
         return None
 
+
 @sync_to_async
-def get_sub_bot_by_token(bot_token, owner):
+def get_sub_bot_by_token(bot_token):
     """جلب بوت معين والتأكد من أنه يخص المستخدم الحالي"""
     try:
-        return SubBot.objects.get(token=bot_token, owner=owner)
+        return SubBot.objects.get(token=bot_token)
     except Exception:
         return None
+
 
 @sync_to_async
 def toggle_sub_bot_status(bot_id, owner):
@@ -112,7 +124,8 @@ def toggle_sub_bot_status(bot_id, owner):
         return sub_bot
     except Exception:
         return None
-    
+
+
 @sync_to_async
 def delete_sub_bot(bot_id, owner):
     """حذف البوت نهائياً من قاعدة البيانات"""
@@ -123,3 +136,53 @@ def delete_sub_bot(bot_id, owner):
         return token
     except Exception:
         return None
+
+
+@sync_to_async
+def get_sub_bot_channels_list(sub_bot):
+    """جلب قائمة القنوات المرتبطة ببوت فرعي محدد مع بيانات القناة الأصلية"""
+    return list(
+        SubBotChannel.objects.filter(sub_bot=sub_bot, is_active=True)
+        .select_related("channel")
+        .order_by("order")
+    )
+
+
+@sync_to_async
+def delete_sub_bot_channel(bot_chan_id: int):
+    """حذف ارتباط القناة بالبوت الفرعي"""
+    try:
+        obj = SubBotChannel.objects.select_related("channel").get(id=bot_chan_id)
+        name = obj.channel.title
+        obj.delete()
+        return name
+    except SubBotChannel.DoesNotExist:
+        return None
+
+
+@sync_to_async
+def add_channel_to_sub_bot(sub_bot, chat_id, title, username, invite_link):
+    try:
+        # 1. تحديث أو إنشاء القناة في الجدول العام
+        channel, created = Channel.objects.update_or_create(
+            channel_id=chat_id,
+            defaults={
+                "owner": sub_bot.owner,
+                "title": title,
+                "username": username,
+                "invite_link": invite_link,  # الحقل الذي سألني عنه سابقاً
+            },
+        )
+
+        # 2. ربط القناة بهذا البوت تحديداً (SubBotChannel)
+        # نستخدم get_or_create لمنع تكرار نفس القناة في نفس اللستة
+        sub_chan, sub_created = SubBotChannel.objects.get_or_create(
+            sub_bot=sub_bot, channel=channel
+        )
+
+        if not sub_created:
+            return False, "⚠️ هذه القناة موجودة بالفعل في قائمة هذا البوت."
+
+        return True, "Success"
+    except Exception as e:
+        return False, f"Error: {str(e)}"

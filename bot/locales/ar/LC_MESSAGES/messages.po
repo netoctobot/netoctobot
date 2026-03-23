@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-23 13:22-0700\n"
+"POT-Creation-Date: 2026-03-23 14:29-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -15,11 +15,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/check.py:20 bot/handlers/sub_bots/list_logic.py:74
+#: bot/handlers/common/check.py:20 bot/handlers/sub_bots/list_logic.py:80
 msgid "still-not-subscribed"
 msgstr "❌ ما زلت غير مشترك في بعض القنوات!"
 
-#: bot/handlers/common/check.py:27 bot/handlers/sub_bots/list_logic.py:81
+#: bot/handlers/common/check.py:27 bot/handlers/sub_bots/list_logic.py:87
 msgid "thank-you-for-subscribing"
 msgstr "شكراً لاشتراكك! يمكنك الآن استخدام البوت."
 
@@ -40,15 +40,15 @@ msgstr ""
 "• <b>Markdown:</b> للمحترفين.\n"
 "• <b>Plain:</b> نص عادي بسيط."
 
-#: bot/handlers/common/navigation.py:65
+#: bot/handlers/common/navigation.py:72
 msgid "msg-feature-not-ready"
 msgstr "هذا القسم لم يكتمل إعداده بعد"
 
-#: bot/handlers/common/navigation.py:65
+#: bot/handlers/common/navigation.py:72
 msgid "msg-stay-tuned"
 msgstr "نحن نعمل على إنهاء البرمجة قريباً، شكراً لانتظارك! 🐙"
 
-#: bot/handlers/common/navigation.py:69
+#: bot/handlers/common/navigation.py:76
 msgid "btn-back-to-main"
 msgstr "🔙 العودة للقائمة الرئيسية"
 
@@ -187,9 +187,10 @@ msgid "btn-re-edit"
 msgstr "إعادة الكتابة"
 
 #: bot/handlers/my_bots/list_bots.py:217
-#: bot/keyboards/inline/bot_management.py:10
+#: bot/keyboards/inline/bot_management.py:11
+#: bot/keyboards/inline/bot_management.py:33
 msgid "btn-cancel"
-msgstr "إلغاء العملية"
+msgstr "❌ إلغاء العملية"
 
 #: bot/handlers/my_bots/list_bots.py:228
 msgid "msg-preview-header"
@@ -215,8 +216,8 @@ msgid "btn-edit-welcome"
 msgstr "📝 تعديل الرسالة"
 
 #: bot/handlers/my_bots/list_bots.py:291 bot/handlers/my_bots/list_bots.py:321
-#: bot/keyboards/inline/bot_management.py:85
-#: bot/keyboards/inline/bot_management.py:117
+#: bot/keyboards/inline/bot_management.py:109
+#: bot/keyboards/inline/bot_management.py:141
 msgid "btn-back"
 msgstr "⬅️ عودة"
 
@@ -294,7 +295,7 @@ msgstr "معلومات المستخدم"
 msgid "msg-user-not-found"
 msgstr "لا توجد بيانات لهذا المستخدم"
 
-#: bot/handlers/sub_bots/list_logic.py:49
+#: bot/handlers/sub_bots/list_logic.py:51
 msgid "owner-control-panel"
 msgstr ""
 "👑 <b>لوحة تحكم المالك</b>\n"
@@ -303,28 +304,65 @@ msgstr ""
 "\n"
 "⚙️ استخدم الأزرار أدناه لإدارة قنواتك وتخصيص اللستة:"
 
-#: bot/handlers/sub_bots/list_logic.py:55
+#: bot/handlers/sub_bots/list_logic.py:61
 msgid "msg-list-default-welcome"
 msgstr "مرحباً بك {{name}} في بوت لستة الدعم الخاص بي!"
 
-#: bot/handlers/sub_bots/list_logic.py:99
+#: bot/handlers/sub_bots/list_logic.py:104
 msgid "no-channels-added"
 msgstr "📂 لا توجد قنوات مضافة حالياً."
 
-#: bot/handlers/sub_bots/list_logic.py:104
+#: bot/handlers/sub_bots/list_logic.py:109
 msgid "list-channel-management"
 msgstr ""
 "📋 <b>إدارة قنوات اللستة:</b>\n"
 "\n"
 "اضغط على اسم القناة لإزالتها من القائمة:"
 
-#: bot/handlers/sub_bots/list_logic.py:121
+#: bot/handlers/sub_bots/list_logic.py:124
 msgid "msg-deleted-from-list"
 msgstr "✅ تم حذف {name} من القائمة"
 
-#: bot/handlers/sub_bots/list_logic.py:126
+#: bot/handlers/sub_bots/list_logic.py:128
 msgid "error-occurred-during-deletion"
 msgstr "⚠️ حدث خطأ أثناء الحذف، ربما القناة محذوفة بالفعل."
+
+#: bot/handlers/sub_bots/list_logic.py:149
+msgid "how-add-channel"
+msgstr ""
+"📥 <b>طريقة إضافة القناة:</b>\n"
+"\n"
+"1. قم برفع هذا البوت (وليس البوت الرئيسي) <b>مشرفاً</b> في قناتك.\n"
+"2. قم بـ <b>توجيه (Forward)</b> أي رسالة من القناة إلى هنا."
+
+#: bot/handlers/sub_bots/list_logic.py:160
+msgid "please-send-msg-from-channel"
+msgstr "⚠️ يرجى توجيه رسالة من <b>قناة</b> حقيقية."
+
+#: bot/handlers/sub_bots/list_logic.py:169
+msgid "type-chat-not-supported"
+msgstr "⚠️ هذا النوع من الدردشات غير مدعوم."
+
+#: bot/handlers/sub_bots/list_logic.py:174
+msgid "bot-not-administrato-make-it"
+msgstr ""
+"❌ البوت ليس مشرفاً في هذه القناة! ارفعه مشرفاً أولاً ثم وجه الرسالة "
+"مجدداً."
+
+
+#: bot/handlers/sub_bots/list_logic.py:176
+msgid "channel-not-verified"
+msgstr ""
+"❌ تعذر التحقق من القناة. تأكد من وجود البوت فيها كمشرف."
+
+#: bot/handlers/sub_bots/list_logic.py:203
+#, python-brace-format
+msgid ""
+"✅ تم إضافة القناة بنجاح إلى قائمتك!\n"
+"\n"
+"<b>اسم القناة:</b> {title}\n"
+"<b>الآيدي:</b> <code>{id}</code>"
+msgstr ""
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
@@ -366,64 +404,69 @@ msgstr "📂 عرض القنوات"
 msgid "technical-support"
 msgstr "🆘 دعم فني"
 
-#: bot/keyboards/inline/bot_management.py:19
-#: bot/keyboards/inline/bot_management.py:46
+#: bot/keyboards/inline/bot_management.py:28
+#, fuzzy
+msgid "btn-add-bot-as-admin"
+msgstr "➕ إضافة بوتي"
+
+#: bot/keyboards/inline/bot_management.py:43
+#: bot/keyboards/inline/bot_management.py:70
 msgid "btn-back-main"
 msgstr "🔙 العودة للقائمة الرئيسية"
 
-#: bot/keyboards/inline/bot_management.py:45
+#: bot/keyboards/inline/bot_management.py:69
 msgid "btn-add-another-bot"
 msgstr "➕ إضافة بوت آخر"
 
-#: bot/keyboards/inline/bot_management.py:63
+#: bot/keyboards/inline/bot_management.py:87
 msgid "btn-stop-bot"
 msgstr "🛑 إيقاف البوت"
 
-#: bot/keyboards/inline/bot_management.py:63
+#: bot/keyboards/inline/bot_management.py:87
 msgid "btn-start-bot"
 msgstr "⚡️ تشغيل البوت"
 
-#: bot/keyboards/inline/bot_management.py:68
+#: bot/keyboards/inline/bot_management.py:92
 msgid "btn-delete-bot"
 msgstr "🗑️ حذف البوت نهائياً"
 
-#: bot/keyboards/inline/bot_management.py:71
+#: bot/keyboards/inline/bot_management.py:95
 msgid "btn-edit-welcome-bot"
 msgstr "👋 الرسالة الترحيبية"
 
-#: bot/keyboards/inline/bot_management.py:74
+#: bot/keyboards/inline/bot_management.py:98
 msgid "btn-back-to-list"
 msgstr "🔙 العودة لقائمة البوتات"
 
-#: bot/keyboards/inline/bot_management.py:82
+#: bot/keyboards/inline/bot_management.py:106
 msgid "HTML-recommanded"
 msgstr "HTML (موصى به)"
 
-#: bot/keyboards/inline/bot_management.py:84
+#: bot/keyboards/inline/bot_management.py:108
 msgid "btn-plain-text"
 msgstr "نص عادي"
 
-#: bot/keyboards/inline/bot_management.py:95
+#: bot/keyboards/inline/bot_management.py:119
 msgid "add-channel"
 msgstr "➕ إضافة قناة"
 
-#: bot/keyboards/inline/bot_management.py:96
+#: bot/keyboards/inline/bot_management.py:120
 msgid "channel-management"
 msgstr "📋 إدارة القنوات"
 
-#: bot/keyboards/inline/bot_management.py:97
+#: bot/keyboards/inline/bot_management.py:121
 msgid "publish-list"
 msgstr "🚀 نشر اللستة"
 
-#: bot/keyboards/inline/bot_management.py:99
+#: bot/keyboards/inline/bot_management.py:123
 msgid "incoming-messages"
 msgstr "💬 الرسائل الواردة"
 
-#: bot/keyboards/inline/bot_management.py:101
+#: bot/keyboards/inline/bot_management.py:125
 msgid "bot-settings"
 msgstr "⚙️ إعدادات البوت"
 
-#: bot/keyboards/inline/bot_management.py:116
+#: bot/keyboards/inline/bot_management.py:140
 msgid "add-new-channel"
 msgstr "➕ إضافة قناة جديدة"
 

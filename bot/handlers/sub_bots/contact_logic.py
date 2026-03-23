@@ -10,7 +10,7 @@ from apps.bots.models import SubBot
 from apps.accounts.models import TelegramUser
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.config import BOT_TOKEN, ADMIN_IDS
-from bot.db_operations import get_user_and_subscription, get_sub_bot_by_token
+from bot.db_operations import get_user_and_subscription
 from bot.filters import BotTypeFilter
 from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
 

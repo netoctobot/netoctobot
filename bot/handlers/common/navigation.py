@@ -6,7 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.utils.interface import update_main_interface, show_main_menu_edit, return_to_bot_settings
 from bot.db_operations import get_user_and_subscription
 from bot.keyboards.inline.bot_management import get_parse_mode_keyboard
-from bot.states.sub_bot_states import SubBotSettingsSG
+from bot.states.sub_bot_states import SubBotSettingsSG, AddChannelSG
 
 # تعريف الراوتر الخاص بهذا الملف
 router = Router()
@@ -35,6 +35,13 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext, i18n:
 
     # 2. إذا كان في اختيار التنسيق -> نعيده لواجهة إدارة البوت
     elif current_state == SubBotSettingsSG.waiting_for_parse_mode:
+        data = await state.get_data()
+        bot_id = data.get('target_bot_id')
+        await state.clear()
+        # هنا نستدعي دالة إدارة البوت التي برمجناها سابقاً لكن بصيغة edit
+        await return_to_bot_settings(callback, bot_id, i18n, bot)
+    
+    elif current_state == AddChannelSG.waiting_for_forward:
         data = await state.get_data()
         bot_id = data.get('target_bot_id')
         await state.clear()

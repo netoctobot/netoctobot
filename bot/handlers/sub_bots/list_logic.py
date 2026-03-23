@@ -6,13 +6,16 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
 from bot.filters import BotTypeFilter
-from bot.db_operations import get_user_and_subscription, get_sub_bot_by_token
+from bot.db_operations import get_user_and_subscription, get_sub_bot_by_token,get_sub_bot_channels_list, delete_sub_bot_channel
 from bot.utils.formatters import format_personal_message
-from bot.keyboards.inline.bot_management import get_LST_owner_control_panel, get_channels_management_keyboard
-from apps.bots.models import SubBot, SubBotChannel
+from bot.keyboards.inline.bot_management import get_LST_owner_control_panel, get_channels_management_keyboard, get_add_bot_as_admin_and_cancel
+from apps.bots.models import SubBot, SubBotChannel,Channel
 from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
 from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
 from bot.keyboards.main_menu import get_user_main_menu
+from bot.utils.interface import update_main_interface
+from bot.states.sub_bot_states import AddChannelSG
+from bot.utils.common import get_chat_invite_link
 
 router = Router()
 router.message.filter(BotTypeFilter(SubBot.BotType.LIST)) # قفل أمان
@@ -47,10 +50,14 @@ async def list_bot_start(message: types.Message, bot: Bot, i18n: I18nContext, st
     # --- أ: حالة المالك (Owner) ---
     if message.from_user.id == sub_bot.owner.telegram_id:
         owner_text = _("owner-control-panel")
-        return await message.answer(
-            text=owner_text,
-            reply_markup=get_LST_owner_control_panel(i18n, "LST")
-        )
+        return await update_main_interface(
+        bot=bot,
+        chat_id=message.chat.id,
+        subscription=subscription,
+        text=owner_text,
+         reply_markup=get_LST_owner_control_panel(i18n, "LST")
+    )
+        
     # تحضير رسالة الترحيب
     raw_welcome = sub_bot.welcome_msg or _("msg-list-default-welcome")
     p_mode = sub_bot.welcome_parse_mode
@@ -84,15 +91,14 @@ async def check_again_callback(callback: types.CallbackQuery, bot: Bot, i18n: I1
 
 
 @router.callback_query(F.data == "manage_channels")
-async def manage_channels_list(callback: types.CallbackQuery, bot: Bot, i18n: I18nContext):
+async def manage_channels_list(callback: types.CallbackQuery, state: FSMContext, bot: Bot, i18n: I18nContext):
     _ = i18n.get
     
+    await state.clear()
+    
     # جلب القنوات المرتبطة بهذا البوت تحديداً
-    # نستخدم select_related لتجنب ثقل الاستعلام (N+1 problem)
     sub_bot = await get_sub_bot_by_token(bot.token)
-    channels = await sync_to_async(list)(
-        SubBotChannel.objects.filter(sub_bot=sub_bot).select_related('channel')
-    )
+    channels = await get_sub_bot_channels_list(sub_bot)
     
     if not channels:
         return await callback.message.edit_text(
@@ -110,17 +116,91 @@ async def manage_channels_list(callback: types.CallbackQuery, bot: Bot, i18n: I1
 async def delete_channel_from_bot(callback: types.CallbackQuery, i18n: I18nContext):
     _ = i18n.get
     # استخراج الـ ID من callback_data
-    sub_bot_chan_id = int(callback.data.split("_")[-1])
+    chan_id = int(callback.data.split("_")[-1])
     
     # حذف الارتباط من قاعدة البيانات
     try:
-        sub_bot_chan = await sync_to_async(SubBotChannel.objects.get)(id=sub_bot_chan_id)
-        channel_name = await sync_to_async(lambda: sub_bot_chan.channel.title)()
-        await sync_to_async(sub_bot_chan.delete)()
+        deleted_name = await delete_sub_bot_channel(chan_id)
         
-        await callback.answer(_("msg-deleted-from-list",name=channel_name))
-        
+        await callback.answer(_("msg-deleted-from-list",name=deleted_name),show_alert=True)  
         # تحديث القائمة بعد الحذف
         await manage_channels_list(callback, callback.bot, i18n)
     except Exception:
         await callback.answer(_("error-occurred-during-deletion"), show_alert=True)
+        
+@router.callback_query(F.data == "back_to_owner_panel")
+async def back_to_owner(callback: types.CallbackQuery, i18n: I18nContext):
+    await callback.message.edit_text(
+        i18n.get("owner-control-panel"),
+        reply_markup=get_LST_owner_control_panel(i18n, "LST")
+    )
+
+
+@router.callback_query(F.data == "add_channel")
+async def start_add_channel(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext, bot: Bot):
+    _ = i18n.get
+    await state.set_state(AddChannelSG.waiting_for_forward)
+    # نأتي باليوزرنيم هنا (مرة واحدة)
+    me = await bot.get_me() 
+    
+    # نمرر اليوزرنيم للدالة العادية
+    keyboard = get_add_bot_as_admin_and_cancel(i18n, me.username)
+    
+    await callback.message.edit_text(
+        _("how-add-channel"),
+        reply_markup=keyboard
+    )
+
+@router.message(AddChannelSG.waiting_for_forward)
+async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nContext, state: FSMContext):
+    _ = i18n.get
+    
+    # التأكد أن الرسالة موجهة من قناة
+    if not message.forward_from_chat or message.forward_from_chat.type != "channel":
+        return await message.edit_text(
+            _("please-send-msg-from-channel"),
+            reply_markup=get_add_bot_as_admin_and_cancel(i18n)
+            )
+
+    chat = message.forward_from_chat
+
+    # التحقق من صلاحيات البوت في تلك القناة
+    valid_types = ["channel", "group", "supergroup"]
+    if chat.type not in valid_types:
+        return await message.reply(_("type-chat-not-supported"))
+    try:
+        me = await bot.get_me()
+        member = await bot.get_chat_member(chat_id=chat.id, user_id=me.id)
+        if member.status not in ["administrator", "creator"]:
+            return await message.reply(_("bot-not-administrato-make-it"))
+    except Exception:
+        return await message.reply(_("channel-not-verified"))
+
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    
+    # 1. حفظ/تحديث القناة في الجدول العام (Channel)
+    invite_link = get_chat_invite_link(chat)
+    
+    channel, __ = await sync_to_async(Channel.objects.update_or_create)(
+        channel_id=chat.id,
+        defaults={
+            'owner': sub_bot.owner,
+            'title': chat.title,
+            'invite_link': invite_link
+        }
+    )
+
+    # 2. ربط القناة بهذا البوت تحديداً (SubBotChannel)
+    await sync_to_async(SubBotChannel.objects.update_or_create)(
+        sub_bot=sub_bot,
+        channel=channel,
+        defaults={'is_active': True}
+    )
+
+    await state.clear()
+    await message.reply(
+        _("✅ تم إضافة القناة بنجاح إلى قائمتك!\n\n"
+          "<b>اسم القناة:</b> {title}\n"
+          "<b>الآيدي:</b> <code>{id}</code>").format(title=chat.title, id=chat.id),
+        reply_markup=get_LST_owner_control_panel(i18n, "LST")
+    )
