@@ -11,9 +11,11 @@ from apps.accounts.models import TelegramUser
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.config import BOT_TOKEN, ADMIN_IDS
 from bot.db_operations import get_user_and_subscription, get_sub_bot_by_token
+from bot.filters import BotTypeFilter
 
 router = Router()
-router.message.filter(F.bot.token != BOT_TOKEN)
+router.message.filter(BotTypeFilter(SubBot.BotType.CONTACT))
+router.callback_query.filter(BotTypeFilter(SubBot.BotType.CONTACT))
 
 @router.message(CommandStart())
 async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
@@ -22,7 +24,9 @@ async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
     sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).first)()
     
     if sub_bot:
-        __,__,__ = get_user_and_subscription(message.from_user, sub_bot.token)
+        u,subscription,create = await get_user_and_subscription(message.from_user, sub_bot.token)
+        # 🔥 التعديل الأهم: فرض لغة الاشتراك على السياق الحالي
+        await i18n.set_locale(subscription.language)
         raw_welcome = sub_bot.welcome_msg or _("msg-defult-welcome")
         p_mode = sub_bot.welcome_parse_mode # القيمة المخزنة (HTML أو MDV2)
         

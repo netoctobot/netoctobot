@@ -2,15 +2,14 @@ import asyncio
 from aiogram import Router, types, Bot, F
 from aiogram.filters import CommandStart
 from aiogram_i18n import I18nContext
-
+from bot.filters import BotTypeFilter
 from bot.db_operations import get_user_and_subscription
 from bot.utils.formatters import format_personal_message
 from apps.bots.models import SubBot
 
 router = Router()
-
-# تصفية الرسائل لتشمل البوتات من نوع LIST فقط ومن المحادثات الخاصة
-router.message.filter(F.chat.type == "private")
+router.message.filter(BotTypeFilter(SubBot.BotType.LIST)) # قفل أمان
+router.callback_query.filter(BotTypeFilter(SubBot.BotType.LIST))
 
 @router.message(CommandStart())
 async def list_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):

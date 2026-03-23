@@ -13,12 +13,13 @@ from .utils.interface import setup_master_bot_sync, update_main_interface # ال
 from bot.handlers import get_handlers_router
 from apps.bots.models import SubBot
 from aiogram.client.default import DefaultBotProperties 
-from .config import BOT_TOKEN
+from bot.handlers.sub_bots.contact_logic import router as contact_router
 
 # تسجيل الراوتر
 dp.include_router(get_handlers_router())
+dp.include_router(contact_router)
 
-@dp.message(CommandStart(), F.bot.token == BOT_TOKEN)
+@dp.message(CommandStart())
 async def cmd_start(message: types.Message, i18n: I18nContext, bot: Bot):
     _ = i18n.get
     # جلب بيانات المستخدم والاشتراك (سريع جداً الآن)
