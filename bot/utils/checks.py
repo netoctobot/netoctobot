@@ -1,3 +1,4 @@
+# bot\utils\checks.py 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from bot.loader import bot as main_bot
@@ -7,6 +8,8 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from bot.db_operations import get_main_channels_list
 from bot.loader import bot as main_bot # استيراد البوت الرئيسي للتحقق من قنواته
+from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
+
 
 async def check_all_subscriptions(current_bot: Bot, user_id: int):
     not_joined = []
@@ -36,3 +39,20 @@ async def check_all_subscriptions(current_bot: Bot, user_id: int):
                 continue
 
     return not_joined
+
+async def handle_force_subscribe(message, i18n, sub_bot, not_joined):
+    """دالة موحدة لعرض رسالة الاشتراك الإجباري"""
+    _ = i18n.get
+    force_text = sub_bot.force_msg or _("must-subscribe")
+    
+    return await message.answer(
+        text=force_text, 
+        reply_markup=get_force_sub_keyboard(i18n, not_joined)
+    )
+
+async def force_subscribe(message, bot, i18n, sub_bot):
+    not_joined = await check_all_subscriptions(bot, message.from_user.id)
+    
+    if not_joined:
+        # استدعاء الدالة الموحدة التي أنشأناها
+        return await handle_force_subscribe(message, i18n, sub_bot, not_joined)

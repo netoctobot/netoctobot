@@ -8,15 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-<<<<<<< HEAD
-<<<<<<< HEAD
-"POT-Creation-Date: 2026-03-23 08:06-0700\n"
-=======
-"POT-Creation-Date: 2026-03-23 07:50-0700\n"
->>>>>>> 5e05fc158cdc9410b34a3f2c861d93d476d9f9b9
-=======
-"POT-Creation-Date: 2026-03-23 07:50-0700\n"
->>>>>>> 5e05fc158cdc9410b34a3f2c861d93d476d9f9b9
+"POT-Creation-Date: 2026-03-23 11:09-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -192,63 +184,69 @@ msgstr ""
 msgid "msg-current-welcome-is"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:24
+#: bot/handlers/sub_bots/contact_logic.py:30
 msgid "msg-defult-welcome"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:62
+#: bot/handlers/sub_bots/contact_logic.py:68
 msgid "search-sender-id"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:78
+#: bot/handlers/sub_bots/contact_logic.py:84
 msgid "msg-err-reply"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:80
+#: bot/handlers/sub_bots/contact_logic.py:86
 msgid "msg-not-user-id"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:95
+#: bot/handlers/sub_bots/contact_logic.py:101
 msgid "msg-warning-reply-required"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:115
+#: bot/handlers/sub_bots/contact_logic.py:121
 msgid "msg-private-account-report"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:122
+#: bot/handlers/sub_bots/contact_logic.py:128
 msgid "btn-real-account"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:123
-#: bot/handlers/sub_bots/contact_logic.py:138
+#: bot/handlers/sub_bots/contact_logic.py:129
+#: bot/handlers/sub_bots/contact_logic.py:144
 msgid "btn-our-data"
 msgstr ""
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-#: bot/handlers/sub_bots/contact_logic.py:164
+#: bot/handlers/sub_bots/contact_logic.py:170
 msgid "status-partner"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:164
+#: bot/handlers/sub_bots/contact_logic.py:170
 msgid "status-regular"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:169
+#: bot/handlers/sub_bots/contact_logic.py:175
 msgid "msg-user-info-alert"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:175
+#: bot/handlers/sub_bots/contact_logic.py:181
 msgid "msg-user-not-found"
-=======
-#: bot/handlers/sub_bots/contact_logic.py:142
-msgid "msg-privacy-restriction-notice"
->>>>>>> 5e05fc158cdc9410b34a3f2c861d93d476d9f9b9
-=======
-#: bot/handlers/sub_bots/contact_logic.py:142
-msgid "msg-privacy-restriction-notice"
->>>>>>> 5e05fc158cdc9410b34a3f2c861d93d476d9f9b9
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:48
+msgid "owner-control-panel"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:54
+msgid "msg-list-default-welcome"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:73
+msgid "still-not-subscribed"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:80
+msgid "thank-you-for-subscribing"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:10
@@ -281,6 +279,14 @@ msgstr ""
 
 #: bot/keyboards/main_menu.py:27
 msgid "btn-change-lang"
+msgstr ""
+
+#: bot/keyboards/main_menu.py:36
+msgid "📂 عرض القنوات"
+msgstr ""
+
+#: bot/keyboards/main_menu.py:38
+msgid "🆘 دعم فني"
 msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:19
@@ -320,7 +326,35 @@ msgstr ""
 msgid "btn-plain-text"
 msgstr ""
 
-#: bot/utils/formatters.py:9
+#: bot/keyboards/inline/bot_management.py:95
+msgid "➕ إضافة قناة"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:96
+msgid "📋 إدارة القنوات"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:97
+msgid "🚀 نشر اللستة"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:99
+msgid "💬 الرسائل الواردة"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:101
+msgid "⚙️ إعدادات البوت"
+msgstr ""
+
+#: bot/keyboards/inline/subscriptions.py:17
+msgid "subscribed"
+msgstr ""
+
+#: bot/utils/checks.py:46
+msgid "must-subscribe"
+msgstr ""
+
+#: bot/utils/formatters.py:10
 msgid "bot-signature"
 msgstr ""
 

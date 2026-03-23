@@ -85,3 +85,19 @@ def get_parse_mode_keyboard(i18n: I18nContext, bot_id):
     builder.button(text=_("btn-back"), callback_data=f"manage_bot_{bot_id}") # العودة لإعدادات البوت
     builder.adjust(2, 1)
     return builder.as_markup()
+
+
+def get_LST_owner_control_panel(i18n, bot_type):
+    _ = i18n.get
+    builder = InlineKeyboardBuilder()
+    
+    if bot_type == "LST":
+        builder.button(text=_("add-channel"), callback_data="add_channel")
+        builder.button(text=_("channel-management"), callback_data="manage_channels")
+        builder.button(text=_("publish-list"), callback_data="broadcast_list")
+    else: # CON
+        builder.button(text=_("incoming-messages"), callback_data="view_messages")
+    
+    builder.button(text=_("bot-settings"), callback_data="bot_settings")
+    builder.adjust(2)
+    return builder.as_markup()

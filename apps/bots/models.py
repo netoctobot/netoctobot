@@ -54,7 +54,23 @@ class SubBot(BaseModel):
         default=ParseMode.HTML,
         verbose_name=_("Welcome Message Format")
     )
-
+    template_msg = models.TextField(
+        verbose_name=_("Template msg")
+    )
+    teplate_parse_mode = models.CharField(
+        max_length=5, 
+        choices=ParseMode.choices, 
+        default=ParseMode.HTML,
+        verbose_name=_("List Message Format")
+    )
+    
+    # أزرار المالك (نص خام يتم معالجته برمجياً)
+    owner_buttons = models.TextField(
+        null=True, 
+        blank=True, 
+        verbose_name=_("Owner Custom Buttons"),
+        help_text=_("Format: Button Name | URL (one per line)")
+    )
     # القنوات التي يفرضها صاحب البوت
     # ملاحظة: يمكن للبوت الواحد فرض عدة قنوات
     force_channels = models.ManyToManyField(
@@ -96,6 +112,7 @@ class Channel(BaseModel):
     member_count = models.PositiveIntegerField(default=0, verbose_name=_("Member Count"))
     status = models.CharField(max_length=3, choices=Status.choices, default=Status.ACTIVE, verbose_name=_("Status"))
     last_sync = models.DateTimeField(auto_now=True, verbose_name=_("Last Sync"))
+    invite_link = models.URLField(null=True, blank=True, verbose_name=_("Invite Link"))
 
     def __str__(self):
         return self.title
@@ -103,6 +120,19 @@ class Channel(BaseModel):
     class Meta:
         verbose_name = _("Channel")
         verbose_name_plural = _("Channels")
+
+class SubBotChannel(BaseModel):
+    """إعدادات القناة داخل بوت فرعي محدد"""
+    sub_bot = models.ForeignKey(SubBot, on_delete=models.CASCADE, related_name='bot_channels')
+    channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='in_bots')
+    
+    # إعدادات خاصة بكل بوت
+    custom_invite_link = models.URLField(null=True, blank=True, verbose_name=_("Custom Link for this Bot"))
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('sub_bot', 'channel') # القناة لا تتكرر في نفس البوت
 
 class BotSubscription(BaseModel):
     """سجل المشتركين في البوتات (العزل)"""

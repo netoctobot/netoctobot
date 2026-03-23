@@ -27,3 +27,14 @@ def get_main_keyboard(i18n: I18nContext, is_admin: bool = False, is_partner: boo
     builder.button(text=_('btn-change-lang'), callback_data="change_lang")
     builder.adjust(2,2,2, 1) 
     return builder.as_markup()
+
+def get_user_main_menu(i18n, bot_type):
+    _ = i18n.get
+    builder = InlineKeyboardBuilder()
+    
+    if bot_type == "LST":
+        builder.button(text=_("📂 عرض القنوات"), callback_data="show_list")
+    
+    builder.button(text=_("🆘 دعم فني"), callback_data="support")
+    builder.adjust(1)
+    return builder.as_markup()

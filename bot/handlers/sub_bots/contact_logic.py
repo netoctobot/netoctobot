@@ -12,6 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.config import BOT_TOKEN, ADMIN_IDS
 from bot.db_operations import get_user_and_subscription, get_sub_bot_by_token
 from bot.filters import BotTypeFilter
+from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
 
 router = Router()
 router.message.filter(BotTypeFilter(SubBot.BotType.CONTACT))
@@ -21,10 +22,18 @@ router.callback_query.filter(BotTypeFilter(SubBot.BotType.CONTACT))
 async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
     _ = i18n.get
     
-    sub_bot = await sync_to_async(SubBot.objects.filter(token=bot.token).first)()
+    u,subscription,create = await get_user_and_subscription(message.from_user, sub_bot.token)
+    sub_bot = subscription.bot
     
     if sub_bot:
-        u,subscription,create = await get_user_and_subscription(message.from_user, sub_bot.token)
+        
+        sub_bot = subscription.bot
+    
+        not_joined = await check_all_subscriptions(bot, message.from_user.id)
+    
+        if not_joined:
+            return await handle_force_subscribe(message, i18n, sub_bot, not_joined)
+        
         # 🔥 التعديل الأهم: فرض لغة الاشتراك على السياق الحالي
         await i18n.set_locale(subscription.language)
         raw_welcome = sub_bot.welcome_msg or _("msg-defult-welcome")

@@ -2,6 +2,7 @@ import html
 from aiogram import types
 from aiogram.utils.markdown import markdown_decoration as md # استيراد المصحح
 from aiogram_i18n import I18nContext
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 def format_personal_message(raw_text: str, user: types.User, parse_mode: str, i18n: I18nContext, show_signature: bool = True):
     _ = i18n.get
@@ -41,3 +42,20 @@ def format_personal_message(raw_text: str, user: types.User, parse_mode: str, i1
         
     # منطق التوقيع (Signature) هنا
     return formatted_text + signature_html
+
+def build_custom_buttons(builder: InlineKeyboardBuilder, raw_text: str):
+    """تحويل نص المالك إلى أزرار وإضافتها للكيبورد"""
+    if not raw_text:
+        return builder
+
+    lines = raw_text.strip().split('\n')
+    for line in lines:
+        if '|' in line:
+            parts = line.split('|')
+            name = parts[0].strip()
+            url = parts[1].strip()
+            # التأكد من أن الرابط يبدأ بـ http لضمان عدم حدوث خطأ
+            if url.startswith('http'):
+                builder.row(types.InlineKeyboardButton(text=name, url=url))
+    
+    return builder

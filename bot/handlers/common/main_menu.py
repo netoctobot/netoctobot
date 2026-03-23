@@ -4,6 +4,7 @@ from ...db_operations import get_user_and_subscription
 # استيراد الأزرار من المجلد الجديد
 from ...keyboards.main_menu import get_main_keyboard
 from ...keyboards.inline.settings import get_language_keyboard
+from bot.config import ADMIN_IDS
 router = Router()
 
 @router.callback_query(F.data == "back_to_main")
@@ -18,7 +19,7 @@ async def back_to_main_menu(callback: types.CallbackQuery, i18n: I18nContext, bo
         text=i18n.get("welcome-back", full_name=user.full_name),
         reply_markup=get_main_keyboard(
             i18n, 
-            is_admin=(callback.from_user.id in [6788475988, 6459379370]), # أو حسب منطق الـ config
+            is_admin=(callback.from_user.id in ADMIN_IDS), # أو حسب منطق الـ config
             is_partner=user.is_partner
         )
     )
