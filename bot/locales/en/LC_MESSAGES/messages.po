@@ -3,7 +3,11 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+<<<<<<< HEAD
 "POT-Creation-Date: 2026-03-23 08:06-0700\n"
+=======
+"POT-Creation-Date: 2026-03-23 07:46-0700\n"
+>>>>>>> 5e05fc158cdc9410b34a3f2c861d93d476d9f9b9
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -251,6 +255,7 @@ msgstr ""
 msgid "btn-our-data"
 msgstr "➕ Add Another Bot"
 
+<<<<<<< HEAD
 #: bot/handlers/sub_bots/contact_logic.py:164
 msgid "status-partner"
 msgstr ""
@@ -265,6 +270,10 @@ msgstr ""
 
 #: bot/handlers/sub_bots/contact_logic.py:175
 msgid "msg-user-not-found"
+=======
+#: bot/handlers/sub_bots/contact_logic.py:142
+msgid "msg-privacy-restriction-notice"
+>>>>>>> 5e05fc158cdc9410b34a3f2c861d93d476d9f9b9
 msgstr ""
 
 #: bot/keyboards/main_menu.py:10

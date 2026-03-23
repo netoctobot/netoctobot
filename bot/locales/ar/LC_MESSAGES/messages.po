@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-23 08:06-0700\n"
+"POT-Creation-Date: 2026-03-22 12:03-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -242,42 +242,6 @@ msgstr ""
 #: bot/handlers/sub_bots/contact_logic.py:95
 msgid "msg-warning-reply-required"
 msgstr "⚠️ قم بالرد على الرسالة المعاد توجيهها للتواصل وتسليم الرسالة للمستخدم"
-
-#: bot/handlers/sub_bots/contact_logic.py:115
-msgid "msg-private-account-report"
-msgstr ""
-"📥 <b>رسالة من حساب خاص:</b>\n"
-"👤 <a href='tg://user?id={user_id}'>{full_name}</a>\n"
-"🆔 <code>{user_id}</code>\n"
-"\n"
-"⚠️ للرد: استعمل الـ (Reply) على هذه الرسالة."
-
-#: bot/handlers/sub_bots/contact_logic.py:122
-msgid "btn-real-account"
-msgstr "👤 الحساب الحقيقي"
-
-#: bot/handlers/sub_bots/contact_logic.py:123
-#: bot/handlers/sub_bots/contact_logic.py:138
-msgid "btn-our-data"
-msgstr "ℹ️ بياناتنا"
-
-#: bot/handlers/sub_bots/contact_logic.py:164
-msgid "status-partner"
-msgstr "شريك"
-
-#: bot/handlers/sub_bots/contact_logic.py:164
-msgid "status-regular"
-msgstr "عادي"
-
-#: bot/handlers/sub_bots/contact_logic.py:169
-msgid "msg-user-info-alert"
-msgstr ""
-"👤 الاسم: {name}\n"
-"💎 الحالة: {status}"
-
-#: bot/handlers/sub_bots/contact_logic.py:175
-msgid "msg-user-not-found"
-msgstr "⚠️ هذا المستخدم غير مسجل في قاعدة بياناتنا."
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
