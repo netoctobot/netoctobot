@@ -33,8 +33,8 @@ def get_user_main_menu(i18n, bot_type):
     builder = InlineKeyboardBuilder()
     
     if bot_type == "LST":
-        builder.button(text=_("📂 عرض القنوات"), callback_data="show_list")
+        builder.button(text=_("show-channel"), callback_data="show_list")
     
-    builder.button(text=_("🆘 دعم فني"), callback_data="support")
+    builder.button(text=_("technical-support"), callback_data="support")
     builder.adjust(1)
     return builder.as_markup()

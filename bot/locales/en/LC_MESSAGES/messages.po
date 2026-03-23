@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-23 11:09-0700\n"
+"POT-Creation-Date: 2026-03-23 12:27-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -217,70 +217,70 @@ msgstr ""
 msgid "msg-current-welcome-is"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:30
+#: bot/handlers/sub_bots/contact_logic.py:39
 msgid "msg-defult-welcome"
 msgstr "مرحباً بك {name} في بوت التواصل الخاص بي!"
 
-#: bot/handlers/sub_bots/contact_logic.py:68
+#: bot/handlers/sub_bots/contact_logic.py:77
 msgid "search-sender-id"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:84
+#: bot/handlers/sub_bots/contact_logic.py:93
 msgid "msg-err-reply"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:86
+#: bot/handlers/sub_bots/contact_logic.py:95
 msgid "msg-not-user-id"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:101
+#: bot/handlers/sub_bots/contact_logic.py:110
 msgid "msg-warning-reply-required"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:121
+#: bot/handlers/sub_bots/contact_logic.py:130
 msgid "msg-private-account-report"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:128
+#: bot/handlers/sub_bots/contact_logic.py:137
 msgid "btn-real-account"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:129
-#: bot/handlers/sub_bots/contact_logic.py:144
+#: bot/handlers/sub_bots/contact_logic.py:138
+#: bot/handlers/sub_bots/contact_logic.py:153
 #, fuzzy
 msgid "btn-our-data"
 msgstr "➕ Add Another Bot"
 
-#: bot/handlers/sub_bots/contact_logic.py:170
+#: bot/handlers/sub_bots/contact_logic.py:179
 msgid "status-partner"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:170
+#: bot/handlers/sub_bots/contact_logic.py:179
 msgid "status-regular"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:175
+#: bot/handlers/sub_bots/contact_logic.py:184
 msgid "msg-user-info-alert"
 msgstr ""
 
-#: bot/handlers/sub_bots/contact_logic.py:181
+#: bot/handlers/sub_bots/contact_logic.py:190
 msgid "msg-user-not-found"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:48
+#: bot/handlers/sub_bots/list_logic.py:47
 msgid "owner-control-panel"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:54
+#: bot/handlers/sub_bots/list_logic.py:53
 #, fuzzy
 msgid "msg-list-default-welcome"
 msgstr "مرحباً بك {name} في بوت التواصل الخاص بي!"
 
-#: bot/handlers/sub_bots/list_logic.py:73
+#: bot/handlers/sub_bots/list_logic.py:72
 msgid "still-not-subscribed"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:80
+#: bot/handlers/sub_bots/list_logic.py:79
 msgid "thank-you-for-subscribing"
 msgstr ""
 
@@ -317,12 +317,13 @@ msgid "btn-change-lang"
 msgstr "Change Language 🌐"
 
 #: bot/keyboards/main_menu.py:36
-msgid "📂 عرض القنوات"
+msgid "show-channel"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:38
-msgid "🆘 دعم فني"
-msgstr ""
+#, fuzzy
+msgid "technical-support"
+msgstr "🎧 Support"
 
 #: bot/keyboards/inline/bot_management.py:19
 #: bot/keyboards/inline/bot_management.py:46
@@ -367,24 +368,25 @@ msgid "btn-plain-text"
 msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:95
-msgid "➕ إضافة قناة"
+msgid "add-channel"
 msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:96
-msgid "📋 إدارة القنوات"
+msgid "channel-management"
 msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:97
-msgid "🚀 نشر اللستة"
+msgid "publish-list"
 msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:99
-msgid "💬 الرسائل الواردة"
+msgid "incoming-messages"
 msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:101
-msgid "⚙️ إعدادات البوت"
-msgstr ""
+#, fuzzy
+msgid "bot-settings"
+msgstr "⚙️ System Settings"
 
 #: bot/keyboards/inline/subscriptions.py:17
 msgid "subscribed"
@@ -420,5 +422,26 @@ msgstr "Welcome back, {full_name}! ✨"
 #~ msgstr "Cancelled"
 
 #~ msgid "msg-privacy-restriction-notice"
+#~ msgstr ""
+
+#~ msgid "➕ إضافة قناة"
+#~ msgstr ""
+
+#~ msgid "📋 إدارة القنوات"
+#~ msgstr ""
+
+#~ msgid "🚀 نشر اللستة"
+#~ msgstr ""
+
+#~ msgid "💬 الرسائل الواردة"
+#~ msgstr ""
+
+#~ msgid "⚙️ إعدادات البوت"
+#~ msgstr ""
+
+#~ msgid "📂 عرض القنوات"
+#~ msgstr ""
+
+#~ msgid "🆘 دعم فني"
 #~ msgstr ""
 
