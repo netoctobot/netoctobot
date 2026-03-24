@@ -434,7 +434,8 @@ async def process_interval(message: types.Message, state: FSMContext, bot: Bot, 
     
     # التأكد أن المدخل رقم
     if not message.text.isdigit():
-        return await message.answer(_("error-invalid-interval"))
+        asyncio.create_task(delete_message_after(message))
+        return asyncio.create_task(delete_message_after(await message.answer(_("error-invalid-interval"))))
 
     interval_hours = int(message.text)
     sub_bot = await get_sub_bot_by_token(bot.token)
@@ -453,3 +454,64 @@ async def process_interval(message: types.Message, state: FSMContext, bot: Bot, 
     msg = await message.answer(_("interval-updated-successfully",hours=interval_hours))
     asyncio.create_task(delete_message_after(msg,4))
     await state.clear()
+
+@router.callback_query(F.data == "edit_delete_time")
+async def ask_for_delete_time(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
+    _ = i18n.get
+    # إرسال رسالة توضيحية للمالك
+    sent_msg = await callback.message.answer(
+        _("لطفاً أرسل عدد الساعات التي ترغب بحذف اللستة بعدها (مثلاً: 2)\nأو أرسل 0 إذا كنت لا ترغب بالحذف التلقائي.")
+    )
+    
+    await state.set_state(ListTemplateSG.waiting_for_delete_after)
+    # حفظ الـ ID للحذف لاحقاً 
+    await state.update_data(msg_id=sent_msg.message_id)
+    await callback.answer()
+
+@router.message(ListTemplateSG.waiting_for_delete_after)
+async def process_delete_after(message: types.Message, state: FSMContext, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    
+    # 1. التحقق من أن المدخل رقم
+    if not message.text.isdigit():
+        asyncio.create_task(delete_message_after(message))
+        return asyncio.create_task(delete_message_after(await message.answer(_("error-invalid-interval"))))
+
+    delete_time = int(message.text)
+    sub_bot = await get_sub_bot_by_token(bot.token)
+
+    # 2. تحديث قاعدة البيانات
+    # ملاحظة: استخدمنا update لضمان السرعة
+    await sync_to_async(ListTemplate.objects.filter(sub_bot=sub_bot).update)(
+        delete_after=delete_time
+    )
+
+    # 3. جلب بيانات الحالة للتنظيف
+    data = await state.get_data()
+    old_msg_id = data.get("msg_id")
+
+    # حذف رسالة البوت السابقة
+    if old_msg_id:
+        try:
+            await bot.delete_message(chat_id=message.chat.id, message_id=old_msg_id)
+        except:
+            pass
+
+    # حذف رسالة المستخدم (الرقم الذي أرسله)
+    try:
+        await message.delete()
+    except:
+        pass
+
+    # 4. إرسال تأكيد النجاح وحذف التنبيه بعد 4 ثوانٍ
+    success_text = _("delete-time-updated-successfully",hours=delete_time)
+    if delete_time == 0:
+        success_text = _("auto-delete-disabled")
+        
+    confirm_msg = await message.answer(success_text)
+    
+    # تنظيف وتصفير الحالة
+    await state.clear()
+    
+    # حذف رسالة التأكيد بعد 4 ثوانٍ ليبقى الشات نظيفاً
+    asyncio.create_task(delete_message_after(confirm_msg, 4))
