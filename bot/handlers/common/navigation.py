@@ -6,7 +6,7 @@ from bot.config import ADMIN_IDS
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.utils.common import delete_message_after
 from bot.utils.interface import update_main_interface, show_main_menu_edit, return_to_bot_settings
-from bot.db_operations import get_user_and_subscription
+from bot.db.db_operations import get_user_and_subscription
 from bot.keyboards.inline.bot_management import get_parse_mode_keyboard
 from bot.states.sub_bot_states import SubBotSettingsSG, AddChannelSG
 

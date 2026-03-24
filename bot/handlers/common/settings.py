@@ -1,6 +1,6 @@
 from aiogram import Router, F, types, Bot
 from aiogram_i18n import I18nContext
-from ...db_operations import get_user_and_subscription
+from ...db.db_operations import get_user_and_subscription
 from asgiref.sync import sync_to_async
 # استيراد الأزرار من المجلد الجديد
 from ...keyboards.main_menu import get_main_keyboard

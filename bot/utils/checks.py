@@ -2,11 +2,11 @@
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from bot.loader import bot as main_bot
-from bot.db_operations import get_main_channels_list,get_subbot_channels_list
+from bot.db.db_operations import get_main_channels_list,get_subbot_channels_list
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
-from bot.db_operations import get_main_channels_list
+from bot.db.db_operations import get_main_channels_list
 from bot.loader import bot as main_bot # استيراد البوت الرئيسي للتحقق من قنواته
 from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
 

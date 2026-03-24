@@ -1,4 +1,4 @@
-from .db_operations import toggle_sub_bot_status, delete_sub_bot
+from .db.db_operations import toggle_sub_bot_status, delete_sub_bot
 from .loader import dp
 import asyncio
 from aiogram import Bot

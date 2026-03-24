@@ -6,7 +6,7 @@ from asgiref.sync import sync_to_async
 from apps.accounts.models import TelegramUser
 from apps.bots.models import SubBot
 from ..config import BOT_TOKEN, ADMIN_IDS
-from bot.db_operations import get_user_and_subscription, get_sub_bot_by_id
+from bot.db.db_operations import get_user_and_subscription, get_sub_bot_by_id
 from bot.keyboards.inline.bot_management import get_bot_settings_keyboard
 
 

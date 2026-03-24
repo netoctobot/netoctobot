@@ -6,10 +6,10 @@ from aiogram.filters import CommandStart, ChatMemberUpdatedFilter, IS_ADMIN
 from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
 from bot.filters import BotTypeFilter
-from bot.db_operations import add_channel_to_sub_bot_logic, get_user_and_subscription, get_sub_bot_by_token,get_sub_bot_channels_list, delete_sub_bot_channel
+from bot.db.db_operations import add_channel_to_sub_bot_logic, get_user_and_subscription, get_sub_bot_by_token,get_sub_bot_channels_list, delete_sub_bot_channel
 from bot.utils.formatters import format_personal_message
-from bot.keyboards.inline.bot_management import get_LST_user_main_keyboard,get_LST_owner_control_panel, get_channels_management_keyboard, get_add_bot_as_admin_and_cancel, ok
-from apps.bots.models import SubBot, SubBotChannel,Channel
+from bot.keyboards.inline.bot_management import get_template_management_keyboard,get_LST_user_main_keyboard,get_LST_owner_control_panel, get_channels_management_keyboard, get_add_bot_as_admin_and_cancel, ok
+from apps.bots.models import SubBot, SubBotChannel,Channel,ListTemplate
 from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
 from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
 from bot.keyboards.main_menu import get_user_main_menu
@@ -307,3 +307,47 @@ async def toggle_channel_status(callback: types.CallbackQuery, bot: Bot, i18n: I
     
     # تحديث الكيبورد فوراً ليرى المالك التغيير
     await manage_channels_list(callback, bot, i18n)
+
+
+@router.callback_query(F.data == "manage_template")
+async def show_template_settings(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
+    _ = i18n.get
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    
+    # جلب أو إنشاء إعدادات التمبلت تلقائياً
+    config, created = await sync_to_async(ListTemplate.objects.get_or_create)(sub_bot=sub_bot)
+    
+    text = _("template-settings-view").format(
+        header=config.header_text or _("not-set"),
+        footer=config.footer_text or _("not-set"),
+        interval=config.post_interval,
+        delete=config.delete_after
+    )
+    
+    # كيبورد يحتوي على أزرار (تعديل الهيدر، تعديل الفوتر، تعديل المواعيد، حفظ)
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=get_template_management_keyboard(i18n, config.is_enabled)
+    )
+
+@router.callback_query(F.data == "edit_header")
+async def ask_for_header(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
+    _ = i18n.get
+    await callback.message.answer(_("please-send-header-text"))
+    await state.set_state(ListTemplateSG.waiting_for_header)
+    await callback.answer()
+
+@router.message(ListTemplateSG.waiting_for_header)
+async def process_header(message: types.Message, state: FSMContext, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    
+    # تحديث قاعدة البيانات
+    await sync_to_async(ListTemplate.objects.filter(sub_bot=sub_bot).update)(
+        header_text=message.html_text # نحفظ النص مع التنسيق (HTML)
+    )
+    
+    await message.answer(_("header-updated-successfully"))
+    await state.clear()
+    # العودة للوحة التحكم الرئيسية للتمبلت
+    # يمكنك استدعاء دالة show_template_settings هنا لإظهار التحديث

@@ -1,6 +1,6 @@
 from aiogram import Router, F, types, Bot
 from aiogram_i18n import I18nContext
-from bot.db_operations import get_user_and_subscription, get_user_bots, get_sub_bot_by_id
+from bot.db.db_operations import get_user_and_subscription, get_user_bots, get_sub_bot_by_id
 from bot.keyboards.inline.bot_management import get_my_bots_keyboard, get_bot_settings_keyboard, get_cancel_keyboard, get_parse_mode_keyboard
 from bot.utils.interface import return_to_bot_settings, update_main_interface
 from bot.utils.formatters import format_personal_message # الدالة التي صنعناها
@@ -126,7 +126,7 @@ async def process_final_delete(callback: types.CallbackQuery, i18n: I18nContext,
     
     if success:
         # جلب القائمة المحدثة بعد الحذف
-        from bot.db_operations import get_user_bots
+        from bot.db.db_operations import get_user_bots
         user_bots = await get_user_bots(user)
         
         await callback.message.edit_text(

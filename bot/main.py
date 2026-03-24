@@ -5,7 +5,7 @@ from .config import ADMIN_IDS
 from asgiref.sync import sync_to_async
 # الاستيرادات الخاصة بك
 from .loader import dp, bot
-from .db_operations import get_user_and_subscription
+from .db.db_operations import get_user_and_subscription
 from .keyboards.main_menu import get_main_keyboard
 from .utils.interface import setup_master_bot_sync, update_main_interface # الدالة التي تحذف وترسل
 from bot.handlers import get_handlers_router

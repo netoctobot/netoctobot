@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 11:14-0700\n"
+"POT-Creation-Date: 2026-03-24 12:00-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -31,7 +31,7 @@ msgstr "أهلاً بك يا {full_name} في بوت الأخطبوط! 🐙"
 msgid "welcome-back"
 msgstr "أهلاً يا {full_name}! ✨"
 
-#: bot/handlers/common/navigation.py:32 bot/handlers/my_bots/list_bots.py:152
+#: bot/handlers/common/navigation.py:39 bot/handlers/my_bots/list_bots.py:152
 msgid "msg-select-parse-mode"
 msgstr ""
 "🛠️ <b>اختر نوع التنسيق لرسالة الترحيب:</b>\n"
@@ -40,11 +40,11 @@ msgstr ""
 "• <b>Markdown:</b> للمحترفين.\n"
 "• <b>Plain:</b> نص عادي بسيط."
 
-#: bot/handlers/common/navigation.py:71
+#: bot/handlers/common/navigation.py:78
 msgid "msg-feature-not-ready"
 msgstr "هذا القسم لم يكتمل إعداده بعد"
 
-#: bot/handlers/common/navigation.py:71
+#: bot/handlers/common/navigation.py:78
 msgid "msg-stay-tuned"
 msgstr "نحن نعمل على إنهاء البرمجة قريباً، شكراً لانتظارك! 🐙"
 
@@ -551,9 +551,21 @@ msgstr "🔄 تم الاشتراك"
 msgid "must-subscribe"
 msgstr "عذراً، يجب عليك الاشتراك في القنوات التالية لاستخدام البوت:"
 
-#: bot/utils/formatters.py:10
+#: bot/utils/formatters.py:11
 msgid "bot-signature"
 msgstr "صُنع بواسطة Net Octobot 🐙"
+
+#: bot/utils/formatters.py:71 bot/utils/formatters.py:74
+msgid "template-headr-defult"
+msgstr "✨ قائمة بأفضل القنوات:"
+
+#: bot/utils/formatters.py:72 bot/utils/formatters.py:75
+msgid "template-footer-defult"
+msgstr "📢 @{username} للاشتراك في اللستة اضغط هنا"
+
+#: bot/utils/formatters.py:93
+msgid "template-signature"
+msgstr " "
 
 #~ msgid "msg-operation-cancelled"
 #~ msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."

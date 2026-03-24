@@ -193,3 +193,24 @@ def get_channels_management_keyboard(i18n, channels):
     builder.row(types.InlineKeyboardButton(text=_("btn-back"), callback_data="back_to_owner_panel"))
  
     return builder.as_markup()
+
+def get_template_management_keyboard(i18n: I18nContext, is_enabled: bool):
+    _ = i18n.get
+    builder = InlineKeyboardBuilder()
+    builder.row(types.InlineKeyboardButton(text=_("preview-template"), callback_data="preview_template"))
+    builder.row(
+        types.InlineKeyboardButton(text=_("edit-header"), callback_data="edit_header"),
+        types.InlineKeyboardButton(text=_("edit-footer"), callback_data="edit_footer")
+    )
+    builder.row(
+        types.InlineKeyboardButton(text=_("edit-interval"), callback_data="edit_interval"),
+        types.InlineKeyboardButton(text=_("edite-delete-time"), callback_data="edit_delete_time")
+    )
+    
+    # زر تشغيل/إيقاف النشر التلقائي
+    status_text = _("publishing-enabled") if is_enabled else _("publishing-paused")
+    builder.row(types.InlineKeyboardButton(text=status_text, callback_data="toggle_auto_post"))
+    
+    builder.row(types.InlineKeyboardButton(text=_("btn-back"), callback_data="manage_channels"))
+    
+    return builder.as_markup()

@@ -2,7 +2,7 @@ from aiogram import Router, F, types, Bot
 from aiogram_i18n import I18nContext
 from aiogram_i18n import I18nContext
 from bot.utils.checks import check_all_subscriptions
-from bot.db_operations import  get_sub_bot_by_token
+from bot.db.db_operations import  get_sub_bot_by_token
 from bot.utils.checks import check_all_subscriptions
 from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
 from bot.keyboards.main_menu import get_user_main_menu

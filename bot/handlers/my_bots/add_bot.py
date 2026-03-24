@@ -7,7 +7,7 @@ from bot.states.main_states import AddBotSG
 from bot.keyboards.inline.bot_management import get_cancel_keyboard, get_manage_bot_keyboard, get_my_bots_keyboard
 from bot.keyboards.main_menu import get_main_keyboard # القائمة الرئيسية
 from apps.bots.services import validate_and_register_bot
-from bot.db_operations import get_user_and_subscription, activate_partner_wallet, get_user_bots
+from bot.db.db_operations import get_user_and_subscription, activate_partner_wallet, get_user_bots
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.bot_manager import start_sub_bot
 

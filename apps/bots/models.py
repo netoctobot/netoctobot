@@ -156,3 +156,59 @@ class BotSubscription(BaseModel):
         unique_together = ('bot', 'user')
         verbose_name = _("Bot Subscription")
         verbose_name_plural = _("Bot Subscriptions")
+
+class ListTemplate(BaseModel):
+    """نظام التمبلت والجدولة المنفصل"""
+    sub_bot = models.OneToOneField(
+        SubBot, 
+        on_delete=models.CASCADE, 
+        related_name='list_config', # استعمل اسم واضح للوصول إليه
+        verbose_name=_("Sub Bot")
+    )
+    
+    # محتوى الرسالة
+    header_text = models.TextField(
+        null=True, blank=True, 
+        verbose_name=_("Header Text"),
+        help_text=_("The text that appears above the channel list")
+    )
+    footer_text = models.TextField(
+        null=True, blank=True, 
+        verbose_name=_("Footer Text"),
+        help_text=_("The text that appears at the bottom of the channel list")
+    )
+    
+    # إعدادات الجدولة (بالساعات)
+    post_interval = models.PositiveIntegerField(
+        default=24, 
+        verbose_name=_("Post Every (Hours)"),
+        help_text=_("How many hours are there between each automatic posting?")
+    )
+    delete_after = models.PositiveIntegerField(
+        default=2, 
+        verbose_name=_("Delete After (Hours)"),
+        help_text=_("After how many hours will the list be deleted from the channels? (0 means do not delete)")
+    )
+    
+    # حالة التشغيل
+    is_enabled = models.BooleanField(
+        default=False, 
+        verbose_name=_("Auto Posting Enabled")
+    )
+    last_run = models.DateTimeField(null=True, blank=True, verbose_name=_("Last Run Time"))
+
+    class Meta:
+        verbose_name = _("List Template")
+        verbose_name_plural = _("List Templates")
+
+    def __str__(self):
+        return f"Config for {self.sub_bot.name}"
+
+# سجل تاريخي لعمليات النشر (لأغراض الحذف التلقائي)
+class PublishedList(BaseModel):
+    """سجل الرسائل المنشورة لحذفها لاحقاً"""
+    sub_bot = models.ForeignKey(SubBot, on_delete=models.CASCADE)
+    channel_id = models.BigIntegerField()
+    message_id = models.BigIntegerField()
+    delete_at = models.DateTimeField() # الوقت المجدد لحذف هذه الرسالة تحديداً
+    is_deleted = models.BooleanField(default=False)

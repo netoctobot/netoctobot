@@ -6,3 +6,9 @@ class SubBotSettingsSG(StatesGroup):
     
 class AddChannelSG(StatesGroup):
     waiting_for_forward = State()
+
+class ListTemplateSG(StatesGroup):
+    waiting_for_header = State()      # انتظار النص العلوي
+    waiting_for_footer = State()      # انتظار النص السفلي
+    waiting_for_post_interval = State() # انتظار ساعات النشر
+    waiting_for_delete_after = State()  # انتظار ساعات الحذف

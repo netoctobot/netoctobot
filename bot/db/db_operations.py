@@ -25,6 +25,17 @@ def get_subbot_channels_list(bot_token):
         return list(sub_bot.force_channels.all())
     return []
 
+@sync_to_async
+def get_subbot_active_channels_list(sub_bot):
+    # نستخدم .first() لجلب كائن البوت أولاً
+    bot_channels = (list)(
+        SubBotChannel.objects.filter(sub_bot=sub_bot, is_active=True)
+        .select_related('channel')
+        .order_by('order')
+    )
+    if not bot_channels:
+        return []
+    return bot_channels
 
 @sync_to_async
 def get_user_and_subscription(tg_user: types.User, bot_token: str):
