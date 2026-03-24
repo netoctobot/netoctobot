@@ -92,10 +92,10 @@ async def check_again_callback(callback: types.CallbackQuery, bot: Bot, i18n: I1
 
 
 @router.callback_query(F.data == "manage_channels")
-async def manage_channels_list(callback: types.CallbackQuery, state: FSMContext, bot: Bot, i18n: I18nContext):
+async def manage_channels_list(callback: types.CallbackQuery, bot: Bot, i18n: I18nContext):
     _ = i18n.get
     
-    await state.clear()
+    # await state.clear()
     
     # جلب القنوات المرتبطة بهذا البوت تحديداً
     sub_bot = await get_sub_bot_by_token(bot.token)
@@ -117,7 +117,7 @@ async def manage_channels_list(callback: types.CallbackQuery, state: FSMContext,
 async def delete_channel_from_bot(callback: types.CallbackQuery, i18n: I18nContext):
     _ = i18n.get
     # استخراج الـ ID من callback_data
-    chan_id = int(callback.data.split("_")[-1])
+    chan_id = callback.data.split("_")[-1]
     
     # حذف الارتباط من قاعدة البيانات
     try:
@@ -138,9 +138,9 @@ async def back_to_owner(callback: types.CallbackQuery, i18n: I18nContext):
 
 
 @router.callback_query(F.data == "add_channel")
-async def start_add_channel(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext, bot: Bot):
+async def start_add_channel(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
     _ = i18n.get
-    await state.set_state(AddChannelSG.waiting_for_forward)
+    # await state.set_state(AddChannelSG.waiting_for_forward)
     # نأتي باليوزرنيم هنا (مرة واحدة)
     me = await bot.get_me() 
     
@@ -204,9 +204,10 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
         reply_markup=get_LST_owner_control_panel(i18n, "LST")
     )
 
-@router.chat_member(ChatMemberUpdatedFilter(member_status_changed=IS_ADMIN))
+@router.my_chat_member(ChatMemberUpdatedFilter(member_status_changed=IS_ADMIN))
 async def on_bot_added_as_admin(event: types.ChatMemberUpdated, bot: Bot, i18n: I18nContext):
     _ = i18n.get
+    print("entering aldsk fakdsf klasf d")
     chat = event.chat
     user_id = event.from_user.id
     
@@ -236,14 +237,15 @@ async def finalize_auto_add(callback: types.CallbackQuery, bot: Bot, i18n: I18nC
     # جلب بيانات الشات والتوكن
     chat = await bot.get_chat(chat_id)
     sub_bot = await get_sub_bot_by_token(bot.token)
-
+    invite_link_text = await get_chat_invite_link(chat)
+    
     # استدعاء المنطق الشامل من db_operations
     success, status, is_owner = await add_channel_to_sub_bot_logic(
         sub_bot=sub_bot,
         chat_id=chat.id,
         title=chat.title,
         username=chat.username,
-        invite_link=get_chat_invite_link(chat),
+        invite_link=invite_link_text,
         telegram_user_id=callback.from_user.id
     )
 
@@ -253,9 +255,10 @@ async def finalize_auto_add(callback: types.CallbackQuery, bot: Bot, i18n: I18nC
 
     if is_owner:
         # المالك أضاف قناته الخاصة
-        await callback.message.edit_text(
-            _("channel-successfully-added",title=chat.title,id=chat.id)
+        await callback.answer(
+            _("channel-successfully-added",title=chat.title,id=chat.id), show_alert=True
             )
+        await callback.message.delete()
     else:
         # شريك أضاف قناة (بانتظار موافقة المالك)
         await callback.message.edit_text(_("request-forwarded-owner"))

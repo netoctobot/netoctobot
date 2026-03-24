@@ -149,7 +149,7 @@ def get_sub_bot_channels_list(sub_bot):
 
 
 @sync_to_async
-def delete_sub_bot_channel(bot_chan_id: int):
+def delete_sub_bot_channel(bot_chan_id):
     """حذف ارتباط القناة بالبوت الفرعي"""
     try:
         obj = SubBotChannel.objects.select_related("channel").get(id=bot_chan_id)
@@ -175,7 +175,7 @@ def add_channel_to_sub_bot_logic(sub_bot, chat_id, title, username, invite_link,
         defaults={
             'owner': user_obj,
             'title': title,
-            'username': username,
+            'username': username.replace("@", "") if username else None,
             'invite_link': invite_link
         }
     )

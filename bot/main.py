@@ -42,6 +42,7 @@ async def main():
         try:
             sub_bot_instance = Bot(
                 token=bot_data.token, 
+                allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"],
                 default=DefaultBotProperties(parse_mode="HTML") 
             )
             all_bots.append(sub_bot_instance)

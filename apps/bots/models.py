@@ -113,7 +113,8 @@ class Channel(BaseModel):
     status = models.CharField(max_length=3, choices=Status.choices, default=Status.ACTIVE, verbose_name=_("Status"))
     last_sync = models.DateTimeField(auto_now=True, verbose_name=_("Last Sync"))
     invite_link = models.URLField(null=True, blank=True, verbose_name=_("Invite Link"))
-
+    username = models.CharField(max_length=255, null=True, blank=True, verbose_name=_("Username"))
+    
     def __str__(self):
         return self.title
 
@@ -127,7 +128,6 @@ class SubBotChannel(BaseModel):
     channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='in_bots')
     
     # إعدادات خاصة بكل بوت
-    owner = models.ForeignKey(TelegramUser, on_delete=models.CASCADE, related_name='my_channels', verbose_name=_("Owner"))
     custom_invite_link = models.URLField(null=True, blank=True, verbose_name=_("Custom Link for this Bot"))
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
