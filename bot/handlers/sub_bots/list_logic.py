@@ -273,7 +273,7 @@ async def finalize_auto_add(callback: types.CallbackQuery, bot: Bot, i18n: I18nC
 @router.callback_query(F.data.startswith("toggle_chan_"))
 async def toggle_channel_status(callback: types.CallbackQuery, bot: Bot, i18n: I18nContext):
     _ = i18n.get
-    chan_id = int(callback.data.split("_")[-1])
+    chan_id = callback.data.split("_")[-1]
     
     @sync_to_async
     def _toggle():
@@ -285,7 +285,7 @@ async def toggle_channel_status(callback: types.CallbackQuery, bot: Bot, i18n: I
     new_state, title = await _toggle()
     state_text = _("active") if new_state else _("desactive")
     
-    await callback.answer(_("change-state",title=title,state_text=state_text))
+    await callback.answer(_("change-state",title=title,state_text=state_text),show_alert=True)
     
     # تحديث الكيبورد فوراً ليرى المالك التغيير
     await manage_channels_list(callback, bot, i18n)

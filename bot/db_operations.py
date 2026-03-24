@@ -142,7 +142,7 @@ def delete_sub_bot(bot_id, owner):
 def get_sub_bot_channels_list(sub_bot):
     """جلب قائمة القنوات المرتبطة ببوت فرعي محدد مع بيانات القناة الأصلية"""
     return list(
-        SubBotChannel.objects.filter(sub_bot=sub_bot, is_active=True)
+        SubBotChannel.objects.filter(sub_bot=sub_bot)
         .select_related("channel")
         .order_by("order")
     )

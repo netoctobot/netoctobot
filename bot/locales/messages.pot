@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 08:37-0700\n"
+"POT-Creation-Date: 2026-03-24 10:05-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -185,9 +185,8 @@ msgid "btn-edit-welcome"
 msgstr ""
 
 #: bot/handlers/my_bots/list_bots.py:291 bot/handlers/my_bots/list_bots.py:321
-#: bot/keyboards/inline/bot_management.py:73
-#: bot/keyboards/inline/bot_management.py:104
-#: bot/keyboards/inline/bot_management.py:136
+#: bot/keyboards/inline/bot_management.py:110
+#: bot/keyboards/inline/bot_management.py:164
 msgid "btn-back"
 msgstr ""
 
@@ -297,47 +296,47 @@ msgid "channel-not-verified"
 msgstr ""
 
 #: bot/handlers/sub_bots/list_logic.py:203
-#: bot/handlers/sub_bots/list_logic.py:257
+#: bot/handlers/sub_bots/list_logic.py:259
 msgid "channel-successfully-added"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:221
+#: bot/handlers/sub_bots/list_logic.py:222
 msgid "owner-msg-successful-added-bot"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:223
+#: bot/handlers/sub_bots/list_logic.py:224
 msgid "msg-successful-added-bot"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:226
+#: bot/handlers/sub_bots/list_logic.py:227
 msgid "send-add-request"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:251
+#: bot/handlers/sub_bots/list_logic.py:253
 msgid "channel-already-exists"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:251
+#: bot/handlers/sub_bots/list_logic.py:253
 msgid "err-msg-save"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:261
+#: bot/handlers/sub_bots/list_logic.py:264
 msgid "request-forwarded-owner"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:266
+#: bot/handlers/sub_bots/list_logic.py:269
 msgid "new-joining-request"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:283
+#: bot/handlers/sub_bots/list_logic.py:286
 msgid "active"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:283
+#: bot/handlers/sub_bots/list_logic.py:286
 msgid "desactive"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:285
+#: bot/handlers/sub_bots/list_logic.py:288
 msgid "change-state"
 msgstr ""
 
@@ -373,7 +372,7 @@ msgstr ""
 msgid "btn-change-lang"
 msgstr ""
 
-#: bot/keyboards/main_menu.py:36
+#: bot/keyboards/inline/bot_management.py:158 bot/keyboards/main_menu.py:36
 msgid "show-channel"
 msgstr ""
 
@@ -390,60 +389,68 @@ msgid "btn-add-bot-to-group"
 msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:43
+#: bot/keyboards/inline/bot_management.py:71
 msgid "btn-back-main"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:72
-#: bot/keyboards/inline/bot_management.py:135
-msgid "add-new-channel"
+#: bot/keyboards/inline/bot_management.py:70
+msgid "btn-add-another-bot"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:82
+#: bot/keyboards/inline/bot_management.py:88
 msgid "btn-stop-bot"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:82
+#: bot/keyboards/inline/bot_management.py:88
 msgid "btn-start-bot"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:87
+#: bot/keyboards/inline/bot_management.py:93
 msgid "btn-delete-bot"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:90
+#: bot/keyboards/inline/bot_management.py:96
 msgid "btn-edit-welcome-bot"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:93
+#: bot/keyboards/inline/bot_management.py:99
 msgid "btn-back-to-list"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:101
+#: bot/keyboards/inline/bot_management.py:107
 msgid "HTML-recommanded"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:103
+#: bot/keyboards/inline/bot_management.py:109
 msgid "btn-plain-text"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:114
+#: bot/keyboards/inline/bot_management.py:120
 msgid "add-channel"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:115
+#: bot/keyboards/inline/bot_management.py:121
 msgid "channel-management"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:116
+#: bot/keyboards/inline/bot_management.py:122
 msgid "publish-list"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:118
+#: bot/keyboards/inline/bot_management.py:124
 msgid "incoming-messages"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:120
+#: bot/keyboards/inline/bot_management.py:126
 msgid "bot-settings"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:159
+msgid "btn-delete"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:163
+msgid "add-new-channel"
 msgstr ""
 
 #: bot/keyboards/inline/subscriptions.py:17
