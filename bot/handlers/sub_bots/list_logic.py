@@ -199,8 +199,6 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
 
     await state.clear()
     await message.reply(
-        _("✅ تم إضافة القناة بنجاح إلى قائمتك!\n\n"
-          "<b>اسم القناة:</b> {title}\n"
-          "<b>الآيدي:</b> <code>{id}</code>").format(title=chat.title, id=chat.id),
+        _("channel-successfully-added",title=chat.title, id=chat.id),
         reply_markup=get_LST_owner_control_panel(i18n, "LST")
     )

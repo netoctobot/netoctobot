@@ -18,16 +18,16 @@ def get_add_bot_as_admin_and_cancel(i18n: I18nContext, bot_username: str):
     _ = i18n.get
     builder = InlineKeyboardBuilder()
     
-    # الرابط الشامل للقنوات والمجموعات
-    admin_link = (
-        f"https://t.me/{bot_username}?startsetadmin=true"
-        f"&admin=post_messages+delete_messages+edit_messages+invite_users"
-    )
     
     builder.row(types.InlineKeyboardButton(
-        text=_('btn-add-bot-as-admin'),
-        url=admin_link
-    ))
+        text=_('btn-add-bot-to-channel'),
+        url=f"https://t.me/{bot_username}?startchannel&admin="
+            f"post_messages+edit_messages+delete_messages+edit_messages+invite_users"
+    ),types.InlineKeyboardButton(
+        text=_('btn-add-bot-to-group'),
+        url=f"https://t.me/{bot_username}?startgroup&admin=post_messages+edit_messages+delete_messages+invite_users"
+    )
+                )
     
     builder.row(types.InlineKeyboardButton(
         text=_('btn-cancel'),

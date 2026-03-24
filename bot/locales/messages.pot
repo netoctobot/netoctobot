@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-23 14:29-0700\n"
+"POT-Creation-Date: 2026-03-24 06:29-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,11 +17,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/check.py:20 bot/handlers/sub_bots/list_logic.py:80
+#: bot/handlers/common/check.py:20 bot/handlers/sub_bots/list_logic.py:81
 msgid "still-not-subscribed"
 msgstr ""
 
-#: bot/handlers/common/check.py:27 bot/handlers/sub_bots/list_logic.py:87
+#: bot/handlers/common/check.py:27 bot/handlers/sub_bots/list_logic.py:88
 msgid "thank-you-for-subscribing"
 msgstr ""
 
@@ -251,59 +251,52 @@ msgstr ""
 msgid "msg-user-not-found"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:51
+#: bot/handlers/sub_bots/list_logic.py:52
 msgid "owner-control-panel"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:61
+#: bot/handlers/sub_bots/list_logic.py:62
 msgid "msg-list-default-welcome"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:104
+#: bot/handlers/sub_bots/list_logic.py:105
 msgid "no-channels-added"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:109
+#: bot/handlers/sub_bots/list_logic.py:110
 msgid "list-channel-management"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:124
+#: bot/handlers/sub_bots/list_logic.py:125
 msgid "msg-deleted-from-list"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:128
+#: bot/handlers/sub_bots/list_logic.py:129
 msgid "error-occurred-during-deletion"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:149
+#: bot/handlers/sub_bots/list_logic.py:150
 msgid "how-add-channel"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:160
+#: bot/handlers/sub_bots/list_logic.py:161
 msgid "please-send-msg-from-channel"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:169
+#: bot/handlers/sub_bots/list_logic.py:170
 msgid "type-chat-not-supported"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:174
-msgid ""
-"❌ البوت ليس مشرفاً في هذه القناة! ارفعه مشرفاً أولاً ثم وجه الرسالة "
-"مجدداً."
+#: bot/handlers/sub_bots/list_logic.py:175
+msgid "bot-not-administrato-make-it"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:176
-msgid "❌ تعذر التحقق من القناة. تأكد من وجود البوت فيها كمشرف."
+#: bot/handlers/sub_bots/list_logic.py:177
+msgid "channel-not-verified"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:203
-#, python-brace-format
-msgid ""
-"✅ تم إضافة القناة بنجاح إلى قائمتك!\n"
-"\n"
-"<b>اسم القناة:</b> {title}\n"
-"<b>الآيدي:</b> <code>{id}</code>"
+#: bot/handlers/sub_bots/list_logic.py:202
+msgid "channel-successfully-added"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:10
@@ -346,8 +339,12 @@ msgstr ""
 msgid "technical-support"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:28
-msgid "btn-add-bot-as-admin"
+#: bot/keyboards/inline/bot_management.py:23
+msgid "btn-add-bot-to-channel"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:27
+msgid "btn-add-bot-to-group"
 msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:43
