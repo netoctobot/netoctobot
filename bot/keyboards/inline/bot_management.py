@@ -112,6 +112,29 @@ def get_parse_mode_keyboard(i18n: I18nContext, bot_id):
     return builder.as_markup()
 
 
+def get_LST_user_main_keyboard(i18n: I18nContext):
+    _ = i18n.get
+    builder = InlineKeyboardBuilder()
+    
+    # الزر الرئيسي للمستخدم: إضافة قناته للستة
+    builder.row(types.InlineKeyboardButton(
+        text=_("add-my-channel"), 
+        callback_data="add_channel" 
+    ))
+    
+    # زر المحفظة (بما أنه أصبح شريكاً)
+    builder.row(types.InlineKeyboardButton(
+        text=_("my-wallet"), 
+        callback_data="user_wallet"
+    ))
+    
+    builder.row(types.InlineKeyboardButton(
+        text=_("list-info"), 
+        callback_data="list_info"
+    ))
+    
+    return builder.as_markup()
+
 def get_LST_owner_control_panel(i18n, bot_type):
     _ = i18n.get
     builder = InlineKeyboardBuilder()
@@ -125,6 +148,14 @@ def get_LST_owner_control_panel(i18n, bot_type):
     
     builder.button(text=_("bot-settings"), callback_data="bot_settings")
     builder.adjust(2)
+    return builder.as_markup()
+
+def ok(i18n):
+    _ = i18n.get
+    builder = InlineKeyboardBuilder()
+
+    builder.button(text=_("ok"), callback_data="ok_and_remove")
+    
     return builder.as_markup()
 
 def get_channels_management_keyboard(i18n, channels):
@@ -145,14 +176,12 @@ def get_channels_management_keyboard(i18n, channels):
         invite_link = bot_chan.channel.invite_link
 
         # فحص إضافي للتأكد أن invite_link ليس دالة أو كائن غريب
-        print(invite_link)
-        print(username)
         if not isinstance(invite_link, str):
             # إذا كان كائناً غير متوقع، نستخدم يوزرنيم أو رابطاً احتياطياً
             channel_url = f"https://t.me/{username}" if username else "https://t.me/telegram"
         else:
             channel_url = f"https://t.me/{username}" if username else invite_link
-        print(channel_url)
+        
         # الآن نمرر الرابط بأمان
         builder.row(
             types.InlineKeyboardButton(text=_("show-channel"), url=str(channel_url)),

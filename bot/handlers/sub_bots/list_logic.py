@@ -8,7 +8,7 @@ from aiogram_i18n import I18nContext
 from bot.filters import BotTypeFilter
 from bot.db_operations import add_channel_to_sub_bot_logic, get_user_and_subscription, get_sub_bot_by_token,get_sub_bot_channels_list, delete_sub_bot_channel
 from bot.utils.formatters import format_personal_message
-from bot.keyboards.inline.bot_management import get_LST_owner_control_panel, get_channels_management_keyboard, get_add_bot_as_admin_and_cancel
+from bot.keyboards.inline.bot_management import get_LST_user_main_keyboard,get_LST_owner_control_panel, get_channels_management_keyboard, get_add_bot_as_admin_and_cancel, ok
 from apps.bots.models import SubBot, SubBotChannel,Channel
 from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
 from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
@@ -40,7 +40,6 @@ async def list_bot_start(message: types.Message, bot: Bot, i18n: I18nContext, st
 
     # ضبط اللغة بناءً على ما هو مخزن في اشتراك المستخدم لهذا البوت
     await i18n.set_locale(subscription.language)
-    _ = i18n.get
 
     sub_bot = subscription.bot
     
@@ -62,14 +61,18 @@ async def list_bot_start(message: types.Message, bot: Bot, i18n: I18nContext, st
     # تحضير رسالة الترحيب
     raw_welcome = sub_bot.welcome_msg or _("msg-list-default-welcome")
     p_mode = sub_bot.welcome_parse_mode
-    
     # تنسيق النص بالبيانات الشخصية (اسم المستخدم، الخ)
     text = format_personal_message(raw_welcome, message.from_user, p_mode, i18n)
 
-    await message.answer(
+    # كيبورد المستخدم العادي (يحتوي على زر إضافة قناة)
+    user_markup = get_LST_user_main_keyboard(i18n)
+
+    await update_main_interface(
+        bot=bot,
+        chat_id=message.chat.id,
+        subscription=subscription,
         text=text,
-        parse_mode=p_mode if p_mode != "PLAIN" else None,
-        disable_web_page_preview=True
+        reply_markup=user_markup
     )
 
 @router.callback_query(F.data == "check_again")
@@ -99,6 +102,21 @@ async def manage_channels_list(callback: types.CallbackQuery, bot: Bot, i18n: I1
     
     # جلب القنوات المرتبطة بهذا البوت تحديداً
     sub_bot = await get_sub_bot_by_token(bot.token)
+    if sub_bot.owner.telegram_id != callback.from_user.id:
+        raw_welcome = sub_bot.welcome_msg or _("msg-list-default-welcome")
+        p_mode = sub_bot.welcome_parse_mode
+        message = callback.message
+        # تنسيق النص بالبيانات الشخصية (اسم المستخدم، الخ)
+        text = format_personal_message(raw_welcome, message.from_user, p_mode, i18n)
+
+        # كيبورد المستخدم العادي (يحتوي على زر إضافة قناة)
+        user_markup = get_LST_user_main_keyboard(i18n)
+
+        return await callback.message.edit_text(
+            text=text,
+            reply_markup=user_markup
+        )
+    
     channels = await get_sub_bot_channels_list(sub_bot)
     
     if not channels:
@@ -267,7 +285,7 @@ async def finalize_auto_add(callback: types.CallbackQuery, bot: Bot, i18n: I18nC
         await bot.send_message(
             chat_id=sub_bot.owner.telegram_id,
             text=_("new-joining-request",titel=chat.title, full_name=callback.from_user.full_name),
-            reply_markup=get_LST_owner_control_panel(i18n, "LST")
+            reply_markup=ok(i18n)
         )
 
 @router.callback_query(F.data.startswith("toggle_chan_"))

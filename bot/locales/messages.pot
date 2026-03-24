@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 10:05-0700\n"
+"POT-Creation-Date: 2026-03-24 11:14-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,11 +17,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: bot/handlers/common/check.py:20 bot/handlers/sub_bots/list_logic.py:82
+#: bot/handlers/common/check.py:20 bot/handlers/sub_bots/list_logic.py:85
 msgid "still-not-subscribed"
 msgstr ""
 
-#: bot/handlers/common/check.py:27 bot/handlers/sub_bots/list_logic.py:89
+#: bot/handlers/common/check.py:27 bot/handlers/sub_bots/list_logic.py:92
 msgid "thank-you-for-subscribing"
 msgstr ""
 
@@ -37,16 +37,12 @@ msgstr ""
 msgid "msg-select-parse-mode"
 msgstr ""
 
-#: bot/handlers/common/navigation.py:72
+#: bot/handlers/common/navigation.py:71
 msgid "msg-feature-not-ready"
 msgstr ""
 
-#: bot/handlers/common/navigation.py:72
+#: bot/handlers/common/navigation.py:71
 msgid "msg-stay-tuned"
-msgstr ""
-
-#: bot/handlers/common/navigation.py:76
-msgid "btn-back-to-main"
 msgstr ""
 
 #: bot/handlers/common/settings.py:15
@@ -186,7 +182,7 @@ msgstr ""
 
 #: bot/handlers/my_bots/list_bots.py:291 bot/handlers/my_bots/list_bots.py:321
 #: bot/keyboards/inline/bot_management.py:110
-#: bot/keyboards/inline/bot_management.py:164
+#: bot/keyboards/inline/bot_management.py:193
 msgid "btn-back"
 msgstr ""
 
@@ -251,92 +247,93 @@ msgstr ""
 msgid "msg-user-not-found"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:53
+#: bot/handlers/sub_bots/list_logic.py:52
 msgid "owner-control-panel"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:63
+#: bot/handlers/sub_bots/list_logic.py:62
+#: bot/handlers/sub_bots/list_logic.py:106
 msgid "msg-list-default-welcome"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:106
+#: bot/handlers/sub_bots/list_logic.py:124
 msgid "no-channels-added"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:111
+#: bot/handlers/sub_bots/list_logic.py:129
 msgid "list-channel-management"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:126
+#: bot/handlers/sub_bots/list_logic.py:144
 msgid "msg-deleted-from-list"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:130
+#: bot/handlers/sub_bots/list_logic.py:148
 msgid "error-occurred-during-deletion"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:151
+#: bot/handlers/sub_bots/list_logic.py:169
 msgid "how-add-channel"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:163
+#: bot/handlers/sub_bots/list_logic.py:181
 msgid "please-send-msg-from-channel"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:172
+#: bot/handlers/sub_bots/list_logic.py:190
 msgid "type-chat-not-supported"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:176
+#: bot/handlers/sub_bots/list_logic.py:194
 msgid "bot-not-administrato-make-it"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:178
+#: bot/handlers/sub_bots/list_logic.py:196
 msgid "channel-not-verified"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:203
-#: bot/handlers/sub_bots/list_logic.py:259
+#: bot/handlers/sub_bots/list_logic.py:221
+#: bot/handlers/sub_bots/list_logic.py:277
 msgid "channel-successfully-added"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:222
+#: bot/handlers/sub_bots/list_logic.py:240
 msgid "owner-msg-successful-added-bot"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:224
+#: bot/handlers/sub_bots/list_logic.py:242
 msgid "msg-successful-added-bot"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:227
+#: bot/handlers/sub_bots/list_logic.py:245
 msgid "send-add-request"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:253
+#: bot/handlers/sub_bots/list_logic.py:271
 msgid "channel-already-exists"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:253
+#: bot/handlers/sub_bots/list_logic.py:271
 msgid "err-msg-save"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:264
+#: bot/handlers/sub_bots/list_logic.py:282
 msgid "request-forwarded-owner"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:269
+#: bot/handlers/sub_bots/list_logic.py:287
 msgid "new-joining-request"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:286
+#: bot/handlers/sub_bots/list_logic.py:304
 msgid "active"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:286
+#: bot/handlers/sub_bots/list_logic.py:304
 msgid "desactive"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:288
+#: bot/handlers/sub_bots/list_logic.py:306
 msgid "change-state"
 msgstr ""
 
@@ -372,7 +369,7 @@ msgstr ""
 msgid "btn-change-lang"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:158 bot/keyboards/main_menu.py:36
+#: bot/keyboards/inline/bot_management.py:187 bot/keyboards/main_menu.py:36
 msgid "show-channel"
 msgstr ""
 
@@ -425,31 +422,47 @@ msgstr ""
 msgid "btn-plain-text"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:120
+#: bot/keyboards/inline/bot_management.py:121
+msgid "add-my-channel"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:127
+msgid "my-wallet"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:132
+msgid "list-info"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:143
 msgid "add-channel"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:121
+#: bot/keyboards/inline/bot_management.py:144
 msgid "channel-management"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:122
+#: bot/keyboards/inline/bot_management.py:145
 msgid "publish-list"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:124
+#: bot/keyboards/inline/bot_management.py:147
 msgid "incoming-messages"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:126
+#: bot/keyboards/inline/bot_management.py:149
 msgid "bot-settings"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:159
+#: bot/keyboards/inline/bot_management.py:157
+msgid "ok"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:188
 msgid "btn-delete"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:163
+#: bot/keyboards/inline/bot_management.py:192
 msgid "add-new-channel"
 msgstr ""
 

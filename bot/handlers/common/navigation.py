@@ -1,8 +1,10 @@
+import asyncio
 from aiogram import Router, F, types, Bot
 from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
 from bot.config import ADMIN_IDS
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from bot.utils.common import delete_message_after
 from bot.utils.interface import update_main_interface, show_main_menu_edit, return_to_bot_settings
 from bot.db_operations import get_user_and_subscription
 from bot.keyboards.inline.bot_management import get_parse_mode_keyboard
@@ -10,6 +12,11 @@ from bot.states.sub_bot_states import SubBotSettingsSG, AddChannelSG
 
 # تعريف الراوتر الخاص بهذا الملف
 router = Router()
+
+@router.callback_query(F.data == "ok_and_remove")
+async def cancel_handler(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext, bot: Bot):
+    asyncio.create_task(delete_message_after(callback.message,3))
+
 
 @router.callback_query(F.data == "cancel_operation")
 async def cancel_handler(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext, bot: Bot):
@@ -59,27 +66,18 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext, i18n:
     "contact_support", 
     "partner_dashboard", 
     "manage_sub_bots", 
-    "admin_settings"
+    "admin_settings",
+    "user_wallet",
+    "list_info"
 }))
 
 async def placeholder_handler(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
     _ = i18n.get
-    
-    # 1. جلب بيانات الاشتراك لتحديث الواجهة (نفس الرسالة الأساسية)
-    user, subscription, __ = await get_user_and_subscription(callback.from_user, bot.token)
-    
+        
     # 2. نص الرسالة
-    text = f"⚠️ <b>{_('msg-feature-not-ready')}</b>\n\n{_('msg-stay-tuned')}"
+    text = f"⚠️ {_('msg-feature-not-ready')}\n\n{_('msg-stay-tuned')}"
     
-    # 3. كيبورد يحتوي على زر العودة للقائمة الرئيسية فقط
-    builder = InlineKeyboardBuilder()
-    builder.button(text=_("btn-back-to-main"), callback_data="cancel_operation") # نستخدم cancel_operation التي برمجناها سابقاً للعودة
-    
-    await update_main_interface(
-        bot=bot,
-        chat_id=callback.message.chat.id,
-        subscription=subscription,
-        text=text,
-        reply_markup=builder.as_markup()
+    await callback.answer(
+        text=text,show_alert=True
     )
     await callback.answer()
