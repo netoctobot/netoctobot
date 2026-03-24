@@ -32,4 +32,5 @@ async def get_chat_invite_link(chat: types.Chat) -> str:
         
     except Exception as e:
         # في حالة الخطأ (مثل عدم وجود صلاحيات)
-        raise Exception(f"لا يمكن إنشاء رابط الدعوة: {e}")
+        print(f"لا يمكن إنشاء رابط الدعوة: {e}")
+        return None

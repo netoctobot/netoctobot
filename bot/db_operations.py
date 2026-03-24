@@ -160,29 +160,42 @@ def delete_sub_bot_channel(bot_chan_id: int):
         return None
 
 
+# bot\db_operations.py
+
 @sync_to_async
-def add_channel_to_sub_bot(sub_bot, chat_id, title, username, invite_link):
-    try:
-        # 1. تحديث أو إنشاء القناة في الجدول العام
-        channel, created = Channel.objects.update_or_create(
-            channel_id=chat_id,
-            defaults={
-                "owner": sub_bot.owner,
-                "title": title,
-                "username": username,
-                "invite_link": invite_link,  # الحقل الذي سألني عنه سابقاً
-            },
-        )
+def add_channel_to_sub_bot_logic(sub_bot, chat_id, title, username, invite_link, telegram_user_id):
+    """المنطق الشامل لإضافة قناة/مجموعة للبوت الفرعي"""
+    
+    # 1. جلب أو إنشاء المستخدم الذي قام بالإضافة في قاعدة بياناتنا
+    user_obj = TelegramUser.objects.get(telegram_id=telegram_user_id)
+    
+    # 2. تحديث أو إنشاء القناة العامة
+    channel, _ = Channel.objects.update_or_create(
+        channel_id=chat_id,
+        defaults={
+            'owner': user_obj,
+            'title': title,
+            'username': username,
+            'invite_link': invite_link
+        }
+    )
 
-        # 2. ربط القناة بهذا البوت تحديداً (SubBotChannel)
-        # نستخدم get_or_create لمنع تكرار نفس القناة في نفس اللستة
-        sub_chan, sub_created = SubBotChannel.objects.get_or_create(
-            sub_bot=sub_bot, channel=channel
-        )
+    # 3. تحديد هل المضيف هو صاحب البوت (المالك) أم شخص غريب (شريك)
+    is_owner = (sub_bot.owner.telegram_id == telegram_user_id)
+    
+    # 4. ربط القناة بالبوت الفرعي
+    # إذا كان المالك: الحالة True | إذا كان شريك: الحالة False (بانتظار الموافقة)
+    sub_chan, created = SubBotChannel.objects.get_or_create(
+        sub_bot=sub_bot,
+        channel=channel,
+        defaults={'is_active': is_owner}
+    )
 
-        if not sub_created:
-            return False, "⚠️ هذه القناة موجودة بالفعل في قائمة هذا البوت."
+    if not created:
+        return False, "exists", is_owner
 
-        return True, "Success"
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    # 5. إذا كان شريكاً، نفعل محفظته فوراً (دالتك السابقة)
+    if not is_owner:
+        activate_partner_wallet(user_obj)
+
+    return True, "success", is_owner

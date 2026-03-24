@@ -43,7 +43,7 @@ def get_manage_bot_keyboard(i18n: I18nContext):
     builder.button(text=f"{_('btn-back-main')}", callback_data="back_to_main")
     return builder.as_markup()
 
-def get_my_bots_keyboard(i18n: I18nContext, bots_list):
+def get_my_bots_keyboard(i18n: I18nContext, channels):
     """
     توليد قائمة أزرار بالبوتات التي يملكها المستخدم
     bots_list: قائمة من كائنات SubBot القادمة من قاعدة البيانات
@@ -52,31 +52,26 @@ def get_my_bots_keyboard(i18n: I18nContext, bots_list):
     builder = InlineKeyboardBuilder()
 
     # إنشاء زر لكل بوت موجود لدى المستخدم
-    for bot_item in bots_list:
-        status_emoji = "✅" if bot_item.is_active else "❌"
-        builder.button(
-            text=f"{status_emoji} (@{bot_item.username if bot_item.username else 'bot'})",
-            callback_data=f"manage_bot_{bot_item.id}" # نستخدم ID البوت للتحكم به لاحقاً
+    for bot_chan in channels:
+        status_emoji = "✅" if bot_chan.is_active else "⏳"
+        
+        # الصف الأول: اسم القناة مع حالتها
+        builder.row(types.InlineKeyboardButton(
+            text=f"{status_emoji} {bot_chan.channel.title}",
+            callback_data=f"toggle_chan_{bot_chan.id}" # تبديل الحالة
+        ))
+        
+        # الصف الثاني: أزرار التحكم (عرض وحذف)
+        builder.row(
+            types.InlineKeyboardButton(text="show-channel", url=f"https://t.me/{bot_chan.channel.username}" if bot_chan.channel.username else bot_chan.channel.invite_link),
+            types.InlineKeyboardButton(text="delete-channel", callback_data=f"delete_chan_{bot_chan.id}"),
+            width=2
         )
 
-    # حساب عدد الصفوف المطلوبة للبوتات (كل 2 في صف)
-    num_bots = len(bots_list)
-    rows = [2] * (num_bots // 2) # صفوف تحتوي على زرين
-    if num_bots % 2 != 0:
-        rows.append(1) # إذا كان العدد فردياً، البوت الأخير يأخذ صفاً وحده
-
     # أزرار التحكم الثابتة (كل واحد في صف مستقل)
-    builder.button(text=f"{_( 'btn-add-another-bot')}", callback_data="add_new_bot")
-    builder.button(text=f"{_( 'btn-back-main')}", callback_data="back_to_main")
-
-    # إضافة صفين للأزرار الأخيرة (كل صف فيه زر واحد)
-    rows.extend([1, 1])
-
-    # تطبيق التوزيع
-    builder.adjust(*rows)
-
-    # تنظيم الأزرار: كل بوت في سطر، والأزرار الأخيرة في سطر مستقل
-    builder.adjust(1) 
+    builder.row(types.InlineKeyboardButton(text=_("add-new-channel"), callback_data="add_channel"))
+    builder.row(types.InlineKeyboardButton(text=_("btn-back"), callback_data="back_to_owner_panel"))
+ 
     return builder.as_markup()
 
 def get_bot_settings_keyboard(i18n: I18nContext, sub_bot):

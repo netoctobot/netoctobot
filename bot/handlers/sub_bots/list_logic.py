@@ -2,11 +2,11 @@
 import asyncio
 from asgiref.sync import sync_to_async
 from aiogram import Router, types, Bot, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, ChatMemberUpdatedFilter, IS_ADMIN
 from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
 from bot.filters import BotTypeFilter
-from bot.db_operations import get_user_and_subscription, get_sub_bot_by_token,get_sub_bot_channels_list, delete_sub_bot_channel
+from bot.db_operations import add_channel_to_sub_bot_logic, get_user_and_subscription, get_sub_bot_by_token,get_sub_bot_channels_list, delete_sub_bot_channel
 from bot.utils.formatters import format_personal_message
 from bot.keyboards.inline.bot_management import get_LST_owner_control_panel, get_channels_management_keyboard, get_add_bot_as_admin_and_cancel
 from apps.bots.models import SubBot, SubBotChannel,Channel
@@ -16,6 +16,7 @@ from bot.keyboards.main_menu import get_user_main_menu
 from bot.utils.interface import update_main_interface
 from bot.states.sub_bot_states import AddChannelSG
 from bot.utils.common import get_chat_invite_link
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 router = Router()
 router.message.filter(BotTypeFilter(SubBot.BotType.LIST)) # قفل أمان
@@ -155,11 +156,12 @@ async def start_add_channel(callback: types.CallbackQuery, state: FSMContext, i1
 async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nContext, state: FSMContext):
     _ = i18n.get
     
+    me = await bot.get_me()
     # التأكد أن الرسالة موجهة من قناة
     if not message.forward_from_chat or message.forward_from_chat.type != "channel":
         return await message.edit_text(
             _("please-send-msg-from-channel"),
-            reply_markup=get_add_bot_as_admin_and_cancel(i18n)
+            reply_markup=get_add_bot_as_admin_and_cancel(i18n,me.username)
             )
 
     chat = message.forward_from_chat
@@ -169,7 +171,6 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
     if chat.type not in valid_types:
         return await message.reply(_("type-chat-not-supported"))
     try:
-        me = await bot.get_me()
         member = await bot.get_chat_member(chat_id=chat.id, user_id=me.id)
         if member.status not in ["administrator", "creator"]:
             return await message.reply(_("bot-not-administrato-make-it"))
@@ -202,3 +203,86 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
         _("channel-successfully-added",title=chat.title, id=chat.id),
         reply_markup=get_LST_owner_control_panel(i18n, "LST")
     )
+
+@router.chat_member(ChatMemberUpdatedFilter(member_status_changed=IS_ADMIN))
+async def on_bot_added_as_admin(event: types.ChatMemberUpdated, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    chat = event.chat
+    user_id = event.from_user.id
+    
+    # جلب بيانات البوت الفرعي
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    if not sub_bot: return
+
+    # التمييز في الرسالة بين المالك والغريب
+    is_owner = (sub_bot.owner.telegram_id == user_id)
+    
+    if is_owner:
+        text = _("owner-msg-successful-added-bot",title=chat.title)
+    else:
+        text = _("msg-successful-added-bot",title=chat.title)
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_("send-add-request"), callback_data=f"confirm_auto_add_{chat.id}")
+    
+    # نرسل الرسالة للشخص الذي قام بالإضافة (سواء كان المالك أو الشريك)
+    await bot.send_message(chat_id=user_id, text=text, reply_markup=builder.as_markup())
+    
+@router.callback_query(F.data.startswith("confirm_auto_add_"))
+async def finalize_auto_add(callback: types.CallbackQuery, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    chat_id = int(callback.data.split("_")[-1])
+    
+    # جلب بيانات الشات والتوكن
+    chat = await bot.get_chat(chat_id)
+    sub_bot = await get_sub_bot_by_token(bot.token)
+
+    # استدعاء المنطق الشامل من db_operations
+    success, status, is_owner = await add_channel_to_sub_bot_logic(
+        sub_bot=sub_bot,
+        chat_id=chat.id,
+        title=chat.title,
+        username=chat.username,
+        invite_link=get_chat_invite_link(chat),
+        telegram_user_id=callback.from_user.id
+    )
+
+    if not success:
+        msg = _("channel-already-exists") if status == "exists" else _("err-msg-save")
+        return await callback.answer(msg, show_alert=True)
+
+    if is_owner:
+        # المالك أضاف قناته الخاصة
+        await callback.message.edit_text(
+            _("channel-successfully-added",title=chat.title,id=chat.id)
+            )
+    else:
+        # شريك أضاف قناة (بانتظار موافقة المالك)
+        await callback.message.edit_text(_("request-forwarded-owner"))
+        
+        # إشعار للمالك فوراً
+        await bot.send_message(
+            chat_id=sub_bot.owner.telegram_id,
+            text=_("new-joining-request",titel=chat.title, full_name=callback.from_user.full_name),
+            reply_markup=get_LST_owner_control_panel(i18n, "LST")
+        )
+
+@router.callback_query(F.data.startswith("toggle_chan_"))
+async def toggle_channel_status(callback: types.CallbackQuery, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    chan_id = int(callback.data.split("_")[-1])
+    
+    @sync_to_async
+    def _toggle():
+        sc = SubBotChannel.objects.get(id=chan_id)
+        sc.is_active = not sc.is_active # عكس الحالة
+        sc.save()
+        return sc.is_active, sc.channel.title
+
+    new_state, title = await _toggle()
+    state_text = _("active") if new_state else _("desactive")
+    
+    await callback.answer(_("change-state",title=title,state_text=state_text))
+    
+    # تحديث الكيبورد فوراً ليرى المالك التغيير
+    await manage_channels_list(callback, bot, i18n)

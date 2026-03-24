@@ -127,6 +127,7 @@ class SubBotChannel(BaseModel):
     channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='in_bots')
     
     # إعدادات خاصة بكل بوت
+    owner = models.ForeignKey(TelegramUser, on_delete=models.CASCADE, related_name='my_channels', verbose_name=_("Owner"))
     custom_invite_link = models.URLField(null=True, blank=True, verbose_name=_("Custom Link for this Bot"))
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
