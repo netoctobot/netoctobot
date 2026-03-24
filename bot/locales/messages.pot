@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 13:25-0700\n"
+"POT-Creation-Date: 2026-03-24 14:06-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -372,15 +372,30 @@ msgid "error-in-html-format"
 msgstr ""
 
 #: bot/handlers/sub_bots/list_logic.py:426
-msgid "please-send-interval-hours"
+msgid "please-send-interval"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:437
+#: bot/handlers/sub_bots/list_logic.py:438
+#: bot/handlers/sub_bots/list_logic.py:478
 msgid "error-invalid-interval"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:453
+#: bot/handlers/sub_bots/list_logic.py:454
 msgid "interval-updated-successfully"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:463
+msgid ""
+"لطفاً أرسل عدد الساعات التي ترغب بحذف اللستة بعدها (مثلاً: 2)\n"
+"أو أرسل 0 إذا كنت لا ترغب بالحذف التلقائي."
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:507
+msgid "delete-time-updated-successfully"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:509
+msgid "auto-delete-disabled"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:10

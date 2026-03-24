@@ -423,7 +423,7 @@ async def preview_list_template(callback: types.CallbackQuery, bot: Bot, i18n: I
 @router.callback_query(F.data == "edit_interval")
 async def ask_for_interval(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
     _ = i18n.get
-    sent_msg = await callback.message.answer(_("please-send-interval-hours"))
+    sent_msg = await callback.message.answer(_("please-send-interval"))
     await state.set_state(ListTemplateSG.waiting_for_post_interval)
     await state.update_data(msg_id=sent_msg.message_id)
     await callback.answer()
@@ -437,12 +437,12 @@ async def process_interval(message: types.Message, state: FSMContext, bot: Bot, 
         asyncio.create_task(delete_message_after(message))
         return asyncio.create_task(delete_message_after(await message.answer(_("error-invalid-interval"))))
 
-    interval_hours = int(message.text)
+    interval_time = int(message.text)
     sub_bot = await get_sub_bot_by_token(bot.token)
 
     # تحديث قاعدة البيانات
     await sync_to_async(ListTemplate.objects.filter(sub_bot=sub_bot).update)(
-        post_interval=interval_hours
+        post_interval=interval_time
     )
 
     # التنظيف المعتاد
@@ -451,7 +451,7 @@ async def process_interval(message: types.Message, state: FSMContext, bot: Bot, 
         await bot.delete_message(message.chat.id, data.get("msg_id"))
     
     await message.delete() # حذف رقم المستخدم
-    msg = await message.answer(_("interval-updated-successfully",hours=interval_hours))
+    msg = await message.answer(_("interval-updated-successfully",seconds=interval_time))
     asyncio.create_task(delete_message_after(msg,4))
     await state.clear()
 
@@ -504,7 +504,7 @@ async def process_delete_after(message: types.Message, state: FSMContext, bot: B
         pass
 
     # 4. إرسال تأكيد النجاح وحذف التنبيه بعد 4 ثوانٍ
-    success_text = _("delete-time-updated-successfully",hours=delete_time)
+    success_text = _("delete-time-updated-successfully",seconds=delete_time)
     if delete_time == 0:
         success_text = _("auto-delete-disabled")
         

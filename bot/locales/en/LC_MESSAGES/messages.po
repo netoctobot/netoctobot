@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 13:25-0700\n"
+"POT-Creation-Date: 2026-03-24 14:06-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -420,15 +420,17 @@ msgid "error-in-html-format"
 msgstr "Invalid token. Please verify your bot token and try again."
 
 #: bot/handlers/sub_bots/list_logic.py:426
-msgid "please-send-interval-hours"
-msgstr ""
+#, fuzzy
+msgid "please-send-interval"
+msgstr "Invalid token. Please verify your bot token and try again."
 
-#: bot/handlers/sub_bots/list_logic.py:437
+#: bot/handlers/sub_bots/list_logic.py:438
+#: bot/handlers/sub_bots/list_logic.py:478
 #, fuzzy
 msgid "error-invalid-interval"
 msgstr "Invalid token. Please verify your bot token and try again."
 
-#: bot/handlers/sub_bots/list_logic.py:453
+#: bot/handlers/sub_bots/list_logic.py:454
 #, fuzzy
 msgid "interval-updated-successfully"
 msgstr ""
@@ -436,6 +438,25 @@ msgstr ""
 "\n"
 "\n"
 "You can now manage it from the menu below:"
+
+#: bot/handlers/sub_bots/list_logic.py:463
+msgid ""
+"لطفاً أرسل عدد الساعات التي ترغب بحذف اللستة بعدها (مثلاً: 2)\n"
+"أو أرسل 0 إذا كنت لا ترغب بالحذف التلقائي."
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:507
+#, fuzzy
+msgid "delete-time-updated-successfully"
+msgstr ""
+"🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
+"\n"
+"\n"
+"You can now manage it from the menu below:"
+
+#: bot/handlers/sub_bots/list_logic.py:509
+msgid "auto-delete-disabled"
+msgstr ""
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
@@ -697,4 +718,7 @@ msgstr ""
 
 #~ msgid "btn-back-to-main"
 #~ msgstr "🔙 Back to Main Menu"
+
+#~ msgid "please-send-interval-hours"
+#~ msgstr ""
 
