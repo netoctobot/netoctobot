@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 14:06-0700\n"
+"POT-Creation-Date: 2026-03-24 14:09-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -477,6 +477,14 @@ msgstr "✅ تم ضبط وقت الحذف التلقائي بعد {seconds} ثا
 #: bot/handlers/sub_bots/list_logic.py:509
 msgid "auto-delete-disabled"
 msgstr "✅ تم إيقاف الحذف التلقائي (ستبقى القائمة دائمة)."
+
+#: bot/handlers/sub_bots/list_logic.py:536
+msgid "publishing-enabled-success"
+msgstr "✅ تم تفعيل النشر التلقائي بنجاح!"
+
+#: bot/handlers/sub_bots/list_logic.py:540
+msgid "publishing-disabled-success"
+msgstr "❌ تم إيقاف النشر التلقائي."
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"

@@ -515,3 +515,33 @@ async def process_delete_after(message: types.Message, state: FSMContext, bot: B
     
     # حذف رسالة التأكيد بعد 4 ثوانٍ ليبقى الشات نظيفاً
     asyncio.create_task(delete_message_after(confirm_msg, 4))
+
+@router.callback_query(F.data == "toggle_auto_post")
+async def toggle_auto_post_status(callback: types.CallbackQuery, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    
+    # 1. جلب التمبلت (أو إنشاؤه إذا لم يوجد)
+    config, created = await sync_to_async(ListTemplate.objects.get_or_create)(sub_bot=sub_bot)
+    
+    # 2. عكس الحالة الحالية
+    new_status = not config.is_enabled
+    config.is_enabled = new_status
+    await sync_to_async(config.save)()
+
+    # 3. منطق المجدول (سيتم ربطه بالمحرك لاحقاً)
+    if new_status:
+        # هنا سنستدعي دالة تشغيل المجدول لهذا البوت تحديداً
+        # await scheduler_service.activate_bot_scheduler(sub_bot.id)
+        message_text = _("publishing-enabled-success")
+    else:
+        # هنا سنستدعي دالة إيقاف المجدول
+        # await scheduler_service.deactivate_bot_scheduler(sub_bot.id)
+        message_text = _("publishing-disabled-success")
+
+    # 4. تحديث الكيبورد فوراً ليعكس الحالة الجديدة
+    await callback.message.edit_reply_markup(
+        reply_markup=get_template_management_keyboard(i18n, new_status)
+    )
+    
+    await callback.answer(message_text, show_alert=True)

@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 14:06-0700\n"
+"POT-Creation-Date: 2026-03-24 14:09-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -456,6 +456,14 @@ msgstr ""
 
 #: bot/handlers/sub_bots/list_logic.py:509
 msgid "auto-delete-disabled"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:536
+msgid "publishing-enabled-success"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:540
+msgid "publishing-disabled-success"
 msgstr ""
 
 #: bot/keyboards/main_menu.py:10

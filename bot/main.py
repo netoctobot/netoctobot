@@ -1,21 +1,23 @@
 import asyncio
 import logging
-from aiogram import types, Bot, F
-from .config import ADMIN_IDS
+from aiogram import Bot
 from asgiref.sync import sync_to_async
 # الاستيرادات الخاصة بك
 from .loader import dp, bot
-from .db.db_operations import get_user_and_subscription
-from .keyboards.main_menu import get_main_keyboard
-from .utils.interface import setup_master_bot_sync, update_main_interface # الدالة التي تحذف وترسل
+from .utils.interface import setup_master_bot_sync # الدالة التي تحذف وترسل
 from bot.handlers import get_handlers_router
 from apps.bots.models import SubBot
 from aiogram.client.default import DefaultBotProperties 
+from bot.services.scheduler import scheduler
 
 # تسجيل الراوتر
 dp.include_router(get_handlers_router())
 
 async def main():
+    
+    if not scheduler.running:
+        scheduler.start()
+        print("🚀 محرك الجدولة يعمل الآن...")
     # 1. تجهيز البوت الرئيسي
     await setup_master_bot_sync()
     
