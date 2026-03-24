@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 12:00-0700\n"
+"POT-Creation-Date: 2026-03-24 12:17-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -210,6 +210,7 @@ msgstr "➕ Add Another Bot"
 #: bot/handlers/my_bots/list_bots.py:291 bot/handlers/my_bots/list_bots.py:321
 #: bot/keyboards/inline/bot_management.py:110
 #: bot/keyboards/inline/bot_management.py:193
+#: bot/keyboards/inline/bot_management.py:214
 #, fuzzy
 msgid "btn-back"
 msgstr "🔙 Back to Main Menu"
@@ -373,6 +374,29 @@ msgstr ""
 msgid "change-state"
 msgstr ""
 
+#: bot/handlers/sub_bots/list_logic.py:320
+msgid "template-settings-view"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:321
+#: bot/handlers/sub_bots/list_logic.py:322
+#, fuzzy
+msgid "not-set"
+msgstr "⚙️ System Settings"
+
+#: bot/handlers/sub_bots/list_logic.py:336
+msgid "please-send-header-text"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:350
+#, fuzzy
+msgid "header-updated-successfully"
+msgstr ""
+"🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
+"\n"
+"\n"
+"You can now manage it from the menu below:"
+
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
 msgstr "➕ Add Another Bot"
@@ -512,6 +536,35 @@ msgstr "➕ Add Another Bot"
 
 #: bot/keyboards/inline/bot_management.py:192
 msgid "add-new-channel"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:200
+msgid "preview-template"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:202
+msgid "edit-header"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:203
+msgid "edit-footer"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:206
+msgid "edit-interval"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:207
+#, fuzzy
+msgid "edite-delete-time"
+msgstr "➕ Add Another Bot"
+
+#: bot/keyboards/inline/bot_management.py:211
+msgid "publishing-enabled"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:211
+msgid "publishing-paused"
 msgstr ""
 
 #: bot/keyboards/inline/subscriptions.py:17

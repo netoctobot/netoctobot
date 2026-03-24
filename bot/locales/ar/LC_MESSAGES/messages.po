@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 12:00-0700\n"
+"POT-Creation-Date: 2026-03-24 12:17-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -214,6 +214,7 @@ msgstr "📝 تعديل الرسالة"
 #: bot/handlers/my_bots/list_bots.py:291 bot/handlers/my_bots/list_bots.py:321
 #: bot/keyboards/inline/bot_management.py:110
 #: bot/keyboards/inline/bot_management.py:193
+#: bot/keyboards/inline/bot_management.py:214
 msgid "btn-back"
 msgstr "⬅️ عودة"
 
@@ -414,6 +415,23 @@ msgstr "🔴 معطلة"
 msgid "change-state"
 msgstr "تم تغيير حالة {title} إلى {state_text}"
 
+#: bot/handlers/sub_bots/list_logic.py:320
+msgid "template-settings-view"
+msgstr "إعدادات القالب"
+
+#: bot/handlers/sub_bots/list_logic.py:321
+#: bot/handlers/sub_bots/list_logic.py:322
+msgid "not-set"
+msgstr "غير محدد"
+
+#: bot/handlers/sub_bots/list_logic.py:336
+msgid "please-send-header-text"
+msgstr "الرجاء إرسال النص الذي تريد استخدامه كرأس للقالب:"
+
+#: bot/handlers/sub_bots/list_logic.py:350
+msgid "header-updated-successfully"
+msgstr "تم تحديث الرأس بنجاح ✅"
+
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
 msgstr "➕ إضافة بوتي"
@@ -542,6 +560,34 @@ msgstr "🗑️ حذف"
 #: bot/keyboards/inline/bot_management.py:192
 msgid "add-new-channel"
 msgstr "➕ إضافة قناة جديدة"
+
+#: bot/keyboards/inline/bot_management.py:200
+msgid "preview-template"
+msgstr "👁️ معاينة القائمة الحالية"
+
+#: bot/keyboards/inline/bot_management.py:202
+msgid "edit-header"
+msgstr "✏️ الرأس"
+
+#: bot/keyboards/inline/bot_management.py:203
+msgid "edit-footer"
+msgstr "✏️ التذييل"
+
+#: bot/keyboards/inline/bot_management.py:206
+msgid "edit-interval"
+msgstr "⏰ وقت النشر"
+
+#: bot/keyboards/inline/bot_management.py:207
+msgid "edite-delete-time"
+msgstr "🗑️ وقت الحذف"
+
+#: bot/keyboards/inline/bot_management.py:211
+msgid "publishing-enabled"
+msgstr "✅ النشر مفعل"
+
+#: bot/keyboards/inline/bot_management.py:211
+msgid "publishing-paused"
+msgstr "⏸️ النشر متوقف مؤقتاً"
 
 #: bot/keyboards/inline/subscriptions.py:17
 msgid "subscribed"
