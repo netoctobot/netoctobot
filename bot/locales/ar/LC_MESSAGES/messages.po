@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 12:34-0700\n"
+"POT-Creation-Date: 2026-03-24 13:25-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ar\n"
@@ -432,16 +432,36 @@ msgstr "الرجاء إرسال النص الذي تريد استخدامه كر
 msgid "header-updated-successfully"
 msgstr "تم تحديث الرأس بنجاح ✅"
 
-#: bot/handlers/sub_bots/list_logic.py:364
+#: bot/handlers/sub_bots/list_logic.py:369
+msgid "please-send-footer-text"
+msgstr "الرجاء إرسال النص الذي تريد استخدامه كتذييل للقالب:"
+
+#: bot/handlers/sub_bots/list_logic.py:383
+msgid "footer-updated-successfully"
+msgstr "تم تحديث التذييل بنجاح ✅"
+
+#: bot/handlers/sub_bots/list_logic.py:408
 msgid "error-no-channels-to-preview"
 msgstr "❌ لا توجد قنوات لعرض معاينة القائمة. يرجى إضافة قنوات أولاً."
 
-#: bot/handlers/sub_bots/list_logic.py:375
+#: bot/handlers/sub_bots/list_logic.py:420
 msgid "error-in-html-format"
 msgstr ""
 "❌ <b>خطأ في التنسيق!</b>\n"
 "يرجى التأكد من إغلاق الوسوم بشكل صحيح.\n"
 "الخطأ: {error}"
+
+#: bot/handlers/sub_bots/list_logic.py:426
+msgid "please-send-interval-hours"
+msgstr "لطفاً أرسل عدد الساعات بين كل نشر (مثلاً: 24)"
+
+#: bot/handlers/sub_bots/list_logic.py:437
+msgid "error-invalid-interval"
+msgstr "خطأ! يرجى إرسال رقم صحيح فقط (ساعات)."
+
+#: bot/handlers/sub_bots/list_logic.py:453
+msgid "interval-updated-successfully"
+msgstr "✅ تم تحديث وقت النشر إلى {hours} ساعة"
 
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"

@@ -367,20 +367,20 @@ async def process_header(message: types.Message, state: FSMContext, bot: Bot, i1
 async def ask_for_header(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
     _ = i18n.get
     message = await callback.message.answer(_("please-send-footer-text"))
-    await state.set_state(ListTemplateSG.waiting_for_header)
+    await state.set_state(ListTemplateSG.waiting_for_footer)
     await state.update_data(msg_id=message.message_id)
 
-@router.message(ListTemplateSG.waiting_for_header)
+@router.message(ListTemplateSG.waiting_for_footer)
 async def process_header(message: types.Message, state: FSMContext, bot: Bot, i18n: I18nContext):
     _ = i18n.get
     sub_bot = await get_sub_bot_by_token(bot.token)
     
     # تحديث قاعدة البيانات
     await sync_to_async(ListTemplate.objects.filter(sub_bot=sub_bot).update)(
-        header_text=message.html_text # نحفظ النص مع التنسيق (HTML)
+        footer_text=message.html_text # نحفظ النص مع التنسيق (HTML)
     )
     
-    msg = await message.answer(_("header-updated-successfully"))
+    msg = await message.answer(_("footer-updated-successfully"))
     # داخل دالة process_header
     data = await state.get_data()
     old_msg_id = data.get("msg_id")
@@ -392,7 +392,7 @@ async def process_header(message: types.Message, state: FSMContext, bot: Bot, i1
             print(f"فشل حذف الرسالة القديمة: {e}")
             
     asyncio.create_task(delete_message_after(msg,4))
-    asyncio.create_task(delete_message_after(message,1))
+    await message.delete() # حذف رقم المستخدم
     await state.clear()
 
 
@@ -420,3 +420,36 @@ async def preview_list_template(callback: types.CallbackQuery, bot: Bot, i18n: I
         await callback.message.edit_text(_("error-in-html-format"), 
             reply_markup=callback.message.reply_markup)
         
+@router.callback_query(F.data == "edit_interval")
+async def ask_for_interval(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
+    _ = i18n.get
+    sent_msg = await callback.message.answer(_("please-send-interval-hours"))
+    await state.set_state(ListTemplateSG.waiting_for_post_interval)
+    await state.update_data(msg_id=sent_msg.message_id)
+    await callback.answer()
+
+@router.message(ListTemplateSG.waiting_for_post_interval)
+async def process_interval(message: types.Message, state: FSMContext, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    
+    # التأكد أن المدخل رقم
+    if not message.text.isdigit():
+        return await message.answer(_("error-invalid-interval"))
+
+    interval_hours = int(message.text)
+    sub_bot = await get_sub_bot_by_token(bot.token)
+
+    # تحديث قاعدة البيانات
+    await sync_to_async(ListTemplate.objects.filter(sub_bot=sub_bot).update)(
+        post_interval=interval_hours
+    )
+
+    # التنظيف المعتاد
+    data = await state.get_data()
+    if data.get("msg_id"):
+        await bot.delete_message(message.chat.id, data.get("msg_id"))
+    
+    await message.delete() # حذف رقم المستخدم
+    msg = await message.answer(_("interval-updated-successfully",hours=interval_hours))
+    asyncio.create_task(delete_message_after(msg,4))
+    await state.clear()
