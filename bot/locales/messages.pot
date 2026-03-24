@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-24 12:17-0700\n"
+"POT-Creation-Date: 2026-03-24 12:34-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -182,8 +182,8 @@ msgstr ""
 
 #: bot/handlers/my_bots/list_bots.py:291 bot/handlers/my_bots/list_bots.py:321
 #: bot/keyboards/inline/bot_management.py:110
-#: bot/keyboards/inline/bot_management.py:193
-#: bot/keyboards/inline/bot_management.py:214
+#: bot/keyboards/inline/bot_management.py:194
+#: bot/keyboards/inline/bot_management.py:215
 msgid "btn-back"
 msgstr ""
 
@@ -257,7 +257,7 @@ msgstr ""
 msgid "msg-list-default-welcome"
 msgstr ""
 
-#: bot/handlers/sub_bots/list_logic.py:124
+#: bot/handlers/sub_bots/list_logic.py:124 bot/utils/formatters.py:84
 msgid "no-channels-added"
 msgstr ""
 
@@ -355,6 +355,14 @@ msgstr ""
 msgid "header-updated-successfully"
 msgstr ""
 
+#: bot/handlers/sub_bots/list_logic.py:364
+msgid "error-no-channels-to-preview"
+msgstr ""
+
+#: bot/handlers/sub_bots/list_logic.py:375
+msgid "error-in-html-format"
+msgstr ""
+
 #: bot/keyboards/main_menu.py:10
 msgid "btn-add-my-bot"
 msgstr ""
@@ -387,7 +395,7 @@ msgstr ""
 msgid "btn-change-lang"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:187 bot/keyboards/main_menu.py:36
+#: bot/keyboards/inline/bot_management.py:188 bot/keyboards/main_menu.py:36
 msgid "show-channel"
 msgstr ""
 
@@ -461,54 +469,58 @@ msgid "channel-management"
 msgstr ""
 
 #: bot/keyboards/inline/bot_management.py:145
+msgid "manage-template"
+msgstr ""
+
+#: bot/keyboards/inline/bot_management.py:146
 msgid "publish-list"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:147
+#: bot/keyboards/inline/bot_management.py:148
 msgid "incoming-messages"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:149
+#: bot/keyboards/inline/bot_management.py:150
 msgid "bot-settings"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:157
+#: bot/keyboards/inline/bot_management.py:158
 msgid "ok"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:188
+#: bot/keyboards/inline/bot_management.py:189
 msgid "btn-delete"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:192
+#: bot/keyboards/inline/bot_management.py:193
 msgid "add-new-channel"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:200
+#: bot/keyboards/inline/bot_management.py:201
 msgid "preview-template"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:202
+#: bot/keyboards/inline/bot_management.py:203
 msgid "edit-header"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:203
+#: bot/keyboards/inline/bot_management.py:204
 msgid "edit-footer"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:206
+#: bot/keyboards/inline/bot_management.py:207
 msgid "edit-interval"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:207
+#: bot/keyboards/inline/bot_management.py:208
 msgid "edite-delete-time"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:211
+#: bot/keyboards/inline/bot_management.py:212
 msgid "publishing-enabled"
 msgstr ""
 
-#: bot/keyboards/inline/bot_management.py:211
+#: bot/keyboards/inline/bot_management.py:212
 msgid "publishing-paused"
 msgstr ""
 

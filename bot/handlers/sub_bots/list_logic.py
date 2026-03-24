@@ -7,15 +7,15 @@ from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
 from bot.filters import BotTypeFilter
 from bot.db.db_operations import add_channel_to_sub_bot_logic, get_user_and_subscription, get_sub_bot_by_token,get_sub_bot_channels_list, delete_sub_bot_channel
-from bot.utils.formatters import format_personal_message
+from bot.utils.formatters import format_personal_message,generate_list_message
 from bot.keyboards.inline.bot_management import get_template_management_keyboard,get_LST_user_main_keyboard,get_LST_owner_control_panel, get_channels_management_keyboard, get_add_bot_as_admin_and_cancel, ok
 from apps.bots.models import SubBot, SubBotChannel,Channel,ListTemplate
 from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
 from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
 from bot.keyboards.main_menu import get_user_main_menu
 from bot.utils.interface import update_main_interface
-from bot.states.sub_bot_states import AddChannelSG
-from bot.utils.common import get_chat_invite_link
+from bot.states.sub_bot_states import AddChannelSG, ListTemplateSG
+from bot.utils.common import get_chat_invite_link, delete_message_after
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 router = Router()
@@ -333,9 +333,9 @@ async def show_template_settings(callback: types.CallbackQuery, i18n: I18nContex
 @router.callback_query(F.data == "edit_header")
 async def ask_for_header(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
     _ = i18n.get
-    await callback.message.answer(_("please-send-header-text"))
+    message = await callback.message.answer(_("please-send-header-text"))
     await state.set_state(ListTemplateSG.waiting_for_header)
-    await callback.answer()
+    await state.update_data(msg_id=message.message_id)
 
 @router.message(ListTemplateSG.waiting_for_header)
 async def process_header(message: types.Message, state: FSMContext, bot: Bot, i18n: I18nContext):
@@ -347,7 +347,76 @@ async def process_header(message: types.Message, state: FSMContext, bot: Bot, i1
         header_text=message.html_text # نحفظ النص مع التنسيق (HTML)
     )
     
-    await message.answer(_("header-updated-successfully"))
+    msg = await message.answer(_("header-updated-successfully"))
+    # داخل دالة process_header
+    data = await state.get_data()
+    old_msg_id = data.get("msg_id")
+
+    if old_msg_id:
+        try:
+            await bot.delete_message(chat_id=message.chat.id, message_id=old_msg_id)
+        except Exception as e:
+            print(f"فشل حذف الرسالة القديمة: {e}")
+            
+    asyncio.create_task(delete_message_after(msg,4))
+    asyncio.create_task(delete_message_after(message,1))
     await state.clear()
-    # العودة للوحة التحكم الرئيسية للتمبلت
-    # يمكنك استدعاء دالة show_template_settings هنا لإظهار التحديث
+
+
+@router.callback_query(F.data == "edit_footer")
+async def ask_for_header(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
+    _ = i18n.get
+    message = await callback.message.answer(_("please-send-footer-text"))
+    await state.set_state(ListTemplateSG.waiting_for_header)
+    await state.update_data(msg_id=message.message_id)
+
+@router.message(ListTemplateSG.waiting_for_header)
+async def process_header(message: types.Message, state: FSMContext, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    
+    # تحديث قاعدة البيانات
+    await sync_to_async(ListTemplate.objects.filter(sub_bot=sub_bot).update)(
+        header_text=message.html_text # نحفظ النص مع التنسيق (HTML)
+    )
+    
+    msg = await message.answer(_("header-updated-successfully"))
+    # داخل دالة process_header
+    data = await state.get_data()
+    old_msg_id = data.get("msg_id")
+
+    if old_msg_id:
+        try:
+            await bot.delete_message(chat_id=message.chat.id, message_id=old_msg_id)
+        except Exception as e:
+            print(f"فشل حذف الرسالة القديمة: {e}")
+            
+    asyncio.create_task(delete_message_after(msg,4))
+    asyncio.create_task(delete_message_after(message,1))
+    await state.clear()
+
+
+@router.callback_query(F.data == "preview_template")
+async def preview_list_template(callback: types.CallbackQuery, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    
+    # استدعاء دالة التنسيق (التي تجمع الهيدر + القنوات + الفوتر)
+    preview_text = await generate_list_message(sub_bot, i18n)
+    
+    if not preview_text:
+        return await callback.answer(_("error-no-channels-to-preview"), show_alert=True)
+
+    # نرسل المعاينة في رسالة جديدة لكي لا تضيع أزرار التحكم
+    try:
+        await callback.message.edit_text(
+            text=f"{preview_text}",
+            parse_mode="HTML",
+            reply_markup=callback.message.reply_markup,
+            disable_web_page_preview=True
+        )
+        await callback.answer()
+    except Exception as e:
+        await callback.message.edit_text(_("error-in-html-format"), 
+            reply_markup=callback.message.reply_markup)
+        

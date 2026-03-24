@@ -142,6 +142,7 @@ def get_LST_owner_control_panel(i18n, bot_type):
     if bot_type == "LST":
         builder.button(text=_("add-channel"), callback_data="add_channel")
         builder.button(text=_("channel-management"), callback_data="manage_channels")
+        builder.button(text=_("manage-template"), callback_data="manage_template")
         builder.button(text=_("publish-list"), callback_data="broadcast_list")
     else: # CON
         builder.button(text=_("incoming-messages"), callback_data="view_messages")
@@ -211,6 +212,6 @@ def get_template_management_keyboard(i18n: I18nContext, is_enabled: bool):
     status_text = _("publishing-enabled") if is_enabled else _("publishing-paused")
     builder.row(types.InlineKeyboardButton(text=status_text, callback_data="toggle_auto_post"))
     
-    builder.row(types.InlineKeyboardButton(text=_("btn-back"), callback_data="manage_channels"))
+    builder.row(types.InlineKeyboardButton(text=_("btn-back"), callback_data="back_to_owner_panel"))
     
     return builder.as_markup()
