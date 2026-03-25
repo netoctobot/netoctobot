@@ -215,3 +215,9 @@ def get_template_management_keyboard(i18n: I18nContext, is_enabled: bool):
     builder.row(types.InlineKeyboardButton(text=_("btn-back"), callback_data="back_to_owner_panel"))
     
     return builder.as_markup()
+
+def generate_list_keyboards(sub_bot, i18n: I18nContext):
+    _ = i18n.get
+    builder = InlineKeyboardBuilder()
+
+    return builder.as_markup()
