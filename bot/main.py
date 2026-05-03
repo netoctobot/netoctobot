@@ -1,32 +1,35 @@
 import asyncio
 import logging
 from aiogram import Bot
-from aiogram.client.default import DefaultBotProperties 
+from aiogram.client.default import DefaultBotProperties
 from asgiref.sync import sync_to_async
 
-from bot.utils.collection import active_bots_instances,all_bots,seen_tokens
+from bot.utils.collection import active_bots_instances, all_bots, seen_tokens
 from .loader import dp, bot
-from .utils.interface import setup_master_bot_sync # الدالة التي تحذف وترسل
+from .utils.interface import setup_master_bot_sync  # الدالة التي تحذف وترسل
 from bot.handlers import get_handlers_router
-from apps.bots.models import SubBot,ListTemplate
-from bot.services.scheduler import scheduler, add_bot_to_scheduler
+from apps.bots.models import SubBot, ListTemplate
+from bot.services.scheduler import scheduler, restore_all_scheduled_tasks
 
 # تسجيل الراوتر
 dp.include_router(get_handlers_router())
 
 
 async def main():
-    
+
     if not scheduler.running:
         scheduler.start()
         print("🚀 محرك الجدولة يعمل الآن...")
+
+    # استعادة المهام من قاعدة البيانات
+    await restore_all_scheduled_tasks()
     # 1. تجهيز البوت الرئيسي
     await setup_master_bot_sync()
-    
+
     # 2. جلب البوتات الفرعية النشطة (مع التأكد من عدم تكرار التوكنات في DB)
     # استخدام .values_list('token', flat=True).distinct() يضمن جلب توكنات فريدة فقط
     active_sub_bots = await sync_to_async(list)(
-        SubBot.objects.filter(is_active=True).only('token', 'name')
+        SubBot.objects.filter(is_active=True).only("token", "name")
     )
 
     # أضف البوت الرئيسي أولاً
@@ -41,13 +44,18 @@ async def main():
 
         try:
             sub_bot_instance = Bot(
-                token=bot_data.token, 
-                allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"],
-                default=DefaultBotProperties(parse_mode="HTML") 
+                token=bot_data.token,
+                allowed_updates=[
+                    "message",
+                    "callback_query",
+                    "chat_member",
+                    "my_chat_member",
+                ],
+                default=DefaultBotProperties(parse_mode="HTML"),
             )
             all_bots.append(sub_bot_instance)
             active_bots_instances[bot_data.token] = sub_bot_instance
-            seen_tokens.add(bot_data.token) # تسجيل التوكن كـ "مشغول"
+            seen_tokens.add(bot_data.token)  # تسجيل التوكن كـ "مشغول"
             print(f"✅ تم تشغيل: {bot_data.name}")
         except Exception as e:
             print(f"❌ فشل تشغيل {bot_data.name}: {e}")
@@ -64,7 +72,8 @@ async def main():
     print(f"🚀 يتم الآن تشغيل {len(all_bots)} بوت في وقت واحد...")
     await dp.start_polling(*all_bots)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING)
     try:
         asyncio.run(main())

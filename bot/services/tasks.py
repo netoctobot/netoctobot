@@ -11,32 +11,39 @@ from datetime import timedelta
 logger = logging.getLogger(__name__)
 
 async def delete_post_for_bot(sub_bot_id, chat_id, message_id):
-    # 1. الحصول على بيانات البوت من قاعدة البيانات (اختياري إذا كنت تملك التوكن)
-    # أو الوصول مباشرة عبر القاموس الذي تملكه
-    from bot.utils.collection import active_bots_instances
+    """
+    تنفذ عملية الحذف الفعلي من تليجرام وتحدث حالة السجل في قاعدة البيانات.
+    """
     
-    # لنفترض أنك تمرر sub_bot_id، نحتاج للحصول على التوكن أولاً
-    # ملاحظة: تأكد من تمرير التوكن للدالة أو جلبه داخلها
-    
-    # ابحث عن نسخة البوت النشطة
-    bot_instance = None
-    for token, instance in active_bots_instances.items():
-        # هنا يمكنك المقارنة بالـ ID إذا كان مخزناً أو تمرير التوكن مباشرة للدالة
-        if str(instance.id) == str(sub_bot_id): # مثال للمقارنة
-            bot_instance = instance
-            break
+    # 1. جلب التوكن الخاص بالبوت من قاعدة البيانات
+    try:
+        sub_bot = await sync_to_async(SubBot.objects.get)(id=sub_bot_id)
+        bot_instance = active_bots_instances.get(sub_bot.token)
+        
+        if not bot_instance:
+            logger.error(f"❌ نسخة البوت {sub_bot.name} غير نشطة حالياً.")
+            return
 
-    if bot_instance:
+        # 2. محاولة الحذف من تليجرام
         try:
-            # 2. تنفيذ أمر الحذف
             await bot_instance.delete_message(chat_id=chat_id, message_id=message_id)
-            print(f"✅ تم حذف الرسالة {message_id} بنجاح من الشات {chat_id}")
+            logger.info(f"🗑️ [Task] تم حذف الرسالة {message_id} من {chat_id}")
         except Exception as e:
-            # تليجرام قد يرفض الحذف إذا كانت الرسالة قديمة جداً (> 48 ساعة)
-            # أو إذا قام المشرف بحذفها يدوياً
-            print(f"⚠️ فشل حذف الرسالة {message_id}: {e}")
-    else:
-        print(f"❌ لم يتم العثور على نسخة نشطة للبوت ID: {sub_bot_id}")
+            logger.warning(f"⚠️ لم يتم حذف الرسالة {message_id} (ربما حذفت يدوياً): {e}")
+
+        # 3. تحديث السجل في قاعدة البيانات (PublishedList) لكي لا يحاول المنظف حذفها مرة أخرى
+        await sync_to_async(
+            PublishedList.objects.filter(
+                sub_bot_id=sub_bot_id, 
+                channel_id=chat_id, 
+                message_id=message_id
+            ).update
+        )(is_deleted=True)
+
+    except SubBot.DoesNotExist:
+        logger.error(f"🚨 البوت ID {sub_bot_id} غير موجود في قاعدة البيانات.")
+    except Exception as e:
+        logger.error(f"🚨 خطأ غير متوقع في دالة الحذف: {e}")
   
 async def run_auto_post_for_bot(sub_bot_id: int):
     try:
