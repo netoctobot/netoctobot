@@ -14,17 +14,6 @@ from bot.services.scheduler import scheduler, add_bot_to_scheduler
 # تسجيل الراوتر
 dp.include_router(get_handlers_router())
 
-async def restore_saved_jobs():
-    """إعادة تشغيل المهام المجدولة للبوتات المفعلة مسبقاً"""
-    configs = await sync_to_async(list)(
-        ListTemplate.objects.filter(is_enabled=True).select_related('sub_bot')
-    )
-    for cfg in configs:
-        add_bot_to_scheduler(cfg.sub_bot.id, cfg.post_interval)
-    
-    # إضافة مهمة الحذف الدوري (تعمل كل 5 دقائق لتنظيف الرسائل المنتهية)
-    scheduler.add_job(auto_delete_expired_messages, "interval", minutes=5, id="global_cleaner")
-    print(f"♻️ تم استعادة {len(configs)} مهمة نشر مجدولة.")
 
 async def main():
     

@@ -11,8 +11,33 @@ from datetime import timedelta
 logger = logging.getLogger(__name__)
 
 async def delete_post_for_bot(sub_bot_id, chat_id, message_id):
-    bot_instance = active_bots_instances.get(sub_bot.token)
+    # 1. الحصول على بيانات البوت من قاعدة البيانات (اختياري إذا كنت تملك التوكن)
+    # أو الوصول مباشرة عبر القاموس الذي تملكه
+    from bot.utils.collection import active_bots_instances
     
+    # لنفترض أنك تمرر sub_bot_id، نحتاج للحصول على التوكن أولاً
+    # ملاحظة: تأكد من تمرير التوكن للدالة أو جلبه داخلها
+    
+    # ابحث عن نسخة البوت النشطة
+    bot_instance = None
+    for token, instance in active_bots_instances.items():
+        # هنا يمكنك المقارنة بالـ ID إذا كان مخزناً أو تمرير التوكن مباشرة للدالة
+        if str(instance.id) == str(sub_bot_id): # مثال للمقارنة
+            bot_instance = instance
+            break
+
+    if bot_instance:
+        try:
+            # 2. تنفيذ أمر الحذف
+            await bot_instance.delete_message(chat_id=chat_id, message_id=message_id)
+            print(f"✅ تم حذف الرسالة {message_id} بنجاح من الشات {chat_id}")
+        except Exception as e:
+            # تليجرام قد يرفض الحذف إذا كانت الرسالة قديمة جداً (> 48 ساعة)
+            # أو إذا قام المشرف بحذفها يدوياً
+            print(f"⚠️ فشل حذف الرسالة {message_id}: {e}")
+    else:
+        print(f"❌ لم يتم العثور على نسخة نشطة للبوت ID: {sub_bot_id}")
+  
 async def run_auto_post_for_bot(sub_bot_id: int):
     try:
         # 1. جلب بيانات البوت والتمبلت

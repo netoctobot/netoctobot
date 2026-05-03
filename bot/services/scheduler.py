@@ -11,19 +11,6 @@ import asyncio
 
 scheduler = AsyncIOScheduler()
 
-async def start_auto_post_cycle(sub_bot_id):
-    """الدالة التي تنفذ عملية النشر الفعلي في كل القنوات"""
-    # 1. جلب بيانات البوت والتمبلت
-    # 2. تنسيق الرسالة (بواسطة formatter.py)
-    # 3. إرسالها لكل قناة في SubBotChannel
-    # 4. حفظ IDs الرسائل في موديل PublishedList للحذف لاحقاً
-    print(f"جاري بدء عملية النشر للبوت رقم: {sub_bot_id}")
-
-async def setup_all_schedulers():
-    """هذه الدالة تعمل عند تشغيل السيرفر لبرمجة كل البوتات المفعلة"""
-    # سنجلب كل ListTemplate حيث is_enabled=True ونضيفها للمجدول
-    pass
-
 
 def add_bot_to_scheduler(sub_bot_id, interval_seconds):
     """
@@ -31,20 +18,20 @@ def add_bot_to_scheduler(sub_bot_id, interval_seconds):
     """
     # معرف فريد للمهمة بناءً على ID البوت في قاعدة البيانات
     job_id = f"post_task_{sub_bot_id}"
-    
+
     # حذف المهمة إذا كانت موجودة مسبقاً لتجنب التكرار
     if scheduler.get_job(job_id):
         scheduler.remove_job(job_id)
         print(f"🔄 تم تحديث جدولة البوت {sub_bot_id}")
-        
+
     # إضافة المهمة الجديدة
     scheduler.add_job(
-        run_auto_post_for_bot,    # الدالة التي ستنفذ النشر
-        "interval",               # نوع الجدولة: تكرار كل فترة زمنية
-        seconds=interval_seconds, # الفترة بالثواني
-        args=[sub_bot_id],        # الوسائط التي ستمرر للدالة أعلاه
-        id=job_id,                # معرف المهمة
-        replace_existing=True     # استبدال إذا وُجدت بنفس الـ ID
+        run_auto_post_for_bot,  # الدالة التي ستنفذ النشر
+        "interval",  # نوع الجدولة: تكرار كل فترة زمنية
+        seconds=interval_seconds,  # الفترة بالثواني
+        args=[sub_bot_id],  # الوسائط التي ستمرر للدالة أعلاه
+        id=job_id,  # معرف المهمة
+        replace_existing=True,  # استبدال إذا وُجدت بنفس الـ ID
     )
     print(f"⏰ تم جدولة البوت {sub_bot_id} للنشر كل {interval_seconds} ثانية.")
 
@@ -55,23 +42,25 @@ def add_delete_bot_to_scheduler(sub_bot_id, chat_id, message_id, interval_second
     """
     # معرف فريد للمهمة بناءً على ID البوت في قاعدة البيانات
     job_id = f"delete_task_{sub_bot_id}"
-    
+
     # حذف المهمة إذا كانت موجودة مسبقاً لتجنب التكرار
     if scheduler.get_job(job_id):
         scheduler.remove_job(job_id)
         print(f"🔄 تم تحديث مهمة الحذف للبوت {sub_bot_id}")
-    
+
     # حساب وقت التنفيذ = الوقت الحالي + المدة المطلوبة (بالثواني)
     run_date = datetime.now() + timedelta(seconds=interval_seconds)
-    
+
     # إضافة المهمة الجديدة (تنفيذ لمرة واحدة)
     scheduler.add_job(
-        delete_post_for_bot,      # الدالة التي ستنفذ الحذف
-        "date",                    # نوع الجدولة: تنفيذ لمرة واحدة
-        run_date=run_date,         # التاريخ والوقت المحدد للتنفيذ
+        delete_post_for_bot,  # الدالة التي ستنفذ الحذف
+        "date",  # نوع الجدولة: تنفيذ لمرة واحدة
+        run_date=run_date,  # التاريخ والوقت المحدد للتنفيذ
         args=[sub_bot_id, chat_id, message_id],  # الوسائط
-        id=job_id,                 # معرف المهمة
-        replace_existing=True      # استبدال إذا وُجدت بنفس الـ ID
+        id=job_id,  # معرف المهمة
+        replace_existing=True,  # استبدال إذا وُجدت بنفس الـ ID
     )
-    
-    print(f"✅ تم جدولة حذف البوت {sub_bot_id} بعد {interval_seconds} ثانية (الساعة {run_date})")
+
+    print(
+        f"✅ تم جدولة حذف البوت {sub_bot_id} بعد {interval_seconds} ثانية (الساعة {run_date})"
+    )
