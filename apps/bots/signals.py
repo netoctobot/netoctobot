@@ -1,7 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from bots.models import SubBot, SubBotSubscriptionQuota
+from .models import SubBot, SubBotSubscriptionQuota
 
 
 @receiver(post_save, sender=SubBot)
