@@ -4,6 +4,11 @@ from .common import main_menu, settings, navigation
 from .my_bots import add_bot, list_bots
 from bot.handlers.sub_bots.contact_logic import router as contact_router
 from bot.handlers.sub_bots.list_logic import router as list_router
+from bot.handlers.sub_bots.list_post_callbacks import router as list_post_callbacks_router
+from bot.handlers.sub_bots.mandatory_subscribe_handlers import (
+    router as mandatory_subscribe_router,
+)
+from bot.handlers.sub_bots.shared_channels import router as shared_channels_router
 
 def get_handlers_router() -> Router:
     # 1. الروتر الأب (المظلة الكبيرة - بدون فلاتر تقييدية)
@@ -28,6 +33,9 @@ def get_handlers_router() -> Router:
     sub_bots_parent_router.callback_query.filter(F.bot.token != BOT_TOKEN)
 
     # دمج منطق التواصل واللستة داخل روتر البوتات الفرعية
+    sub_bots_parent_router.include_router(shared_channels_router)
+    sub_bots_parent_router.include_router(mandatory_subscribe_router)
+    sub_bots_parent_router.include_router(list_post_callbacks_router)
     sub_bots_parent_router.include_router(contact_router)
     sub_bots_parent_router.include_router(list_router)
 

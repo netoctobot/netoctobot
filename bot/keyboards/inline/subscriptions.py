@@ -7,9 +7,12 @@ def get_force_sub_keyboard(i18n, not_joined_channels):
     builder = InlineKeyboardBuilder()
     
     for chan in not_joined_channels:
-        url = chan.invite_link if chan.invite_link else f"https://t.me/{chan.username}"
+        uname = getattr(chan, "username", None) or ""
+        inv = getattr(chan, "invite_link", None)
+        url = inv if inv else f"https://t.me/{uname}" if uname else "https://t.me/telegram"
+        label = getattr(chan, "title", None) or (f"@{uname}" if uname else str(getattr(chan, "channel_id", "")))
         builder.row(types.InlineKeyboardButton(
-            text=chan.title, 
+            text=label,
             url=url
         ))
     

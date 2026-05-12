@@ -377,6 +377,11 @@ msgstr ""
 #: bot/handlers/sub_bots/list_logic.py:320
 msgid "template-settings-view"
 msgstr ""
+"⚙️ <b>Template & auto-post</b>\n\n"
+"📌 <b>Header:</b>\n{header}\n\n"
+"📌 <b>Footer:</b>\n{footer}\n\n"
+"⏱ <b>Auto-post every:</b> {interval}\n"
+"🗑 <b>Delete list after:</b> {delete}"
 
 #: bot/handlers/sub_bots/list_logic.py:321
 #: bot/handlers/sub_bots/list_logic.py:322
@@ -431,13 +436,8 @@ msgid "error-invalid-interval"
 msgstr "Invalid token. Please verify your bot token and try again."
 
 #: bot/handlers/sub_bots/list_logic.py:454
-#, fuzzy
 msgid "interval-updated-successfully"
-msgstr ""
-"🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
-"\n"
-"\n"
-"You can now manage it from the menu below:"
+msgstr "✅ Auto-post interval set to every {label}"
 
 #: bot/handlers/sub_bots/list_logic.py:463
 msgid ""
@@ -446,13 +446,8 @@ msgid ""
 msgstr ""
 
 #: bot/handlers/sub_bots/list_logic.py:507
-#, fuzzy
 msgid "delete-time-updated-successfully"
-msgstr ""
-"🎉 Congratulations! Bot <b>{bot_name}</b> has been successfully connected."
-"\n"
-"\n"
-"You can now manage it from the menu below:"
+msgstr "✅ Auto-delete delay set to {label}"
 
 #: bot/handlers/sub_bots/list_logic.py:509
 msgid "auto-delete-disabled"
@@ -701,6 +696,72 @@ msgstr ""
 
 #~ msgid "📂 عرض القنوات"
 #~ msgstr ""
+
+msgid "unit-seconds-short"
+msgstr "sec"
+
+#: bot/services/list_interval.py
+msgid "unit-minutes-short"
+msgstr "min"
+
+#: bot/services/list_interval.py
+msgid "unit-hours-short"
+msgstr "h"
+
+#: bot/keyboards/inline/bot_management.py
+msgid "unit-seconds"
+msgstr "⏱ Seconds"
+
+#: bot/keyboards/inline/bot_management.py
+msgid "unit-minutes"
+msgstr "⏱ Minutes"
+
+#: bot/keyboards/inline/bot_management.py
+msgid "unit-hours"
+msgstr "⏱ Hours"
+
+#: bot/handlers/sub_bots/list_logic.py
+msgid "pick-interval-unit"
+msgstr "Choose the unit for the auto-post interval:"
+
+#: bot/handlers/sub_bots/list_logic.py
+msgid "please-send-interval-number"
+msgstr "Send the number (e.g. 2 with Hours = every 2 hours)."
+
+#: bot/handlers/sub_bots/list_logic.py
+msgid "pick-delete-unit"
+msgstr "Choose the unit for auto-delete delay:"
+
+#: bot/handlers/sub_bots/list_logic.py
+msgid "please-send-delete-after-number"
+msgstr "Send the number (0 = no auto-delete)."
+
+msgid "mandatory-subscribe"
+msgstr "🔔 Mandatory subscribe"
+
+msgid "mandatory-manage-intro"
+msgstr "Mandatory channels for this bot (not list publish). Active: {current} / max: {max_slots}."
+
+msgid "add-mandatory-channel"
+msgstr "➕ Add mandatory channel"
+
+msgid "mandatory-slots-full"
+msgstr "You reached the limit ({max} channels). Contact admin to raise the quota."
+
+msgid "mandatory-added"
+msgstr "✅ Channel {title} added to mandatory subscribe."
+
+msgid "mandatory-deleted"
+msgstr "Removed."
+
+msgid "mandatory-already-bound"
+msgstr "This channel is already mandatory for this bot."
+
+msgid "how-add-mandatory-channel"
+msgstr "Forward a message from the channel (same as list channels). Bot must be admin."
+
+msgid "list-button-no-action"
+msgstr "No action configured for this button."
 
 #~ msgid "🆘 دعم فني"
 #~ msgstr ""

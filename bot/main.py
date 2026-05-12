@@ -1,11 +1,12 @@
 import asyncio
 import logging
-from aiogram import Bot
-from aiogram.client.default import DefaultBotProperties
 from asgiref.sync import sync_to_async
 
 from bot.utils.collection import active_bots_instances, all_bots, seen_tokens
 from .loader import dp, bot
+
+# بعد setup_django في loader — وإلا يفشل استيراد bot_manager (نماذج Django)
+from bot.bot_manager import build_sub_bot_client
 from .utils.interface import setup_master_bot_sync  # الدالة التي تحذف وترسل
 from bot.handlers import get_handlers_router
 from apps.bots.models import SubBot, ListTemplate
@@ -43,16 +44,7 @@ async def main():
             continue
 
         try:
-            sub_bot_instance = Bot(
-                token=bot_data.token,
-                allowed_updates=[
-                    "message",
-                    "callback_query",
-                    "chat_member",
-                    "my_chat_member",
-                ],
-                default=DefaultBotProperties(parse_mode="HTML"),
-            )
+            sub_bot_instance = build_sub_bot_client(bot_data.token)
             all_bots.append(sub_bot_instance)
             active_bots_instances[bot_data.token] = sub_bot_instance
             seen_tokens.add(bot_data.token)  # تسجيل التوكن كـ "مشغول"

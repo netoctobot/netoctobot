@@ -7,6 +7,10 @@ class SubBotSettingsSG(StatesGroup):
 class AddChannelSG(StatesGroup):
     waiting_for_forward = State()
 
+class MandatoryChannelSG(StatesGroup):
+    """إضافة قناة للاشتراك الإجباري فقط (ليست قنوات اللستة)."""
+    waiting_for_forward = State()
+
 class ListTemplateSG(StatesGroup):
     waiting_for_header = State()      # انتظار النص العلوي
     waiting_for_footer = State()      # انتظار النص السفلي

@@ -8,9 +8,16 @@ from apps.core.models import BaseModel # الاستيراد من المكان ا
 class AdminChannel(BaseModel):
     channel_id = models.BigIntegerField(
         unique=True,
-        null=True, 
-        blank=True, 
-        verbose_name=_("Channel ID")
+        null=True,
+        blank=True,
+        verbose_name=_("Channel ID"),
+    )
+    title = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name=_("Display title"),
+        help_text=_("Shown on mandatory-subscribe buttons"),
     )
     username = models.CharField(
         max_length=255, 
@@ -159,6 +166,11 @@ class BotSubscription(BaseModel):
 
 class ListTemplate(BaseModel):
     """نظام التمبلت والجدولة المنفصل"""
+    class IntervalUnit(models.TextChoices):
+        SECONDS = "sec", _("Seconds")
+        MINUTES = "min", _("Minutes")
+        HOURS = "hour", _("Hours")
+
     sub_bot = models.OneToOneField(
         SubBot, 
         on_delete=models.CASCADE, 
@@ -178,16 +190,28 @@ class ListTemplate(BaseModel):
         help_text=_("The text that appears at the bottom of the channel list")
     )
     
-    # إعدادات الجدولة (بالساعات)
+    # إعدادات الجدولة: رقم + وحدة (ثوانٍ / دقائق / ساعات)
     post_interval = models.PositiveIntegerField(
-        default=24, 
-        verbose_name=_("Post Every (Hours)"),
-        help_text=_("How many hours are there between each automatic posting?")
+        default=24,
+        verbose_name=_("Post interval value"),
+        help_text=_("Numeric part of the auto-post interval (interpreted with post_interval_unit)."),
+    )
+    post_interval_unit = models.CharField(
+        max_length=4,
+        choices=IntervalUnit.choices,
+        default=IntervalUnit.HOURS,
+        verbose_name=_("Post interval unit"),
     )
     delete_after = models.PositiveIntegerField(
-        default=2, 
-        verbose_name=_("Delete After (Hours)"),
-        help_text=_("After how many hours will the list be deleted from the channels? (0 means do not delete)")
+        default=2,
+        verbose_name=_("Delete after value"),
+        help_text=_("0 disables auto-delete; otherwise delay before deleting posted lists."),
+    )
+    delete_after_unit = models.CharField(
+        max_length=4,
+        choices=IntervalUnit.choices,
+        default=IntervalUnit.HOURS,
+        verbose_name=_("Delete after unit"),
     )
     
     # حالة التشغيل
@@ -212,3 +236,115 @@ class PublishedList(BaseModel):
     message_id = models.BigIntegerField()
     delete_at = models.DateTimeField() # الوقت المجدد لحذف هذه الرسالة تحديداً
     is_deleted = models.BooleanField(default=False)
+
+
+class ListButtonType(models.TextChoices):
+    """أنواع أزرار شائعة في تليجرام: رابط، أو callback داخل البوت."""
+
+    URL = "url", _("URL (opens link)")
+    CALLBACK = "cb", _("Callback (in-bot action)")
+
+
+class PlatformListButton(BaseModel):
+    """أزرار ثابتة تُلحق برسالة اللستة — يضبطها مدير المنصة (أسفل أزرار المالك)."""
+
+    label = models.CharField(max_length=64, verbose_name=_("Button text"))
+    sort_order = models.PositiveIntegerField(default=0, verbose_name=_("Sort order"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Active"))
+    button_type = models.CharField(
+        max_length=8,
+        choices=ListButtonType.choices,
+        default=ListButtonType.URL,
+        verbose_name=_("Button type"),
+    )
+    url = models.URLField(blank=True, null=True, verbose_name=_("URL"))
+    callback_hint = models.CharField(
+        max_length=180,
+        blank=True,
+        default="",
+        verbose_name=_("Callback note"),
+        help_text=_("Shown as alert when user taps a callback-type button"),
+    )
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = _("Platform list button")
+        verbose_name_plural = _("Platform list buttons")
+
+    def __str__(self):
+        return self.label
+
+
+class SubBotListButton(BaseModel):
+    """أزرار مخصصة لمالك البوت الفرعي على رسالة اللستة (فوق أزرار المنصة)."""
+
+    sub_bot = models.ForeignKey(
+        SubBot, on_delete=models.CASCADE, related_name="list_buttons"
+    )
+    label = models.CharField(max_length=64, verbose_name=_("Button text"))
+    sort_order = models.PositiveIntegerField(default=0, verbose_name=_("Sort order"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Active"))
+    button_type = models.CharField(
+        max_length=8,
+        choices=ListButtonType.choices,
+        default=ListButtonType.URL,
+        verbose_name=_("Button type"),
+    )
+    url = models.URLField(blank=True, null=True, verbose_name=_("URL"))
+    callback_hint = models.CharField(
+        max_length=180,
+        blank=True,
+        default="",
+        verbose_name=_("Callback note"),
+        help_text=_("Shown as alert when user taps a callback-type button"),
+    )
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = _("Sub-bot list button")
+        verbose_name_plural = _("Sub-bot list buttons")
+
+    def __str__(self):
+        return f"{self.sub_bot_id}: {self.label}"
+
+
+class SubBotMandatoryChannel(BaseModel):
+    """قنوات اشتراك إجباري لكل بوت فرعي — منفصلة عن قنوات نشر اللستة."""
+
+    sub_bot = models.ForeignKey(
+        SubBot, on_delete=models.CASCADE, related_name="mandatory_channels"
+    )
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, related_name="mandatory_for_sub_bots"
+    )
+    sort_order = models.PositiveIntegerField(default=0, verbose_name=_("Sort order"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Active"))
+
+    class Meta:
+        unique_together = ("sub_bot", "channel")
+        ordering = ["sort_order", "id"]
+        verbose_name = _("Mandatory channel (per sub-bot)")
+        verbose_name_plural = _("Mandatory channels (per sub-bot)")
+
+    def __str__(self):
+        return f"{self.sub_bot} → {self.channel}"
+
+
+class SubBotSubscriptionQuota(BaseModel):
+    """حد أقصى لقنوات الاشتراك الإجباري لكل بوت (قابل للتوسع لاحقاً بالدفع)."""
+
+    sub_bot = models.OneToOneField(
+        SubBot, on_delete=models.CASCADE, related_name="subscription_quota"
+    )
+    max_mandatory_slots = models.PositiveIntegerField(
+        default=2,
+        verbose_name=_("Max mandatory channels"),
+        help_text=_("Owner cannot add more active mandatory channels than this."),
+    )
+
+    class Meta:
+        verbose_name = _("Sub-bot subscription quota")
+        verbose_name_plural = _("Sub-bot subscription quotas")
+
+    def __str__(self):
+        return f"{self.sub_bot_id}: max {self.max_mandatory_slots}"

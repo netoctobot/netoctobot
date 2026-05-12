@@ -16,24 +16,35 @@ def add_bot_to_scheduler(sub_bot_id, interval_seconds):
     """
     إضافة أو تحديث مهمة النشر التلقائي لبوت معين.
     """
-    # معرف فريد للمهمة بناءً على ID البوت في قاعدة البيانات
     job_id = f"post_task_{sub_bot_id}"
 
-    # حذف المهمة إذا كانت موجودة مسبقاً لتجنب التكرار
+    if interval_seconds < 1:
+        interval_seconds = 1
+
     if scheduler.get_job(job_id):
         scheduler.remove_job(job_id)
         print(f"🔄 تم تحديث جدولة البوت {sub_bot_id}")
 
-    # إضافة المهمة الجديدة
     scheduler.add_job(
-        run_auto_post_for_bot,  # الدالة التي ستنفذ النشر
-        "interval",  # نوع الجدولة: تكرار كل فترة زمنية
-        seconds=interval_seconds,  # الفترة بالثواني
-        args=[sub_bot_id],  # الوسائط التي ستمرر للدالة أعلاه
-        id=job_id,  # معرف المهمة
-        replace_existing=True,  # استبدال إذا وُجدت بنفس الـ ID
+        run_auto_post_for_bot,
+        "interval",
+        seconds=interval_seconds,
+        args=[sub_bot_id],
+        id=job_id,
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=120,
     )
-    print(f"⏰ تم جدولة البوت {sub_bot_id} للنشر كل {interval_seconds} ثانية.")
+    print(f"⏰ تم جدولة البوت {sub_bot_id} كل {interval_seconds} ثانية.")
+
+
+def remove_list_post_job(sub_bot_id: int) -> None:
+    """إيقاف مهمة النشر التلقائي لهذا البوت الفرعي."""
+    job_id = f"post_task_{sub_bot_id}"
+    if scheduler.get_job(job_id):
+        scheduler.remove_job(job_id)
+        print(f"🗑️ أُلغيت جدولة النشر للبوت {sub_bot_id}")
 
 
 def add_delete_bot_to_scheduler(sub_bot_id, chat_id, message_id, interval_seconds):
@@ -76,13 +87,14 @@ async def restore_all_scheduled_tasks():
     # from apps.bots.models import ListTemplate, PublishedList
     # from django.utils import timezone
 
-    # أ. إعادة جدولة مهام النشر التلقائي (Interval)
+    from bot.services.list_interval import list_template_post_interval_seconds
+
+    # أ. إعادة جدولة مهام النشر التلقائي (Interval) بالثواني الصحيحة
     configs = await sync_to_async(list)(
         ListTemplate.objects.filter(is_enabled=True).select_related("sub_bot")
     )
     for config in configs:
-        # تحويل الساعات إلى ثوانٍ
-        interval_seconds = config.post_interval
+        interval_seconds = list_template_post_interval_seconds(config)
         add_bot_to_scheduler(config.sub_bot.id, interval_seconds)
         print(f"🔄 استعادة جدولة النشر للبوت: {config.sub_bot.name}")
 

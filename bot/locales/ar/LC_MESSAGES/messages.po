@@ -330,7 +330,7 @@ msgid "how-add-channel"
 msgstr ""
 "📥 <b>طريقة إضافة القناة:</b>\n"
 "\n"
-"1. قم برفع هذا البوت <b>مشرفاً</b> في قناتك.\n"
+"1. قم برفع هذا البوت <b>مشرفاً</b> في قناتك."
 
 #: bot/handlers/sub_bots/list_logic.py:181
 msgid "please-send-msg-from-channel"
@@ -417,7 +417,12 @@ msgstr "تم تغيير حالة {title} إلى {state_text}"
 
 #: bot/handlers/sub_bots/list_logic.py:320
 msgid "template-settings-view"
-msgstr "إعدادات القالب"
+msgstr ""
+"⚙️ <b>إعدادات القالب والنشر</b>\n\n"
+"📌 <b>الرأس:</b>\n{header}\n\n"
+"📌 <b>التذييل:</b>\n{footer}\n\n"
+"⏱ <b>فترة النشر التلقائي:</b> {interval}\n"
+"🗑 <b>حذف القائمة بعد:</b> {delete}"
 
 #: bot/handlers/sub_bots/list_logic.py:321
 #: bot/handlers/sub_bots/list_logic.py:322
@@ -462,7 +467,7 @@ msgstr "خطأ! يرجى إرسال رقم صحيح فقط (ثوانٍ)."
 
 #: bot/handlers/sub_bots/list_logic.py:454
 msgid "interval-updated-successfully"
-msgstr "✅ تم تحديث وقت النشر إلى {seconds} ثانية"
+msgstr "✅ تم ضبط النشر التلقائي: كل {label}"
 
 #: bot/handlers/sub_bots/list_logic.py:463
 msgid ""
@@ -472,7 +477,7 @@ msgstr ""
 
 #: bot/handlers/sub_bots/list_logic.py:507
 msgid "delete-time-updated-successfully"
-msgstr "✅ تم ضبط وقت الحذف التلقائي بعد {seconds} ثانية."
+msgstr "✅ تم ضبط الحذف التلقائي بعد {label}"
 
 #: bot/handlers/sub_bots/list_logic.py:509
 msgid "auto-delete-disabled"
@@ -670,6 +675,75 @@ msgstr "📢 {username} للاشتراك في اللستة اضغط هنا"
 #: bot/utils/formatters.py:93
 msgid "template-signature"
 msgstr " "
+
+#: bot/services/list_interval.py
+msgid "unit-seconds-short"
+msgstr "ث"
+
+#: bot/services/list_interval.py
+msgid "unit-minutes-short"
+msgstr "د"
+
+#: bot/services/list_interval.py
+msgid "unit-hours-short"
+msgstr "س"
+
+#: bot/keyboards/inline/bot_management.py
+msgid "unit-seconds"
+msgstr "⏱ ثوانٍ"
+
+#: bot/keyboards/inline/bot_management.py
+msgid "unit-minutes"
+msgstr "⏱ دقائق"
+
+#: bot/keyboards/inline/bot_management.py
+msgid "unit-hours"
+msgstr "⏱ ساعات"
+
+#: bot/handlers/sub_bots/list_logic.py
+msgid "pick-interval-unit"
+msgstr "اختر وحدة قياس فترة النشر التلقائي:"
+
+#: bot/handlers/sub_bots/list_logic.py
+msgid "please-send-interval-number"
+msgstr "أرسل الآن الرقم (مثلاً 2 مع «ساعات» يعني كل ساعتين)."
+
+#: bot/handlers/sub_bots/list_logic.py
+msgid "pick-delete-unit"
+msgstr "اختر وحدة قياس وقت حذف القائمة من القنوات:"
+
+#: bot/handlers/sub_bots/list_logic.py
+msgid "please-send-delete-after-number"
+msgstr "أرسل الرقم (0 = بدون حذف تلقائي)."
+
+msgid "mandatory-subscribe"
+msgstr "🔔 اشتراك إجباري"
+
+msgid "mandatory-manage-intro"
+msgstr ""
+"قنوات الاشتراك الإجباري لهذا البوت (ليست قنوات نشر اللستة).\n"
+"النشطة: {current} / الحد الأقصى: {max_slots}."
+
+msgid "add-mandatory-channel"
+msgstr "➕ إضافة قناة إلزامية"
+
+msgid "mandatory-slots-full"
+msgstr "وصلت للحد ({max} قنوات). راسل الإدارة لرفع الحد لاحقاً."
+
+msgid "mandatory-added"
+msgstr "✅ أُضيفت القناة {title} للاشتراك الإجباري."
+
+msgid "mandatory-deleted"
+msgstr "تم الحذف."
+
+msgid "mandatory-already-bound"
+msgstr "هذه القناة مضافة مسبقاً كإلزامية لهذا البوت."
+
+msgid "how-add-mandatory-channel"
+msgstr "وجّه رسالة من القناة (مثل إضافة قنوات اللستة). يجب أن يكون البوت مشرفاً."
+
+msgid "list-button-no-action"
+msgstr "لا يوجد إجراء مضبوط لهذا الزر."
 
 #~ msgid "msg-operation-cancelled"
 #~ msgstr "تم إلغاء العملية بنجاح. يمكنك العودة للقائمة الرئيسية."

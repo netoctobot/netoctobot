@@ -1,10 +1,12 @@
+import asyncio
 import logging
 from asgiref.sync import sync_to_async
 from apps.bots.models import SubBot, SubBotChannel,PublishedList
 from bot.utils.formatters import generate_list_message
+from bot.services.list_interval import list_template_delete_after_seconds
 from bot.loader import i18n_core  # استيراد الكور للترجمة
 from bot.utils.collection import active_bots_instances # استيراد النسخ المحفوظة
-from bot.keyboards.inline.bot_management import generate_list_keyboards
+from bot.services.list_post_buttons import build_list_keyboard_markup_for_bot
 from django.utils import timezone
 from datetime import timedelta
 
@@ -71,31 +73,31 @@ async def run_auto_post_for_bot(sub_bot_id: int):
             SubBotChannel.objects.filter(sub_bot=sub_bot, is_active=True).select_related('channel')
         )
 
-        # 5. النشر باستخدام النسخة الأصلية bot_instance
+        # 5. النشر باستخدام النسخة الأصلية bot_instance (فاصل بسيط لتخفيف الضغط على API)
+        delete_delay_sec = list_template_delete_after_seconds(config)
         for bot_chan in channels:
             try:
+                markup = await sync_to_async(build_list_keyboard_markup_for_bot)(sub_bot)
                 sent_msg = await bot_instance.send_message(
                     chat_id=bot_chan.channel.channel_id,
                     text=message_text,
                     disable_web_page_preview=True,
-                    reply_markup=generate_list_keyboards(sub_bot, i18n_core)
+                    reply_markup=markup,
                 )
-                
-                # ✅ الخطوة المنسية: تسجيل الرسالة للحذف مستقبلاً
-                # إذا كان المالك قد حدد وقت حذف (أكبر من 0)
-                if config.delete_after > 0:
-                    deletion_time = timezone.now() + timedelta(seconds=config.delete_after)
-                
+
+                if delete_delay_sec > 0:
+                    deletion_time = timezone.now() + timedelta(seconds=delete_delay_sec)
                     await sync_to_async(PublishedList.objects.create)(
                         sub_bot=sub_bot,
                         channel_id=bot_chan.channel.channel_id,
                         message_id=sent_msg.message_id,
-                        delete_at=deletion_time
+                        delete_at=deletion_time,
                     )
-                    
+
                 logger.info(f"✅ [AutoPost] {sub_bot.name} -> {bot_chan.channel.title}")
             except Exception as e:
                 logger.error(f"❌ فشل النشر في {bot_chan.channel.title}: {e}")
+            await asyncio.sleep(0.05)
 
     except Exception as e:
         logger.error(f"🚨 خطأ في task البوت {sub_bot_id}: {e}")

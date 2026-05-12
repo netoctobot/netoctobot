@@ -1,9 +1,10 @@
 import re
 import asyncio
 from aiogram import Router, types, F, Bot
+from aiogram.filters import CommandStart
 from bot.utils.formatters import format_personal_message
 from bot.utils.common import delete_message_after
-from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
 from asgiref.sync import sync_to_async
 from apps.bots.models import SubBot
@@ -12,39 +13,58 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.config import BOT_TOKEN, ADMIN_IDS
 from bot.db.db_operations import get_user_and_subscription
 from bot.filters import BotTypeFilter
+from bot.keyboards.inline.bot_management import get_LST_owner_control_panel
 from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
+from bot.utils.interface import update_main_interface
 
 router = Router()
 router.message.filter(BotTypeFilter(SubBot.BotType.CONTACT))
 router.callback_query.filter(BotTypeFilter(SubBot.BotType.CONTACT))
 
+
+@router.callback_query(F.data == "view_messages")
+async def view_messages_placeholder(callback: types.CallbackQuery, i18n: I18nContext):
+    await callback.answer(i18n.get("msg-feature-not-ready"), show_alert=True)
+
+
 @router.message(CommandStart())
-async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext):
+async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext, state: FSMContext):
     _ = i18n.get
-    
-    u,subscription,create = await get_user_and_subscription(message.from_user, bot.token)
+
+    u, subscription, create = await get_user_and_subscription(message.from_user, bot.token)
+    if not subscription:
+        return
+
     sub_bot = subscription.bot
-    
-    if sub_bot:
-    
-        not_joined = await check_all_subscriptions(bot, message.from_user.id)
-    
-        if not_joined:
-            return await handle_force_subscribe(message, i18n, sub_bot, not_joined)
-        
-        # 🔥 التعديل الأهم: فرض لغة الاشتراك على السياق الحالي
-        await i18n.set_locale(subscription.language)
-        raw_welcome = sub_bot.welcome_msg or _("msg-defult-welcome")
-        p_mode = sub_bot.welcome_parse_mode # القيمة المخزنة (HTML أو MDV2)
-        
-        # 1. تنسيق النص بالبيانات الشخصية
-        personalized_text = format_personal_message(raw_welcome, message.from_user, p_mode,i18n)
-                
-        await message.answer(
-            text=personalized_text,
-            parse_mode=p_mode if p_mode != "PLAIN" else None,
-            disable_web_page_preview=True
+    await state.clear()
+
+    not_joined = await check_all_subscriptions(bot, message.from_user.id)
+
+    if not_joined:
+        return await handle_force_subscribe(message, i18n, sub_bot, not_joined)
+
+    await i18n.set_locale(subscription.language)
+
+    if message.from_user.id == sub_bot.owner.telegram_id:
+        owner_text = _("owner-control-panel")
+        return await update_main_interface(
+            bot=bot,
+            chat_id=message.chat.id,
+            subscription=subscription,
+            text=owner_text,
+            reply_markup=get_LST_owner_control_panel(i18n, "CON"),
         )
+
+    raw_welcome = sub_bot.welcome_msg or _("msg-defult-welcome")
+    p_mode = sub_bot.welcome_parse_mode
+
+    personalized_text = format_personal_message(raw_welcome, message.from_user, p_mode, i18n)
+
+    await message.answer(
+        text=personalized_text,
+        parse_mode=p_mode if p_mode != "PLAIN" else None,
+        disable_web_page_preview=True,
+    )
 
 @router.message(F.reply_to_message)
 async def handle_owner_reply_smart(message: types.Message, bot: Bot, i18n: I18nContext):

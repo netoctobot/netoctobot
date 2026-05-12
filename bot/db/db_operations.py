@@ -6,6 +6,8 @@ from apps.bots.models import (
     AdminChannel,
     SubBotChannel,
     Channel,
+    SubBotMandatoryChannel,
+    SubBotSubscriptionQuota,
 )
 from aiogram import types
 from bot.config import BOT_TOKEN
@@ -18,12 +20,74 @@ def get_main_channels_list():
 
 @sync_to_async
 def get_subbot_channels_list(bot_token):
-    # نستخدم .first() لجلب كائن البوت أولاً
+    """
+    قنوات الاشتراك الإجباري الخاصة بالبوت الفرعي فقط
+    (منفصلة عن قنوات نشر اللستة SubBotChannel).
+    """
     sub_bot = SubBot.objects.filter(token=bot_token).first()
-    if sub_bot:
-        # نحول القنوات إلى قائمة لضمان فك الارتباط بقاعدة البيانات قبل العودة للـ async
-        return list(sub_bot.force_channels.all())
-    return []
+    if not sub_bot:
+        return []
+    return [
+        m.channel
+        for m in SubBotMandatoryChannel.objects.filter(
+            sub_bot=sub_bot, is_active=True
+        ).select_related("channel").order_by("sort_order", "id")
+    ]
+
+
+@sync_to_async
+def get_mandatory_bindings_for_sub_bot(sub_bot):
+    return list(
+        SubBotMandatoryChannel.objects.filter(sub_bot=sub_bot)
+        .select_related("channel")
+        .order_by("sort_order", "id")
+    )
+
+
+@sync_to_async
+def get_or_create_subscription_quota(sub_bot):
+    q, _ = SubBotSubscriptionQuota.objects.get_or_create(
+        sub_bot=sub_bot, defaults={"max_mandatory_slots": 2}
+    )
+    return q
+
+
+@sync_to_async
+def count_active_mandatory_channels(sub_bot):
+    return SubBotMandatoryChannel.objects.filter(
+        sub_bot=sub_bot, is_active=True
+    ).count()
+
+
+@sync_to_async
+def add_mandatory_channel_binding(sub_bot, channel) -> bool:
+    """يُرجع True إذا أصبحت القناة مفعّلة للإلزام (جديدة أو أُعيد تفعيلها)."""
+    obj, created = SubBotMandatoryChannel.objects.get_or_create(
+        sub_bot=sub_bot,
+        channel=channel,
+        defaults={"sort_order": 0, "is_active": True},
+    )
+    if created:
+        return True
+    if not obj.is_active:
+        obj.is_active = True
+        obj.save(update_fields=["is_active", "updated_at"])
+        return True
+    return False
+
+
+@sync_to_async
+def delete_mandatory_binding(binding_id, owner_telegram_id):
+    try:
+        obj = SubBotMandatoryChannel.objects.select_related("sub_bot__owner").get(
+            pk=binding_id
+        )
+    except SubBotMandatoryChannel.DoesNotExist:
+        return False, "missing"
+    if obj.sub_bot.owner.telegram_id != owner_telegram_id:
+        return False, "forbidden"
+    obj.delete()
+    return True, "ok"
 
 @sync_to_async
 def get_subbot_active_channels_list(sub_bot):
