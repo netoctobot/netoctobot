@@ -11,8 +11,9 @@ def get_main_keyboard(i18n: I18nContext, is_admin: bool = False, is_partner: boo
     builder.button(text=f"{_( 'btn-my-bots')}", callback_data="list_my_bots")
     
     # 2. أزرار المستخدم الشخصية
+    support_bot_url = "https://t.me/RohThoryaBot"
     builder.button(text=_("btn-my-profile"), callback_data="user_profile")
-    builder.button(text=_("btn-support"), callback_data="contact_support")
+    builder.button(text=_("btn-support"), url=support_bot_url)
 
     # --- أزرار خاصة بالشركاء (Partners) ---
     if is_partner:

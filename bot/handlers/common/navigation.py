@@ -62,8 +62,7 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext, i18n:
     await callback.answer()
 
 @router.callback_query(F.data.in_({
-    "user_profile", 
-    "contact_support", 
+    "user_profile",
     "partner_dashboard", 
     "manage_sub_bots", 
     "admin_settings",
