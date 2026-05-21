@@ -124,6 +124,8 @@ def get_LST_user_main_keyboard(i18n: I18nContext):
         text=_("add-my-channel"), 
         callback_data="add_channel" 
     ))
+
+    builder.button(text=_("channel-management"), callback_data="manage_channels")
     
     # زر المحفظة (بما أنه أصبح شريكاً)
     builder.row(types.InlineKeyboardButton(

@@ -22,7 +22,7 @@ from bot.keyboards.inline.bot_management import (
 )
 from bot.states.sub_bot_states import AddChannelSG
 from bot.utils.common import get_chat_invite_link
-
+# shared_channels_router
 router = Router()
 
 
@@ -41,7 +41,7 @@ async def manage_channels_list(callback: types.CallbackQuery, bot: Bot, i18n: I1
 
     sub_bot = await get_sub_bot_by_token(bot.token)
     if sub_bot.owner.telegram_id != callback.from_user.id:
-        user, subscription, _ = await get_user_and_subscription(callback.from_user, bot.token)
+        user, subscription, __ = await get_user_and_subscription(callback.from_user, bot.token)
         if not subscription:
             return await callback.answer()
         await i18n.set_locale(subscription.language)

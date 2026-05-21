@@ -27,7 +27,7 @@ from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
 from bot.utils.common import delete_message_after
 from bot.utils.formatters import format_personal_message, generate_list_message
 from bot.utils.interface import update_main_interface
-
+# list_router
 router = Router()
 router.message.filter(BotTypeFilter(SubBot.BotType.LIST))
 router.callback_query.filter(BotTypeFilter(SubBot.BotType.LIST))

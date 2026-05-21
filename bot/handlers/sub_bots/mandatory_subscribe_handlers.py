@@ -20,7 +20,7 @@ from bot.keyboards.inline.bot_management import (
 )
 from bot.states.sub_bot_states import MandatoryChannelSG
 from bot.utils.common import get_chat_invite_link
-
+# mandatory_subscribe_router
 router = Router()
 
 
