@@ -133,7 +133,7 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
 
     sub_bot = await get_sub_bot_by_token(bot.token)
 
-    invite_link = get_chat_invite_link(chat)
+    invite_link = await get_chat_invite_link(chat)
 
     channel, __ = await sync_to_async(Channel.objects.update_or_create)(
         channel_id=chat.id,

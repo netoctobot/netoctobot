@@ -5,7 +5,9 @@ from bot.utils.checks import check_all_subscriptions
 from bot.db.db_operations import  get_sub_bot_by_token
 from bot.utils.checks import check_all_subscriptions
 from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
+from bot.keyboards.inline.bot_management import get_LST_user_main_keyboard
 from bot.keyboards.main_menu import get_user_main_menu
+from bot.utils.formatters import format_personal_message
 
 router = Router()
 
@@ -18,12 +20,23 @@ async def check_again_callback(callback: types.CallbackQuery, bot: Bot, i18n: I1
     if not_joined:
         await callback.message.edit_text(
             text=_("still-not-subscribed"),
-            reply_markup=get_force_sub_keyboard(i18n, not_joined)
+            reply_markup=await get_force_sub_keyboard(i18n, not_joined, bot)
             )
     else:
         # إعادة إرسال رسالة الترحيب الأصلية
         sub_bot = await get_sub_bot_by_token(bot.token)
+        default_key = "msg-list-default-welcome" if sub_bot.bot_type == "LST" else "msg-defult-welcome"
+        raw_welcome = sub_bot.welcome_msg or _(default_key)
+        p_mode = sub_bot.welcome_parse_mode
+        text = format_personal_message(raw_welcome, callback.from_user, p_mode, i18n)
+
+        if sub_bot.bot_type == "LST":
+            reply_markup = get_LST_user_main_keyboard(i18n)
+        else:
+            reply_markup = get_user_main_menu(i18n, sub_bot.bot_type)
+
         await callback.message.edit_text(
-            text=sub_bot.welcome_msg or _("thank-you-for-subscribing"),
-            reply_markup=get_user_main_menu(i18n, sub_bot.bot_type)
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode=p_mode if p_mode != "PLAIN" else None,
         )

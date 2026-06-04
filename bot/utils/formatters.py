@@ -1,4 +1,5 @@
 import html
+import asyncio
 from aiogram import types
 from aiogram.utils.markdown import markdown_decoration as md # استيراد المصحح
 from aiogram_i18n import I18nContext
@@ -85,8 +86,17 @@ async def generate_list_message(sub_bot, i18n: I18nContext):
     else:
         for bc in bot_channels:
             title = bc.channel.title
+            uname = bc.channel.username
+            inv = bc.channel.invite_link
+
+            # معالجة الروابط التالفة أو الـ coroutines
+            if asyncio.iscoroutine(inv):
+                inv = await inv
+            elif isinstance(inv, str) and "coroutine" in inv:
+                inv = None
+
             # الأولوية لليوزرنيم ثم الرابط
-            link = f"https://t.me/{bc.channel.username}" if bc.channel.username else bc.channel.invite_link
+            link = f"https://t.me/{uname}" if uname else (inv or "#")
             body += f"▫️ <a href='{link}'>{title}</a>\n"
 
     # 4. دمج الأجزاء

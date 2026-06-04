@@ -13,7 +13,7 @@ from bot.bot_manager import toggle_sub_bot_full_cycle, delete_sub_bot_full_cycle
 
 router = Router()
 
-@router.callback_query(F.data == "list_my_bots")
+@router.callback_query(F.data == "list_my_bots" or F.data == "check_again")
 async def show_bots_list(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
     _ = i18n.get
     

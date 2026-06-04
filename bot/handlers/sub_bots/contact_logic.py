@@ -41,7 +41,7 @@ async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext, sta
     not_joined = await check_all_subscriptions(bot, message.from_user.id)
 
     if not_joined:
-        return await handle_force_subscribe(message, i18n, sub_bot, not_joined)
+        return await handle_force_subscribe(message, i18n, sub_bot, not_joined, subscription)
 
     await i18n.set_locale(subscription.language)
 

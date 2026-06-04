@@ -226,8 +226,8 @@ def get_channels_management_keyboard(i18n, channels):
         username = getattr(bot_chan.channel, 'username', None)
         invite_link = bot_chan.channel.invite_link
 
-        # فحص إضافي للتأكد أن invite_link ليس دالة أو كائن غريب
-        if not isinstance(invite_link, str):
+        # فحص للتأكد أن invite_link هو نص حقيقي وليس كائن coroutine أو نص تالف
+        if not isinstance(invite_link, str) or "coroutine" in invite_link:
             # إذا كان كائناً غير متوقع، نستخدم يوزرنيم أو رابطاً احتياطياً
             channel_url = f"https://t.me/{username}" if username else "https://t.me/telegram"
         else:
