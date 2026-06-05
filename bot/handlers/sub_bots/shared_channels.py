@@ -1,10 +1,12 @@
 # قنوات البوت الفرعي: يعمل لبوت القائمة (LST) وبوت التواصل (CON)
+import asyncio
 from asgiref.sync import sync_to_async
 from aiogram import Router, types, Bot, F
 from aiogram.filters import ChatMemberUpdatedFilter, IS_ADMIN
 from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 
 from apps.bots.models import SubBot, SubBotChannel, Channel
 from bot.db.db_operations import (
@@ -21,7 +23,7 @@ from bot.keyboards.inline.bot_management import (
     ok,
 )
 from bot.states.sub_bot_states import AddChannelSG
-from bot.utils.common import get_chat_invite_link
+from bot.utils.common import get_chat_invite_link, delete_message_after
 # shared_channels_router
 router = Router()
 
@@ -92,12 +94,15 @@ async def delete_channel_from_bot(callback: types.CallbackQuery, i18n: I18nConte
 async def start_add_channel(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext, bot: Bot):
     _ = i18n.get
     sub_bot = await get_sub_bot_by_token(bot.token)
-    if sub_bot.owner.telegram_id != callback.from_user.id:
-        return await callback.answer(_("msg-feature-not-ready"), show_alert=True)
+    if not sub_bot:
+        return
+    # if sub_bot.owner.telegram_id != callback.from_user.id:
+        # return await callback.answer(_("msg-feature-not-ready"), show_alert=True)
 
     me = await bot.get_me()
     keyboard = get_add_bot_as_admin_and_cancel(i18n, me.username)
 
+    await state.clear()
     await state.set_state(AddChannelSG.waiting_for_forward)
     await state.update_data(target_bot_id=sub_bot.id)
 
@@ -114,47 +119,77 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
 
     me = await bot.get_me()
     if not message.forward_from_chat or message.forward_from_chat.type != "channel":
-        return await message.reply(
+        reply = await message.reply(
             _("please-send-msg-from-channel"),
             reply_markup=get_add_bot_as_admin_and_cancel(i18n, me.username),
         )
+        asyncio.create_task(delete_message_after(reply))
+        asyncio.create_task(delete_message_after(message))
+        return
 
     chat = message.forward_from_chat
 
     valid_types = ["channel", "group", "supergroup"]
     if chat.type not in valid_types:
-        return await message.reply(_("type-chat-not-supported"))
+        reply = await message.reply(_("type-chat-not-supported"))
+        asyncio.create_task(delete_message_after(reply))
+        asyncio.create_task(delete_message_after(message))
+        return
     try:
         member = await bot.get_chat_member(chat_id=chat.id, user_id=me.id)
         if member.status not in ["administrator", "creator"]:
-            return await message.reply(_("bot-not-administrato-make-it"))
+            reply = await message.reply(_("bot-not-administrato-make-it"))
+            asyncio.create_task(delete_message_after(reply))
+            asyncio.create_task(delete_message_after(message))
+            return
     except Exception:
-        return await message.reply(_("channel-not-verified"))
+        reply = await message.reply(_("channel-not-verified"))
+        asyncio.create_task(delete_message_after(reply))
+        asyncio.create_task(delete_message_after(message))
+        return
 
     sub_bot = await get_sub_bot_by_token(bot.token)
 
     invite_link = await get_chat_invite_link(chat)
 
-    channel, __ = await sync_to_async(Channel.objects.update_or_create)(
-        channel_id=chat.id,
-        defaults={
-            "owner": sub_bot.owner,
-            "title": chat.title,
-            "invite_link": invite_link,
-        },
+    success, sub_chan_id, is_owner = await add_channel_to_sub_bot_logic(
+        sub_bot=sub_bot,
+        chat_id=chat.id,
+        title=chat.title,
+        username=chat.username,
+        invite_link=invite_link,
+        telegram_user_id=message.from_user.id,
     )
 
-    await sync_to_async(SubBotChannel.objects.update_or_create)(
-        sub_bot=sub_bot,
-        channel=channel,
-        defaults={"is_active": True},
-    )
+    if not success:
+        return await message.reply(_("channel-already-exists"))
 
     await state.clear()
-    await message.reply(
-        _("channel-successfully-added", title=chat.title, id=chat.id),
-        reply_markup=get_LST_owner_control_panel(i18n, sub_bot.bot_type),
-    )
+
+    if is_owner:
+        await message.reply(
+            _("channel-successfully-added", title=chat.title, id=chat.id),
+            reply_markup=get_LST_owner_control_panel(i18n, sub_bot.bot_type),
+        )
+    else:
+        # إبلاغ المستخدم بالانتظار
+        await message.reply(_("request-forwarded-owner"))
+
+        # إخطار المالك مع زر تفعيل مباشر
+        builder = InlineKeyboardBuilder()
+        builder.button(text=_("btn-activate-now"), callback_data=f"toggle_chan_{sub_chan_id}")
+        builder.button(text=_("ok"), callback_data="ok_and_remove")
+        builder.adjust(1)
+
+        try:
+            await bot.send_message(
+                chat_id=sub_bot.owner.telegram_id,
+                text=_("new-joining-request", titel=chat.title, full_name=message.from_user.full_name),
+                reply_markup=builder.as_markup(),
+            )
+        except (TelegramForbiddenError, TelegramBadRequest):
+            # في حال قام المالك بحظر البوت أو حذف المحادثة، لا نريد تعطيل العملية للشريك
+            pass
 
 
 @router.my_chat_member(ChatMemberUpdatedFilter(member_status_changed=IS_ADMIN))
@@ -189,7 +224,7 @@ async def finalize_auto_add(callback: types.CallbackQuery, bot: Bot, i18n: I18nC
     sub_bot = await get_sub_bot_by_token(bot.token)
     invite_link_text = await get_chat_invite_link(chat)
 
-    success, status, is_owner = await add_channel_to_sub_bot_logic(
+    success, sub_chan_id, is_owner = await add_channel_to_sub_bot_logic(
         sub_bot=sub_bot,
         chat_id=chat.id,
         title=chat.title,
@@ -199,8 +234,7 @@ async def finalize_auto_add(callback: types.CallbackQuery, bot: Bot, i18n: I18nC
     )
 
     if not success:
-        msg = _("channel-already-exists") if status == "exists" else _("err-msg-save")
-        return await callback.answer(msg, show_alert=True)
+        return await callback.answer(_("channel-already-exists"), show_alert=True)
 
     if is_owner:
         await callback.answer(
@@ -211,11 +245,20 @@ async def finalize_auto_add(callback: types.CallbackQuery, bot: Bot, i18n: I18nC
     else:
         await callback.message.edit_text(_("request-forwarded-owner"))
 
-        await bot.send_message(
-            chat_id=sub_bot.owner.telegram_id,
-            text=_("new-joining-request", titel=chat.title, full_name=callback.from_user.full_name),
-            reply_markup=ok(i18n),
-        )
+        # إخطار المالك مع خيار التفعيل
+        builder = InlineKeyboardBuilder()
+        builder.button(text=_("btn-activate-now"), callback_data=f"toggle_chan_{sub_chan_id}")
+        builder.button(text=_("ok"), callback_data="ok_and_remove")
+        builder.adjust(1)
+
+        try:
+            await bot.send_message(
+                chat_id=sub_bot.owner.telegram_id,
+                text=_("new-joining-request", titel=chat.title, full_name=callback.from_user.full_name),
+                reply_markup=builder.as_markup(),
+            )
+        except (TelegramForbiddenError, TelegramBadRequest):
+            pass
 
 
 @router.callback_query(F.data.startswith("toggle_chan_"))

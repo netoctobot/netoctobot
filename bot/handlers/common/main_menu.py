@@ -15,12 +15,11 @@ router = Router()
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, i18n: I18nContext, bot: Bot):
     _ = i18n.get
-    # جلب بيانات المستخدم والاشتراك (سريع جداً الآن)
-    user, subscription, created = await get_user_and_subscription(
+    # جلب بيانات المستخدم والاشتراك
+    user, subscription, is_new_user = await get_user_and_subscription(
         tg_user=message.from_user,
         bot_token=bot.token  
     )
-    is_system_admin = message.from_user.id in ADMIN_IDS
     
     if not subscription:
         return # أو إرسال رسالة تخبره أن البوت غير مسجل
@@ -32,7 +31,7 @@ async def cmd_start(message: types.Message, i18n: I18nContext, bot: Bot):
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main_menu(callback: types.CallbackQuery, i18n: I18nContext, bot: types.Bot):
     # جلب بيانات الاشتراك لضمان ظهور الأزرار الصحيحة (Partner/Admin)
-    user, subscription, _ = await get_user_and_subscription(
+    user, subscription, is_new_user = await get_user_and_subscription(
         tg_user=callback.from_user,
         bot_token=bot.token
     )

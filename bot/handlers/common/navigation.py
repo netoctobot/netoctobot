@@ -88,7 +88,7 @@ async def perform_navigation(bot: Bot, i18n: I18nContext, user, subscription, ev
 
 @router.callback_query(F.data == "check_again")
 async def check_again_handler(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
-    user, subscription, _ = await get_user_and_subscription(callback.from_user, bot.token)
+    user, subscription, is_new_user = await get_user_and_subscription(callback.from_user, bot.token)
     if subscription:
         await perform_navigation(bot, i18n, user, subscription, callback)
 

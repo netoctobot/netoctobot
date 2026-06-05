@@ -19,12 +19,15 @@ async def update_main_interface(bot, chat_id, subscription, text, reply_markup,p
             pass # الرسالة قديمة جداً أو محذوفة
 
     # إرسال الرسالة الجديدة
-    new_msg = await bot.send_message(
-        chat_id=chat_id,
-        text=text,
-        parse_mode = parse_mode,
-        reply_markup=reply_markup
-    )
+    try:
+        new_msg = await bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            parse_mode = parse_mode,
+            reply_markup=reply_markup
+        )
+    except (TelegramForbiddenError, TelegramBadRequest):
+        return # لا يمكن تحديث الواجهة إذا تم حظر البوت
 
 
     # تحديث الـ ID في قاعدة البيانات (Async)

@@ -1,4 +1,5 @@
 # bot\utils\checks.py 
+import asyncio
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from bot.db.db_operations import get_main_channels_list, get_subbot_channels_list
@@ -7,31 +8,37 @@ from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
 from bot.utils.interface import update_main_interface
 
 async def check_all_subscriptions(current_bot: Bot, user_id: int):
+    """
+    يفحص اشتراك المستخدم في القنوات الإجبارية بشكل متوازي.
+    يتم تجاهل القنوات التي لا يمكن للمستخدم الاشتراك فيها (مثل المطرودين) لضمان عدم التعليق.
+    """
     not_joined = []
 
-    # --- أولاً: القنوات الرئيسية (Main) عبر البوت الماستر ---
-    main_channels = await get_main_channels_list()
-    for channel in main_channels:
+    async def validate_membership(bot_instance: Bot, channel_obj, uid: int):
         try:
-            member = await main_bot.get_chat_member(chat_id=channel.channel_id, user_id=user_id)
-            if member.status in ["left", "kicked"]:
-                not_joined.append(channel)
-        except Exception:
-            continue
+            member = await bot_instance.get_chat_member(chat_id=channel_obj.channel_id, user_id=uid)
+            # إذا كان المستخدم "غادر" فقط، نلزمه بالاشتراك.
+            # أما إذا كان "مطروداً" (kicked)، نتجاهله لأنه لن يستطيع العودة مهما فعل.
+            if member.status == "left":
+                return channel_obj
+        except Exception as access_error:
+            print(f"[WARN] Cannot check channel {channel_obj.channel_id}: {access_error}")
+            return None
+        return None
 
-    # --- ثانياً: القنوات الفرعية (SubBot) عبر البوت الحالي ---
-    # نتحقق فقط إذا كان البوت الحالي ليس هو البوت الرئيسي (لتجنب التكرار)
+    # 1. القنوات الرئيسية (Main) - فحص متوازي
+    main_channels = await get_main_channels_list()
+    if main_channels:
+        main_tasks = [validate_membership(main_bot, chan, user_id) for chan in main_channels]
+        main_results = await asyncio.gather(*main_tasks)
+        not_joined.extend([res for res in main_results if res])
+
     if current_bot.token != main_bot.token:
-        # ⚠️ استدعاء await هنا ضروري جداً
         sub_bot_channels = await get_subbot_channels_list(current_bot.token)
-        
-        for channel in sub_bot_channels:
-            try:
-                member = await current_bot.get_chat_member(chat_id=channel.channel_id, user_id=user_id)
-                if member.status in ["left", "kicked"]:
-                    not_joined.append(channel)
-            except Exception:
-                continue
+        if sub_bot_channels:
+            sub_tasks = [validate_membership(current_bot, chan, user_id) for chan in sub_bot_channels]
+            sub_results = await asyncio.gather(*sub_tasks)
+            not_joined.extend([res for res in sub_results if res])
 
     return not_joined
 

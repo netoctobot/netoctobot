@@ -267,10 +267,10 @@ def add_channel_to_sub_bot_logic(sub_bot, chat_id, title, username, invite_link,
     )
 
     if not created:
-        return False, "exists", is_owner
+        return False, sub_chan.id, is_owner
 
     # 5. إذا كان شريكاً، نفعل محفظته فوراً (دالتك السابقة)
     if not is_owner:
         activate_partner_wallet(user_obj)
 
-    return True, "success", is_owner
+    return True, sub_chan.id, is_owner
