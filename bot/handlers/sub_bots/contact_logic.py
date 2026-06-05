@@ -14,6 +14,7 @@ from bot.config import BOT_TOKEN, ADMIN_IDS
 from bot.db.db_operations import get_user_and_subscription
 from bot.filters import BotTypeFilter
 from bot.keyboards.inline.bot_management import get_LST_owner_control_panel
+from bot.keyboards.inline.bot_management import get_subbot_owner_keyboard
 from bot.utils.checks import check_all_subscriptions, handle_force_subscribe
 from bot.utils.interface import update_main_interface
 # contact_router
@@ -53,6 +54,7 @@ async def sub_bot_start(message: types.Message, bot: Bot, i18n: I18nContext, sta
             subscription=subscription,
             text=owner_text,
             reply_markup=get_LST_owner_control_panel(i18n, "CON"),
+            reply_markup=get_subbot_owner_keyboard(i18n, sub_bot),
         )
 
     raw_welcome = sub_bot.welcome_msg or _("msg-defult-welcome")
