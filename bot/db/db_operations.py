@@ -216,7 +216,8 @@ def delete_sub_bot(bot_id, owner):
 @sync_to_async
 def get_sub_bot_channels_list(sub_bot, user_id=None):
     """جلب قائمة القنوات المرتبطة ببوت فرعي محدد مع بيانات القناة الأصلية"""
-    query = SubBotChannel.objects.filter(sub_bot=sub_bot)
+    # استبعاد القنوات المجمدة نهائياً من العرض للملاك والمستخدمين
+    query = SubBotChannel.objects.filter(sub_bot=sub_bot, is_frozen=False)
     
     # إذا لم يكن المالك، نفلتر حسب صاحب القناة
     if user_id:
@@ -285,14 +286,6 @@ def add_channel_to_sub_bot_logic(sub_bot, chat_id, title, username, invite_link,
             'added_by': user_obj # توثيق الشخص الذي قام بالربط
         }
     )
-
-    # إذا كانت القناة موجودة مسبقاً ولكنها مجمدة (Frozen)، نقوم بإلغاء التجميد
-    if not created and sub_chan.is_frozen:
-        sub_chan.is_frozen = False
-        sub_chan.is_active = is_owner
-        sub_chan.save()
-        # نعتبرها عملية إضافة ناجحة (إعادة تفعيل)
-        return True, sub_chan.id, is_owner
 
     if not created:
         return False, sub_chan.id, is_owner

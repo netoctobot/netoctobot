@@ -331,6 +331,8 @@ msgstr ""
 "📥 <b>طريقة إضافة القناة:</b>\n"
 "\n"
 "1. قم برفع هذا البوت <b>مشرفاً</b> في قناتك."
+"\n"
+"2. أو قم بتوجيه رسالة من القناة."
 
 #: bot/handlers/sub_bots/list_logic.py:181
 msgid "please-send-msg-from-channel"

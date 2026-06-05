@@ -214,11 +214,8 @@ def get_channels_management_keyboard(i18n, channels):
     builder = InlineKeyboardBuilder()
     
     for bot_chan in channels:
-        # ✅ نشطة | ⏸ متوقفة (Inactive) | 🧊 مجمدة (Frozen/Soft Deleted)
-        if bot_chan.is_frozen:
-            status_emoji = "🧊"
-        else:
-            status_emoji = "✅" if bot_chan.is_active else "⏸"
+        # ✅ نشطة | ⏸ متوقفة (Inactive) - المجمدة مخفية من قاعدة البيانات
+        status_emoji = "✅" if bot_chan.is_active else "⏸"
         
         # الصف الأول: اسم القناة مع حالتها
         builder.row(types.InlineKeyboardButton(

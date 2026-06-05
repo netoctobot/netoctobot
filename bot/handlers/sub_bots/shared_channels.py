@@ -323,17 +323,63 @@ async def finalize_auto_add(callback: types.CallbackQuery, bot: Bot, i18n: I18nC
 async def toggle_channel_status(callback: types.CallbackQuery, bot: Bot, i18n: I18nContext):
     _ = i18n.get
     chan_id = callback.data.split("_")[-1]
+    user_id = callback.from_user.id
+
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    if not sub_bot:
+        return
+
+    is_owner = sub_bot.owner.telegram_id == user_id
 
     @sync_to_async
-    def _toggle():
-        sc = SubBotChannel.objects.get(id=chan_id)
-        sc.is_active = not sc.is_active
-        sc.save()
-        return sc.is_active, sc.channel.title
+    def _get_info():
+        sc = SubBotChannel.objects.select_related('channel').get(id=chan_id)
+        return sc, sc.is_active, sc.channel.title
 
-    new_state, title = await _toggle()
-    state_text = _("active") if new_state else _("desactive")
+    try:
+        sub_chan, was_active, title = await _get_info()
+    except Exception:
+        return await callback.answer(_("error-occurred-during-deletion"), show_alert=True)
 
-    await callback.answer(_("change-state", title=title, state_text=state_text), show_alert=True)
+    if is_owner:
+        # المالك يمكنه التبديل بحرية وإلغاء التجميد عند التنشيط
+        @sync_to_async
+        def _owner_toggle(sc):
+            sc.is_active = not sc.is_active
+            sc.save()
+            return sc.is_active
 
-    await manage_channels_list(callback, bot, i18n)
+        new_state = await _owner_toggle(sub_chan)
+        state_text = _("active") if new_state else _("desactive")
+        await callback.answer(_("change-state", title=title, state_text=state_text), show_alert=True)
+        return await manage_channels_list(callback, bot, i18n)
+    
+    # المستخدم العادي (شريك)
+    if was_active:
+        # يسمح للشريك بإيقاف قناته فقط فوراً
+        @sync_to_async
+        def _partner_deactivate(sc):
+            sc.is_active = False
+            sc.save()
+
+        await _partner_deactivate(sub_chan)
+        await callback.answer(_("change-state", title=title, state_text=_("desactive")), show_alert=True)
+        return await manage_channels_list(callback, bot, i18n)
+    else:
+        # يريد التنشيط -> نرسل طلب للمالك ولا نفعل القناة حالياً
+        await callback.answer(_("request-forwarded-owner"), show_alert=True)
+
+        # إخطار المالك مع زر تفعيل مباشر (كما في إضافة القناة أول مرة)
+        builder = InlineKeyboardBuilder()
+        builder.button(text=_("btn-activate-now"), callback_data=f"toggle_chan_{chan_id}")
+        builder.button(text=_("ok"), callback_data="ok_and_remove")
+        builder.adjust(1)
+
+        try:
+            await bot.send_message(
+                chat_id=sub_bot.owner.telegram_id,
+                text=_("new-joining-request", title=title, full_name=callback.from_user.full_name),
+                reply_markup=builder.as_markup(),
+            )
+        except (TelegramForbiddenError, TelegramBadRequest) as e:
+            logger.warning(f"Failed to notify owner {sub_bot.owner.telegram_id}: {e}")
