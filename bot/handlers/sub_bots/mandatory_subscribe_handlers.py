@@ -1,4 +1,5 @@
 # إدارة قنوات الاشتراك الإجباري (منفصلة عن قنوات نشر اللستة)
+import asyncio
 from aiogram import Router, types, Bot, F
 from aiogram.fsm.context import FSMContext
 from aiogram_i18n import I18nContext
@@ -19,7 +20,7 @@ from bot.keyboards.inline.bot_management import (
     get_mandatory_channels_management_keyboard,
 )
 from bot.states.sub_bot_states import MandatoryChannelSG
-from bot.utils.common import get_chat_invite_link
+from bot.utils.common import get_chat_invite_link, delete_message_after
 # mandatory_subscribe_router
 router = Router()
 
@@ -113,21 +114,30 @@ async def process_mandatory_forward(
     if not sub_bot: return
 
     if not message.forward_from_chat or message.forward_from_chat.type != "channel":
-        return await message.reply(
+        reply = await message.reply(
             _("please-send-msg-from-channel"),
             reply_markup=get_add_bot_as_admin_and_cancel(
                 i18n, sub_bot.username, cancel_callback="manage_mandatory_sub"
             ),
         )
+        asyncio.create_task(delete_message_after(reply))
+        asyncio.create_task(delete_message_after(message))
+        return
 
     chat = message.forward_from_chat
     try:
         # استبدال me.id بـ bot.id الموفر للطاقة
         member = await bot.get_chat_member(chat_id=chat.id, user_id=bot.id)
         if member.status not in ["administrator", "creator"]:
-            return await message.reply(_("bot-not-administrato-make-it"))
+            reply = await message.reply(_("bot-not-administrato-make-it"))
+            asyncio.create_task(delete_message_after(reply))
+            asyncio.create_task(delete_message_after(message))
+            return
     except Exception:
-        return await message.reply(_("channel-not-verified"))
+        reply = await message.reply(_("channel-not-verified"))
+        asyncio.create_task(delete_message_after(reply))
+        asyncio.create_task(delete_message_after(message))
+        return
 
     if message.from_user.id != sub_bot.owner.telegram_id:
         await state.clear()
@@ -137,11 +147,14 @@ async def process_mandatory_forward(
     active = await count_active_mandatory_channels(sub_bot)
     if active >= quota.max_mandatory_slots:
         await state.clear()
-        return await message.reply(
+        reply = await message.reply(
             _("mandatory-slots-full", max=quota.max_mandatory_slots)
         )
+        asyncio.create_task(delete_message_after(reply))
+        asyncio.create_task(delete_message_after(message))
+        return
 
-    invite_link = get_chat_invite_link(chat)
+    invite_link = await get_chat_invite_link(chat)
     channel, __ = await sync_to_async(Channel.objects.update_or_create)(
         channel_id=chat.id,
         defaults={
@@ -155,7 +168,10 @@ async def process_mandatory_forward(
     await state.clear()
 
     if not added:
-        return await message.reply(_("mandatory-already-bound"))
+        reply = await message.reply(_("mandatory-already-bound"))
+        asyncio.create_task(delete_message_after(reply))
+        asyncio.create_task(delete_message_after(message))
+        return
 
     bindings = await get_mandatory_bindings_for_sub_bot(sub_bot)
     active = await count_active_mandatory_channels(sub_bot)

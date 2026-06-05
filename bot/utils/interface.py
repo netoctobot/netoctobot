@@ -1,4 +1,4 @@
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram import types, Bot
 from aiogram_i18n import I18nContext
 from aiogram.fsm.context import FSMContext

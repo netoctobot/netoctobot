@@ -214,25 +214,36 @@ def delete_sub_bot(bot_id, owner):
 
 
 @sync_to_async
-def get_sub_bot_channels_list(sub_bot):
+def get_sub_bot_channels_list(sub_bot, user_id=None):
     """جلب قائمة القنوات المرتبطة ببوت فرعي محدد مع بيانات القناة الأصلية"""
-    return list(
-        SubBotChannel.objects.filter(sub_bot=sub_bot)
-        .select_related("channel")
-        .order_by("order")
-    )
+    query = SubBotChannel.objects.filter(sub_bot=sub_bot)
+    
+    # إذا لم يكن المالك، نفلتر حسب صاحب القناة
+    if user_id:
+        query = query.filter(channel__owner__telegram_id=user_id)
+        
+    return list(query.select_related("channel").order_by("order"))
 
 
 @sync_to_async
-def delete_sub_bot_channel(bot_chan_id):
-    """حذف ارتباط القناة بالبوت الفرعي"""
+def process_channel_deletion_logic(bot_chan_id, is_bot_admin: bool):
+    """التعامل مع حذف القناة: تجميد إذا كان البوت مديراً، وحذف نهائي إذا لم يكن"""
     try:
         obj = SubBotChannel.objects.select_related("channel").get(id=bot_chan_id)
         name = obj.channel.title
-        obj.delete()
-        return name
+
+        if is_bot_admin:
+            # تجميد القناة للحفاظ عليها للإعلانات والإحصائيات المستقبلية
+            obj.is_frozen = True
+            obj.is_active = False
+            obj.save()
+            return name, "frozen"
+        else:
+            # حذف نهائي لأن البوت طُرد أو لم يعد مديراً
+            obj.delete()
+            return name, "deleted"
     except SubBotChannel.DoesNotExist:
-        return None
+        return None, "error"
 
 
 # bot\db_operations.py
@@ -242,10 +253,16 @@ def add_channel_to_sub_bot_logic(sub_bot, chat_id, title, username, invite_link,
     """المنطق الشامل لإضافة قناة/مجموعة للبوت الفرعي"""
     
     # 1. جلب أو إنشاء المستخدم الذي قام بالإضافة في قاعدة بياناتنا
-    user_obj = TelegramUser.objects.get(telegram_id=telegram_user_id)
+    # الحماية: نستخدم get_or_create لضمان عدم انهيار النظام إذا لم يوجد سجل للمستخدم
+    user_obj, __ = TelegramUser.objects.get_or_create(
+        telegram_id=telegram_user_id,
+        defaults={
+            'full_name': 'Unknown User', # سيتم تحديثه لاحقاً عند أول تفاعل
+        }
+    )
     
     # 2. تحديث أو إنشاء القناة العامة
-    channel, _ = Channel.objects.update_or_create(
+    channel, ___ = Channel.objects.update_or_create(
         channel_id=chat_id,
         defaults={
             'owner': user_obj,
@@ -265,6 +282,14 @@ def add_channel_to_sub_bot_logic(sub_bot, chat_id, title, username, invite_link,
         channel=channel,
         defaults={'is_active': is_owner}
     )
+
+    # إذا كانت القناة موجودة مسبقاً ولكنها مجمدة (Frozen)، نقوم بإلغاء التجميد
+    if not created and sub_chan.is_frozen:
+        sub_chan.is_frozen = False
+        sub_chan.is_active = is_owner
+        sub_chan.save()
+        # نعتبرها عملية إضافة ناجحة (إعادة تفعيل)
+        return True, sub_chan.id, is_owner
 
     if not created:
         return False, sub_chan.id, is_owner
