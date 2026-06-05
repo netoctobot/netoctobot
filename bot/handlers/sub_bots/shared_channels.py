@@ -35,10 +35,31 @@ logger = logging.getLogger(__name__)
 @router.callback_query(F.data == "back_to_owner_panel")
 async def back_to_owner_panel(callback: types.CallbackQuery, i18n: I18nContext, bot: Bot):
     sub_bot = await get_sub_bot_by_token(bot.token)
-    await callback.message.edit_text(
-        i18n.get("owner-control-panel"),
-        reply_markup=get_LST_owner_control_panel(i18n, sub_bot.bot_type),
-    )
+    if not sub_bot:
+        return await callback.answer()
+
+    is_owner = sub_bot.owner.telegram_id == callback.from_user.id
+
+    if is_owner:
+        await callback.message.edit_text(
+            i18n.get("owner-control-panel"),
+            reply_markup=get_LST_owner_control_panel(i18n, sub_bot.bot_type),
+        )
+    else:
+        # للمستخدم العادي: العودة للقائمة الرئيسية للبوت الفرعي
+        from bot.keyboards.main_menu import get_user_main_menu
+        from bot.utils.formatters import format_personal_message
+
+        if sub_bot.bot_type == SubBot.BotType.LIST:
+            reply_markup = get_LST_user_main_keyboard(i18n)
+            welcome_key = "msg-list-default-welcome"
+        else:
+            reply_markup = get_user_main_menu(i18n, sub_bot.bot_type)
+            welcome_key = "msg-defult-welcome"
+
+        raw_welcome = sub_bot.welcome_msg or i18n.get(welcome_key)
+        text = format_personal_message(raw_welcome, callback.from_user, sub_bot.welcome_parse_mode, i18n)
+        await callback.message.edit_text(text=text, reply_markup=reply_markup)
 
 
 @router.callback_query(F.data == "manage_channels")
@@ -149,51 +170,41 @@ async def start_add_channel(callback: types.CallbackQuery, state: FSMContext, i1
 @router.message(AddChannelSG.waiting_for_forward)
 async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nContext, state: FSMContext):
     _ = i18n.get
-    
-    # الحماية من الأوامر أثناء انتظار التوجيه
-    if message.text.startswith("/"):
-        await state.clear()
-        reply = await message.reply(_("repeat-command"))
+
+    async def reply_and_clean(text, markup=None):
+        """إرسال رد وجدولة حذف رسالة البوت ورسالة المستخدم لتنظيف المحادثة"""
+        reply = await message.reply(text, reply_markup=markup)
         asyncio.create_task(delete_message_after(reply))
         asyncio.create_task(delete_message_after(message))
-        return
+        return reply
+    
+    # الحماية من الأوامر أثناء انتظار التوجيه
+    if message.text and message.text.startswith("/"):
+        await state.clear()
+        return await reply_and_clean(_("repeat-command"))
 
     sub_bot = await get_sub_bot_by_token(bot.token)
     if not sub_bot: return
 
     # التأكد من وجود رسالة موجهة ومن أنها قناة أو مجموعة
-    if not message.forward_from_chat or message.forward_from_chat.type != "channel":
-        # استثناء المجموعات إذا كانت مدعومة في valid_types أدناه
-        if not message.forward_from_chat or message.forward_from_chat.type not in ["group", "supergroup"]:
-            reply = await message.reply(
-                _("please-send-msg-from-channel"),
-                reply_markup=get_add_bot_as_admin_and_cancel(i18n, sub_bot.username, "cancel_add_channel"),
-            )
-            asyncio.create_task(delete_message_after(reply))
-            asyncio.create_task(delete_message_after(message))
-            return
-
     chat = message.forward_from_chat
+    if not chat or chat.type not in ["channel", "group", "supergroup"]:
+        return await reply_and_clean(
+            _("please-send-msg-from-channel"),
+            markup=get_add_bot_as_admin_and_cancel(i18n, sub_bot.username, "cancel_add_channel")
+        )
 
     valid_types = ["channel", "group", "supergroup"]
     if chat.type not in valid_types:
-        reply = await message.reply(_("type-chat-not-supported"))
-        asyncio.create_task(delete_message_after(reply))
-        asyncio.create_task(delete_message_after(message))
-        return
+        return await reply_and_clean(_("type-chat-not-supported"))
+
     try:
         # bot.id متاح برمجياً دون الحاجة لـ get_me()
         member = await bot.get_chat_member(chat_id=chat.id, user_id=bot.id)
         if member.status not in ["administrator", "creator"]:
-            reply = await message.reply(_("bot-not-administrato-make-it"))
-            asyncio.create_task(delete_message_after(reply))
-            asyncio.create_task(delete_message_after(message))
-            return
+            return await reply_and_clean(_("bot-not-administrato-make-it"))
     except Exception:
-        reply = await message.reply(_("channel-not-verified"))
-        asyncio.create_task(delete_message_after(reply))
-        asyncio.create_task(delete_message_after(message))
-        return
+        return await reply_and_clean(_("channel-not-verified"))
 
     # التأكد من جلب رابط صالح (غير Coroutine)
     invite_link_raw = await get_chat_invite_link(chat)
@@ -209,26 +220,18 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
     )
 
     if not success:
-        reply = await message.reply(_("channel-already-exists"))
-        asyncio.create_task(delete_message_after(reply))
-        asyncio.create_task(delete_message_after(message))
-        return
+        return await reply_and_clean(_("channel-already-exists"))
 
     await state.clear()
 
     if is_owner:
-        reply = await message.reply(
+        await reply_and_clean(
             _("channel-successfully-added", title=chat.title, id=chat.id),
-            reply_markup=get_LST_owner_control_panel(i18n, sub_bot.bot_type),
+            markup=get_LST_owner_control_panel(i18n, sub_bot.bot_type),
         )
-        asyncio.create_task(delete_message_after(reply))
-        asyncio.create_task(delete_message_after(message))
     else:
         # إبلاغ المستخدم بالانتظار
-        await message.reply(
-            _("request-forwarded-owner"),
-            reply_markup=ok(i18n),
-            )
+        await reply_and_clean(_("request-forwarded-owner"), markup=ok(i18n))
 
         # إخطار المالك مع زر تفعيل مباشر
         builder = InlineKeyboardBuilder()

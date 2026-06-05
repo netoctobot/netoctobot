@@ -287,6 +287,14 @@ def add_channel_to_sub_bot_logic(sub_bot, chat_id, title, username, invite_link,
         }
     )
 
+    # إذا كانت القناة موجودة مسبقاً ولكنها مجمدة (Frozen)، نقوم بإعادة تفعيلها
+    if not created and sub_chan.is_frozen:
+        sub_chan.is_frozen = False
+        sub_chan.is_active = is_owner  # تفعيل مباشر للمالك، بانتظار موافقة للشريك
+        sub_chan.save()
+        # نعيد True لأننا قمنا بـ "إعادة إضافة" ناجحة
+        return True, sub_chan.id, is_owner
+
     if not created:
         return False, sub_chan.id, is_owner
 
