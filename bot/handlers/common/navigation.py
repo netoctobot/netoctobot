@@ -7,7 +7,7 @@ from bot.config import ADMIN_IDS
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.utils.common import delete_message_after
 from bot.utils.interface import update_main_interface, show_main_menu_edit, return_to_bot_settings
-from bot.db.db_operations import get_user_and_subscription
+from bot.db.db_operations import get_user_and_subscription, get_sub_bot_by_token
 from bot.utils.checks import check_all_subscriptions, get_force_sub_keyboard
 from bot.keyboards.inline.bot_management import get_parse_mode_keyboard, get_LST_user_main_keyboard
 from bot.states.sub_bot_states import SubBotSettingsSG, AddChannelSG
@@ -63,7 +63,7 @@ async def perform_navigation(bot: Bot, i18n: I18nContext, user, subscription, ev
         if tg_user.id == sub_bot.owner.telegram_id:
             # لوحة تحكم المالك
             text = _("owner-control-panel")
-            reply_markup = get_LST_owner_control_panel(i18n, sub_bot.bot_type)
+            reply_markup = get_LST_owner_control_panel(i18n, sub_bot)
         else:
             # واجهة المستخدم العادي للبوت الفرعي
             default_key = "msg-list-default-welcome" if sub_bot.bot_type == "LST" else "msg-defult-welcome"
@@ -72,7 +72,7 @@ async def perform_navigation(bot: Bot, i18n: I18nContext, user, subscription, ev
             text = format_personal_message(raw_welcome, tg_user, parse_mode, i18n)
             
             if sub_bot.bot_type == "LST":
-                reply_markup = get_LST_user_main_keyboard(i18n)
+                reply_markup = get_LST_user_main_keyboard(i18n, support_link=sub_bot.support_link)
             else:
                 reply_markup = get_user_main_menu(i18n, sub_bot.bot_type)
 
@@ -127,6 +127,17 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext, i18n:
         await state.clear()
         # هنا نستدعي دالة إدارة البوت التي برمجناها سابقاً لكن بصيغة edit
         await return_to_bot_settings(callback, bot_id, i18n, bot)
+
+    elif current_state == SubBotSettingsSG.waiting_for_support_link:
+        await state.clear()
+        sub_bot = await get_sub_bot_by_token(bot.token)
+        if sub_bot:
+            await callback.message.edit_text(
+                i18n.get("owner-control-panel"),
+                reply_markup=get_LST_owner_control_panel(i18n, sub_bot),
+            )
+        else:
+            await show_main_menu_edit(callback, i18n, bot, state)
     
     elif current_state == AddChannelSG.waiting_for_forward:
         data = await state.get_data()

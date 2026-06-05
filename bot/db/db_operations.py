@@ -214,6 +214,18 @@ def delete_sub_bot(bot_id, owner):
 
 
 @sync_to_async
+def set_sub_bot_support_link(bot_id, owner, link):
+    """تحديث رابط الدعم/التواصل للبوت"""
+    try:
+        sub_bot = SubBot.objects.get(id=bot_id, owner=owner)
+        sub_bot.support_link = link
+        sub_bot.save()
+        return True
+    except Exception:
+        return False
+
+
+@sync_to_async
 def get_sub_bot_channels_list(sub_bot, user_id=None):
     """جلب قائمة القنوات المرتبطة ببوت فرعي محدد مع بيانات القناة الأصلية"""
     # استبعاد القنوات المجمدة نهائياً من العرض للملاك والمستخدمين

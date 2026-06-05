@@ -70,6 +70,12 @@ class SubBot(BaseModel):
         default=ParseMode.HTML,
         verbose_name=_("List Message Format")
     )
+
+    support_link = models.URLField(
+        null=True, 
+        blank=True, 
+        verbose_name=_("Support/Contact Link")
+    )
     
     # أزرار المالك (نص خام يتم معالجته برمجياً)
     owner_buttons = models.TextField(

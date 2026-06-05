@@ -16,6 +16,7 @@ from bot.db.db_operations import (
     get_sub_bot_channels_list,
     process_channel_deletion_logic,
     get_user_and_subscription,
+    set_sub_bot_support_link,
 )
 from bot.keyboards.inline.bot_management import (
     get_channels_management_keyboard,
@@ -24,7 +25,7 @@ from bot.keyboards.inline.bot_management import (
     get_LST_user_main_keyboard,
     ok,
 )
-from bot.states.sub_bot_states import AddChannelSG
+from bot.states.sub_bot_states import AddChannelSG, SubBotSettingsSG
 from bot.utils.common import get_chat_invite_link, delete_message_after
 # shared_channels_router
 router = Router()
@@ -43,7 +44,7 @@ async def back_to_owner_panel(callback: types.CallbackQuery, i18n: I18nContext, 
     if is_owner:
         await callback.message.edit_text(
             i18n.get("owner-control-panel"),
-            reply_markup=get_LST_owner_control_panel(i18n, sub_bot.bot_type),
+            reply_markup=get_LST_owner_control_panel(i18n, sub_bot),
         )
     else:
         # للمستخدم العادي: العودة للقائمة الرئيسية للبوت الفرعي
@@ -94,7 +95,7 @@ async def cancel_add_channel_handler(callback: types.CallbackQuery, state: FSMCo
         # للمالك: العودة للوحة التحكم عبر تعديل الرسالة
         await callback.message.edit_text(
             i18n.get("owner-control-panel"),
-            reply_markup=get_LST_owner_control_panel(i18n, sub_bot.bot_type),
+            reply_markup=get_LST_owner_control_panel(i18n, sub_bot),
         )
     elif sub_bot:
         # للمستخدم: العودة للقائمة الرئيسية للبوت الفرعي عبر تعديل الرسالة
@@ -227,7 +228,7 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
     if is_owner:
         await reply_and_clean(
             _("channel-successfully-added", title=chat.title, id=chat.id),
-            markup=get_LST_owner_control_panel(i18n, sub_bot.bot_type),
+            markup=get_LST_owner_control_panel(i18n, sub_bot),
         )
     else:
         # إبلاغ المستخدم بالانتظار
@@ -386,3 +387,52 @@ async def toggle_channel_status(callback: types.CallbackQuery, bot: Bot, i18n: I
             )
         except (TelegramForbiddenError, TelegramBadRequest) as e:
             logger.warning(f"Failed to notify owner {sub_bot.owner.telegram_id}: {e}")
+
+
+@router.callback_query(F.data.startswith("set_support_"))
+async def start_set_support_link(callback: types.CallbackQuery, state: FSMContext, i18n: I18nContext):
+    _ = i18n.get
+    bot_id = callback.data.split("_")[-1]
+    
+    await state.set_state(SubBotSettingsSG.waiting_for_support_link)
+    await state.update_data(target_bot_id=bot_id)
+    
+    # نستخدم نفس زر الإلغاء الموجود في الإعدادات
+    from bot.keyboards.inline.bot_management import get_cancel_keyboard
+    await callback.message.edit_text(
+        _("msg-send-support-link"),
+        reply_markup=get_cancel_keyboard(i18n)
+    )
+    await callback.answer()
+
+
+@router.message(SubBotSettingsSG.waiting_for_support_link)
+async def process_support_link(message: types.Message, state: FSMContext, bot: Bot, i18n: I18nContext):
+    _ = i18n.get
+    
+    async def reply_and_clean(text):
+        reply = await message.reply(text)
+        asyncio.create_task(delete_message_after(reply))
+        asyncio.create_task(delete_message_after(message))
+
+    if not message.text or not (message.text.startswith("http") or message.text.startswith("https") or message.text.startswith("@")):
+        return await reply_and_clean(_("err-invalid-link"))
+
+    # تحويل اليوزرنيم لرابط إذا أرسله المالك بـ @
+    link = message.text
+    if link.startswith("@"):
+        link = f"https://t.me/{link.replace('@', '')}"
+
+    data = await state.get_data()
+    bot_id = data.get("target_bot_id")
+    user, subscription, _ = await get_user_and_subscription(message.from_user, bot.token)
+
+    success = await set_sub_bot_support_link(bot_id, user, link)
+    
+    if success:
+        await state.clear()
+        from bot.utils.interface import return_to_bot_settings
+        # العودة للإعدادات لإظهار التأكيد
+        await return_to_bot_settings(message, bot_id, i18n, bot)
+    else:
+        await reply_and_clean(_("err-system-error"))

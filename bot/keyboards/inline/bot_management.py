@@ -98,6 +98,9 @@ def get_bot_settings_keyboard(i18n: I18nContext, sub_bot):
     # زر تعديل الرسالة الترحيبية
     builder.button(text=_("btn-edit-welcome-bot"), callback_data=f"welcome_options_{sub_bot.id}")
 
+    # زر ضبط رابط الدعم/التواصل
+    builder.button(text=_("btn-set-support-link"), callback_data=f"set_support_{sub_bot.id}")
+
     # زر العودة لقائمة "بوتاتي"
     builder.button(text=_("btn-back-to-list"), callback_data="list_my_bots")
 
@@ -115,7 +118,7 @@ def get_parse_mode_keyboard(i18n: I18nContext, bot_id):
     return builder.as_markup()
 
 
-def get_LST_user_main_keyboard(i18n: I18nContext):
+def get_LST_user_main_keyboard(i18n: I18nContext, support_link: str = None):
     _ = i18n.get
     builder = InlineKeyboardBuilder()
     
@@ -133,16 +136,21 @@ def get_LST_user_main_keyboard(i18n: I18nContext):
         callback_data="user_wallet"
     ))
     
-    builder.row(types.InlineKeyboardButton(
-        text=_("list-info"), 
-        callback_data="list_info"
-    ))
+    # إذا وجد رابط دعم، نحول زر "معلومات اللستة" إلى "تواصل معنا" يفتح الرابط
+    if support_link:
+        builder.row(types.InlineKeyboardButton(text=_("technical-support"), url=support_link))
+    else:
+        builder.row(types.InlineKeyboardButton(
+            text=_("list-info"), 
+            callback_data="list_info"
+        ))
     
     return builder.as_markup()
 
-def get_LST_owner_control_panel(i18n, bot_type):
+def get_LST_owner_control_panel(i18n, sub_bot):
     _ = i18n.get
     builder = InlineKeyboardBuilder()
+    bot_type = sub_bot.bot_type
     
     if bot_type == "LST":
         builder.button(text=_("add-channel"), callback_data="add_channel")
@@ -156,7 +164,7 @@ def get_LST_owner_control_panel(i18n, bot_type):
         builder.button(text=_("mandatory-subscribe"), callback_data="manage_mandatory_sub")
         builder.button(text=_("incoming-messages"), callback_data="view_messages")
     
-    builder.button(text=_("bot-settings"), callback_data="bot_settings")
+    builder.button(text=_("btn-set-support-link"), callback_data=f"set_support_{sub_bot.id}")
     builder.adjust(2)
     return builder.as_markup()
 

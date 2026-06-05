@@ -70,7 +70,7 @@ async def list_bot_start(message: types.Message, bot: Bot, i18n: I18nContext, st
             chat_id=message.chat.id,
             subscription=subscription,
             text=owner_text,
-            reply_markup=get_LST_owner_control_panel(i18n, "LST"),
+            reply_markup=get_LST_owner_control_panel(i18n, sub_bot),
         )
 
     raw_welcome = sub_bot.welcome_msg or _("msg-list-default-welcome")
@@ -107,7 +107,7 @@ async def check_again_callback(callback: types.CallbackQuery, bot: Bot, i18n: I1
         
         if callback.from_user.id == sub_bot.owner.telegram_id:
             text = _("owner-control-panel")
-            user_markup = get_LST_owner_control_panel(i18n)
+            user_markup = get_LST_owner_control_panel(i18n, sub_bot)
         await callback.message.edit_text(
             text=text,
             reply_markup=user_markup,
