@@ -80,12 +80,11 @@ async def start_add_mandatory(
             show_alert=True,
         )
 
-    me = await bot.get_me()
     await state.set_state(MandatoryChannelSG.waiting_for_forward)
     await callback.message.edit_text(
         _("how-add-mandatory-channel"),
         reply_markup=get_add_bot_as_admin_and_cancel(
-            i18n, me.username, cancel_callback="manage_mandatory_sub"
+            i18n, sub_bot.username, cancel_callback="manage_mandatory_sub"
         ),
     )
     await callback.answer()
@@ -109,25 +108,27 @@ async def process_mandatory_forward(
     message: types.Message, bot: Bot, i18n: I18nContext, state: FSMContext
 ):
     _ = i18n.get
-    me = await bot.get_me()
+    
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    if not sub_bot: return
 
     if not message.forward_from_chat or message.forward_from_chat.type != "channel":
         return await message.reply(
             _("please-send-msg-from-channel"),
             reply_markup=get_add_bot_as_admin_and_cancel(
-                i18n, me.username, cancel_callback="manage_mandatory_sub"
+                i18n, sub_bot.username, cancel_callback="manage_mandatory_sub"
             ),
         )
 
     chat = message.forward_from_chat
     try:
-        member = await bot.get_chat_member(chat_id=chat.id, user_id=me.id)
+        # استبدال me.id بـ bot.id الموفر للطاقة
+        member = await bot.get_chat_member(chat_id=chat.id, user_id=bot.id)
         if member.status not in ["administrator", "creator"]:
             return await message.reply(_("bot-not-administrato-make-it"))
     except Exception:
         return await message.reply(_("channel-not-verified"))
 
-    sub_bot = await get_sub_bot_by_token(bot.token)
     if message.from_user.id != sub_bot.owner.telegram_id:
         await state.clear()
         return

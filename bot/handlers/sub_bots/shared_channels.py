@@ -96,11 +96,9 @@ async def start_add_channel(callback: types.CallbackQuery, state: FSMContext, i1
     sub_bot = await get_sub_bot_by_token(bot.token)
     if not sub_bot:
         return
-    # if sub_bot.owner.telegram_id != callback.from_user.id:
-        # return await callback.answer(_("msg-feature-not-ready"), show_alert=True)
 
-    me = await bot.get_me()
-    keyboard = get_add_bot_as_admin_and_cancel(i18n, me.username)
+    # استخدام اليوزرنيم المخزن في قاعدة البيانات لتوفير طلب الشبكة
+    keyboard = get_add_bot_as_admin_and_cancel(i18n, sub_bot.username)
 
     await state.clear()
     await state.set_state(AddChannelSG.waiting_for_forward)
@@ -116,12 +114,15 @@ async def start_add_channel(callback: types.CallbackQuery, state: FSMContext, i1
 @router.message(AddChannelSG.waiting_for_forward)
 async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nContext, state: FSMContext):
     _ = i18n.get
+    
+    # جلب بيانات البوت من قاعدة البيانات مبكراً لاستخدام اليوزرنيم والـ ID
+    sub_bot = await get_sub_bot_by_token(bot.token)
+    if not sub_bot: return
 
-    me = await bot.get_me()
     if not message.forward_from_chat or message.forward_from_chat.type != "channel":
         reply = await message.reply(
             _("please-send-msg-from-channel"),
-            reply_markup=get_add_bot_as_admin_and_cancel(i18n, me.username),
+            reply_markup=get_add_bot_as_admin_and_cancel(i18n, sub_bot.username),
         )
         asyncio.create_task(delete_message_after(reply))
         asyncio.create_task(delete_message_after(message))
@@ -136,7 +137,8 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
         asyncio.create_task(delete_message_after(message))
         return
     try:
-        member = await bot.get_chat_member(chat_id=chat.id, user_id=me.id)
+        # bot.id متاح برمجياً دون الحاجة لـ get_me()
+        member = await bot.get_chat_member(chat_id=chat.id, user_id=bot.id)
         if member.status not in ["administrator", "creator"]:
             reply = await message.reply(_("bot-not-administrato-make-it"))
             asyncio.create_task(delete_message_after(reply))
@@ -147,8 +149,6 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
         asyncio.create_task(delete_message_after(reply))
         asyncio.create_task(delete_message_after(message))
         return
-
-    sub_bot = await get_sub_bot_by_token(bot.token)
 
     invite_link = await get_chat_invite_link(chat)
 
