@@ -220,7 +220,7 @@ def get_sub_bot_channels_list(sub_bot, user_id=None):
     
     # إذا لم يكن المالك، نفلتر حسب صاحب القناة
     if user_id:
-        query = query.filter(channel__owner__telegram_id=user_id)
+        query = query.filter(added_by__telegram_id=user_id)
         
     return list(query.select_related("channel").order_by("order"))
 
@@ -280,7 +280,10 @@ def add_channel_to_sub_bot_logic(sub_bot, chat_id, title, username, invite_link,
     sub_chan, created = SubBotChannel.objects.get_or_create(
         sub_bot=sub_bot,
         channel=channel,
-        defaults={'is_active': is_owner}
+        defaults={
+            'is_active': is_owner,
+            'added_by': user_obj # توثيق الشخص الذي قام بالربط
+        }
     )
 
     # إذا كانت القناة موجودة مسبقاً ولكنها مجمدة (Frozen)، نقوم بإلغاء التجميد

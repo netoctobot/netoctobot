@@ -13,6 +13,9 @@ class BaseModel(models.Model):
     # تواريخ التتبع
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"))
     updated_at = models.DateTimeField(auto_now=True, verbose_name=_("Updated At"))
+
+    # حالة التجميد (للسجلات التي لا تحذف فعلياً للحفاظ على الإحصائيات والإعلانات)
+    is_frozen = models.BooleanField(default=False, verbose_name=_("Is Frozen"))
     
     # من قام بإنشاء السجل
     # ملاحظة: نستخدم settings.AUTH_USER_MODEL لضمان المرونة
