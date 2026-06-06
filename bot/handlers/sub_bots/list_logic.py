@@ -11,8 +11,8 @@ from bot.db.db_operations import get_user_and_subscription, get_sub_bot_by_token
 from bot.filters import BotTypeFilter
 from bot.keyboards.inline.bot_management import (
     get_template_management_keyboard,
-    get_LST_user_main_keyboard,
-    get_LST_owner_control_panel,
+    get_list_bot_user_keyboard,
+    get_subbot_owner_keyboard,
     get_interval_unit_keyboard,
 )
 from bot.keyboards.inline.subscriptions import get_force_sub_keyboard
@@ -70,14 +70,14 @@ async def list_bot_start(message: types.Message, bot: Bot, i18n: I18nContext, st
             chat_id=message.chat.id,
             subscription=subscription,
             text=owner_text,
-            reply_markup=get_LST_owner_control_panel(i18n, sub_bot),
+            reply_markup=get_subbot_owner_keyboard(i18n, sub_bot),
         )
 
     raw_welcome = sub_bot.welcome_msg or _("msg-list-default-welcome")
     p_mode = sub_bot.welcome_parse_mode
     text = format_personal_message(raw_welcome, message.from_user, p_mode, i18n)
 
-    user_markup = get_LST_user_main_keyboard(i18n)
+    user_markup = get_list_bot_user_keyboard(i18n)
 
     await update_main_interface(
         bot=bot,
@@ -103,11 +103,11 @@ async def check_again_callback(callback: types.CallbackQuery, bot: Bot, i18n: I1
         raw_welcome = sub_bot.welcome_msg or _("msg-list-default-welcome")
         p_mode = sub_bot.welcome_parse_mode
         text = format_personal_message(raw_welcome, callback.from_user, p_mode, i18n)
-        user_markup = get_LST_user_main_keyboard(i18n)
+        user_markup = get_list_bot_user_keyboard(i18n)
         
         if callback.from_user.id == sub_bot.owner.telegram_id:
             text = _("owner-control-panel")
-            user_markup = get_LST_owner_control_panel(i18n, sub_bot)
+            user_markup = get_subbot_owner_keyboard(i18n, sub_bot)
         await callback.message.edit_text(
             text=text,
             reply_markup=user_markup,

@@ -9,7 +9,7 @@ from aiogram_i18n import I18nContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 
-from apps.bots.models import SubBot, SubBotChannel, Channel
+from apps.bots.models import SubBot, SubBotChannel
 from bot.db.db_operations import (
     add_channel_to_sub_bot_logic,
     get_sub_bot_by_token,
@@ -20,9 +20,9 @@ from bot.db.db_operations import (
 )
 from bot.keyboards.inline.bot_management import (
     get_channels_management_keyboard,
-    get_LST_owner_control_panel,
+    get_subbot_owner_keyboard,
     get_add_bot_as_admin_and_cancel,
-    get_LST_user_main_keyboard,
+    get_list_bot_user_keyboard,
     ok,
 )
 from bot.states.sub_bot_states import AddChannelSG, SubBotSettingsSG
@@ -44,7 +44,7 @@ async def back_to_owner_panel(callback: types.CallbackQuery, i18n: I18nContext, 
     if is_owner:
         await callback.message.edit_text(
             i18n.get("owner-control-panel"),
-            reply_markup=get_LST_owner_control_panel(i18n, sub_bot),
+            reply_markup=get_subbot_owner_keyboard(i18n, sub_bot),
         )
     else:
         # للمستخدم العادي: العودة للقائمة الرئيسية للبوت الفرعي
@@ -52,7 +52,7 @@ async def back_to_owner_panel(callback: types.CallbackQuery, i18n: I18nContext, 
         from bot.utils.formatters import format_personal_message
 
         if sub_bot.bot_type == SubBot.BotType.LIST:
-            reply_markup = get_LST_user_main_keyboard(i18n)
+            reply_markup = get_list_bot_user_keyboard(i18n)
             welcome_key = "msg-list-default-welcome"
         else:
             reply_markup = get_user_main_menu(i18n, sub_bot.bot_type)
@@ -95,7 +95,7 @@ async def cancel_add_channel_handler(callback: types.CallbackQuery, state: FSMCo
         # للمالك: العودة للوحة التحكم عبر تعديل الرسالة
         await callback.message.edit_text(
             i18n.get("owner-control-panel"),
-            reply_markup=get_LST_owner_control_panel(i18n, sub_bot),
+            reply_markup=get_subbot_owner_keyboard(i18n, sub_bot),
         )
     elif sub_bot:
         # للمستخدم: العودة للقائمة الرئيسية للبوت الفرعي عبر تعديل الرسالة
@@ -103,7 +103,7 @@ async def cancel_add_channel_handler(callback: types.CallbackQuery, state: FSMCo
         from bot.utils.formatters import format_personal_message
 
         if sub_bot.bot_type == SubBot.BotType.LIST:
-            reply_markup = get_LST_user_main_keyboard(i18n)
+            reply_markup = get_list_bot_user_keyboard(i18n)
             welcome_key = "msg-list-default-welcome"
         else:
             reply_markup = get_user_main_menu(i18n, sub_bot.bot_type)
@@ -228,7 +228,7 @@ async def process_channel_forward(message: types.Message, bot: Bot, i18n: I18nCo
     if is_owner:
         await reply_and_clean(
             _("channel-successfully-added", title=chat.title, id=chat.id),
-            markup=get_LST_owner_control_panel(i18n, sub_bot),
+            markup=get_subbot_owner_keyboard(i18n, sub_bot),
         )
     else:
         # إبلاغ المستخدم بالانتظار
@@ -425,14 +425,25 @@ async def process_support_link(message: types.Message, state: FSMContext, bot: B
 
     data = await state.get_data()
     bot_id = data.get("target_bot_id")
-    user, subscription, _ = await get_user_and_subscription(message.from_user, bot.token)
+    user, subscription, __ = await get_user_and_subscription(message.from_user, bot.token)
 
     success = await set_sub_bot_support_link(bot_id, user, link)
     
     if success:
-        await state.clear()
-        from bot.utils.interface import return_to_bot_settings
-        # العودة للإعدادات لإظهار التأكيد
-        await return_to_bot_settings(message, bot_id, i18n, bot)
+        await state.clear()        
+        # تنظيف رسالة الرابط التي أرسلها المالك للحفاظ على نظافة المحادثة
+        asyncio.create_task(delete_message_after(message, 1))
+
+        if subscription.last_main_message_id:
+            try:
+                await bot.edit_message_text(
+                    chat_id=message.chat.id,
+                    message_id=subscription.last_main_message_id,
+                    text=i18n.get("owner-control-panel"),
+                    reply_markup=get_subbot_owner_keyboard(i18n, subscription.bot),
+                    )
+                
+            except TelegramBadRequest:
+                pass # الرسالة قديمة جداً أو محذوفة
     else:
         await reply_and_clean(_("err-system-error"))
