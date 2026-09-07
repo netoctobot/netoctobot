@@ -1,0 +1,9 @@
+{
+  "name": "octobot",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter backend dev",
+    "build": "pnpm --filter backend build"
+  }
+}

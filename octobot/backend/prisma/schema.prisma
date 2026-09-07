@@ -1,0 +1,12 @@
+// Domain models (PLATFORM_BOT, CONTACT_BOT, SUPPORT_LIST_BOT,
+// platform channel catalog, single user wallet, relation fixes)
+// are added in step 2. Do not copy PROJECT_BLUEPRINT.md schema as-is.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

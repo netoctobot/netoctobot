@@ -1,0 +1,8 @@
+{
+  "app": {
+    "name": "Octobot"
+  },
+  "health": {
+    "ok": "ok"
+  }
+}
