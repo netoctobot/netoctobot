@@ -4,6 +4,7 @@ import {
   translate,
   type TranslationKey,
 } from "../localization/localization.service.js";
+import { buildChannelAddLink } from "../channels/channel-add-link.js";
 
 export interface DashboardView {
   text: string;
@@ -122,12 +123,16 @@ export function buildBotCreationSuccess(
 
 export function buildAutomaticChannelInstructions(
   language: SupportedLanguage,
+  botUsername: string,
 ): DashboardView {
   return {
     text: translate(language, "channelLink.autoInstructions"),
-    keyboard: new InlineKeyboard().text(
-      translate(language, "menu.back"),
-      "menu:home",
-    ),
+    keyboard: new InlineKeyboard()
+      .url(
+        translate(language, "channelLink.addBotButton"),
+        buildChannelAddLink(botUsername),
+      )
+      .row()
+      .text(translate(language, "menu.back"), "menu:home"),
   };
 }

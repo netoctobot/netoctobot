@@ -8,7 +8,7 @@ import { BotRuntimeManager } from "./modules/bots/bot-runtime-manager.js";
 const env = loadEnv();
 const prisma = createPrismaClient();
 const redis = createRedisClient(env.REDIS_URL);
-const runtimeManager = new BotRuntimeManager(env, prisma);
+const runtimeManager = new BotRuntimeManager(env, prisma, redis);
 
 let app: ReturnType<typeof buildApp> | undefined;
 

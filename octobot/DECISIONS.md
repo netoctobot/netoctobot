@@ -47,7 +47,9 @@ These decisions are the source of truth for implementation. They supersede confl
 
 - Any Telegram channel creator can link their channel to any platform-managed bot; they do not need to own that bot.
 - Linking is event-driven from each bot’s `my_chat_member` update when it becomes a channel administrator. The platform bot does not ask the user to choose a bot or forward a channel message.
+- The add-to-channel link suggests post, edit, delete, and invite rights. Linking requires only administrator status plus post and delete rights; edit and invite remain optional.
 - Linking requires Telegram `creator` status; administrator status alone is insufficient.
+- Channel-link feedback uses the user’s `UserBotPreference` for that specific bot. Success is a separate message deleted after five seconds, then the same dashboard message returns to that bot’s home view.
 - The currently verified Telegram creator becomes `Channel.ownerId`. A later verified ownership transfer updates the channel owner for future activity only.
 - Historical ad placements keep their snapshotted `channelOwnerId` and revenue policy.
 - The first successfully linked channel lazily creates the owner’s single wallet.

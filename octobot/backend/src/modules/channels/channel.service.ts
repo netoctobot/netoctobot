@@ -5,6 +5,7 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 import type { Bot as TelegramBot } from "grammy";
+import type { ChatMember } from "grammy/types";
 
 export class ChannelNotFoundError extends Error {
   constructor() {
@@ -25,6 +26,26 @@ export class BotAdminRequiredError extends Error {
     super("The selected bot is not a channel administrator");
     this.name = "BotAdminRequiredError";
   }
+}
+
+export class BotPermissionsRequiredError extends Error {
+  constructor() {
+    super("The bot needs post and delete message permissions");
+    this.name = "BotPermissionsRequiredError";
+  }
+}
+
+export function hasRequiredChannelRights(
+  membership: ChatMember,
+): boolean {
+  if (membership.status === "creator") {
+    return true;
+  }
+  return (
+    membership.status === "administrator" &&
+    Boolean(membership.can_post_messages) &&
+    Boolean(membership.can_delete_messages)
+  );
 }
 
 export interface ChannelLinkResult {
@@ -68,6 +89,9 @@ export async function verifyAndLinkChannel(input: {
     botMembership.status !== "creator"
   ) {
     throw new BotAdminRequiredError();
+  }
+  if (!hasRequiredChannelRights(botMembership)) {
+    throw new BotPermissionsRequiredError();
   }
 
   const isCreator = botMembership.status === "creator";

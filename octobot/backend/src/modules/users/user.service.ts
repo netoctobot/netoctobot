@@ -14,16 +14,16 @@ export interface TelegramUserProfile {
   language_code?: string;
 }
 
-export interface PlatformUserContext {
+export interface UserBotContext {
   user: User;
   preference: UserBotPreference;
 }
 
-export async function syncPlatformUser(
+export async function syncBotUser(
   prisma: PrismaClient,
   profile: TelegramUserProfile,
-  platformBotId: string,
-): Promise<PlatformUserContext> {
+  botId: string,
+): Promise<UserBotContext> {
   return prisma.$transaction(async (transaction) => {
     const user = await transaction.user.upsert({
       where: { telegramId: BigInt(profile.id) },
@@ -45,12 +45,12 @@ export async function syncPlatformUser(
       where: {
         userId_botId: {
           userId: user.id,
-          botId: platformBotId,
+          botId,
         },
       },
       create: {
         userId: user.id,
-        botId: platformBotId,
+        botId,
         language: normalizeTelegramLanguage(profile.language_code),
         isExplicit: false,
       },

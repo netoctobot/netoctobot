@@ -43,7 +43,7 @@ import {
 } from "./modules/localization/localization.service.js";
 import {
   setExplicitLanguage,
-  syncPlatformUser,
+  syncBotUser,
 } from "./modules/users/user.service.js";
 
 export type PlatformBotRuntime = ManagedBotRuntime;
@@ -51,6 +51,7 @@ export type PlatformBotRuntime = ManagedBotRuntime;
 async function editDashboard(
   context: Context,
   redis: Redis,
+  botId: string,
   view: DashboardView,
 ): Promise<void> {
   try {
@@ -65,7 +66,7 @@ async function editDashboard(
 
   const message = context.callbackQuery?.message;
   if (context.from && context.chat && message) {
-    await saveDashboardState(redis, context.from.id, {
+    await saveDashboardState(redis, botId, context.from.id, {
       chatId: context.chat.id,
       messageId: message.message_id,
     });
@@ -113,14 +114,18 @@ function registerPlatformHandlers(
       context.from.id,
     );
     await clearActiveFlow(redis, context.from.id);
-    const { preference } = await syncPlatformUser(
+    const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
     );
     const view = buildMainMenu(preference.language);
     const dashboard =
-      (await getDashboardState(redis, context.from.id)) ??
+      (await getDashboardState(
+        redis,
+        platformBotId,
+        context.from.id,
+      )) ??
       (creationState
         ? {
             chatId: creationState.chatId,
@@ -137,20 +142,29 @@ function registerPlatformHandlers(
           view.text,
           { reply_markup: view.keyboard },
         );
-        await saveDashboardState(redis, context.from.id, dashboard);
+        await saveDashboardState(
+          redis,
+          platformBotId,
+          context.from.id,
+          dashboard,
+        );
         return;
       } catch (error) {
         if (isMessageNotModified(error)) {
           return;
         }
-        await clearDashboardState(redis, context.from.id);
+        await clearDashboardState(
+          redis,
+          platformBotId,
+          context.from.id,
+        );
       }
     }
 
     const message = await context.reply(view.text, {
       reply_markup: view.keyboard,
     });
-    await saveDashboardState(redis, context.from.id, {
+    await saveDashboardState(redis, platformBotId, context.from.id, {
       chatId: context.chat.id,
       messageId: message.message_id,
     });
@@ -161,7 +175,7 @@ function registerPlatformHandlers(
 
   bot.callbackQuery("menu:home", async (context) => {
     await clearActiveFlow(redis, context.from.id);
-    const { preference } = await syncPlatformUser(
+    const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
@@ -169,6 +183,7 @@ function registerPlatformHandlers(
     await editDashboard(
       context,
       redis,
+      platformBotId,
       buildMainMenu(preference.language),
     );
     await context.answerCallbackQuery();
@@ -176,7 +191,7 @@ function registerPlatformHandlers(
 
   bot.callbackQuery("language:select", async (context) => {
     await clearActiveFlow(redis, context.from.id);
-    const { preference } = await syncPlatformUser(
+    const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
@@ -184,6 +199,7 @@ function registerPlatformHandlers(
     await editDashboard(
       context,
       redis,
+      platformBotId,
       buildLanguageMenu(preference.language),
     );
     await context.answerCallbackQuery();
@@ -191,7 +207,7 @@ function registerPlatformHandlers(
 
   bot.callbackQuery("menu:create-bot", async (context) => {
     await clearActiveFlow(redis, context.from.id);
-    const { preference } = await syncPlatformUser(
+    const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
@@ -199,6 +215,7 @@ function registerPlatformHandlers(
     await editDashboard(
       context,
       redis,
+      platformBotId,
       buildBotTypeMenu(preference.language),
     );
     await context.answerCallbackQuery();
@@ -213,7 +230,7 @@ function registerPlatformHandlers(
         return;
       }
 
-      const { user, preference } = await syncPlatformUser(
+      const { user, preference } = await syncBotUser(
         prisma,
         context.from,
         platformBotId,
@@ -232,6 +249,7 @@ function registerPlatformHandlers(
       await editDashboard(
         context,
         redis,
+        platformBotId,
         buildBotTokenPrompt(preference.language),
       );
       await context.answerCallbackQuery();
@@ -240,7 +258,7 @@ function registerPlatformHandlers(
 
   bot.callbackQuery("bot:create:cancel", async (context) => {
     await clearActiveFlow(redis, context.from.id);
-    const { preference } = await syncPlatformUser(
+    const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
@@ -248,6 +266,7 @@ function registerPlatformHandlers(
     await editDashboard(
       context,
       redis,
+      platformBotId,
       buildMainMenu(preference.language),
     );
     await context.answerCallbackQuery();
@@ -255,7 +274,7 @@ function registerPlatformHandlers(
 
   bot.callbackQuery("menu:add-channel", async (context) => {
     await clearActiveFlow(redis, context.from.id);
-    const { preference } = await syncPlatformUser(
+    const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
@@ -263,21 +282,30 @@ function registerPlatformHandlers(
     await editDashboard(
       context,
       redis,
-      buildAutomaticChannelInstructions(preference.language),
+      platformBotId,
+      buildAutomaticChannelInstructions(
+        preference.language,
+        bot.botInfo.username,
+      ),
     );
     await context.answerCallbackQuery();
   });
 
   bot.callbackQuery(/^language:set:(AR|EN)$/, async (context) => {
     await clearActiveFlow(redis, context.from.id);
-    const { user } = await syncPlatformUser(
+    const { user } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
     );
     const language = context.match[1] as SupportedLanguage;
     await setExplicitLanguage(prisma, user.id, platformBotId, language);
-    await editDashboard(context, redis, buildMainMenu(language));
+    await editDashboard(
+      context,
+      redis,
+      platformBotId,
+      buildMainMenu(language),
+    );
     await context.answerCallbackQuery();
   });
 
@@ -285,7 +313,7 @@ function registerPlatformHandlers(
     /^menu:(my-bots|my-channels|ads|wallet|help)$/,
     async (context) => {
       await clearActiveFlow(redis, context.from.id);
-      const { preference } = await syncPlatformUser(
+      const { preference } = await syncBotUser(
         prisma,
         context.from,
         platformBotId,
@@ -293,6 +321,7 @@ function registerPlatformHandlers(
       await editDashboard(
         context,
         redis,
+        platformBotId,
         buildComingSoonMenu(preference.language),
       );
       await context.answerCallbackQuery();
@@ -304,7 +333,7 @@ function registerPlatformHandlers(
       return;
     }
 
-    const { preference } = await syncPlatformUser(
+    const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
@@ -329,10 +358,15 @@ function registerPlatformHandlers(
             throw error;
           }
         }
-        await saveDashboardState(redis, context.from.id, {
+        await saveDashboardState(
+          redis,
+          platformBotId,
+          context.from.id,
+          {
           chatId: creationState.chatId,
           messageId: creationState.dashboardMessageId,
-        });
+          },
+        );
       };
       const token = context.message.text?.trim() ?? "";
 

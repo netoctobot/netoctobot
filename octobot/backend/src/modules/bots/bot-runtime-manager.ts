@@ -4,23 +4,33 @@ import {
   LinkStatus,
   type Bot as DatabaseBot,
   type PrismaClient,
+  type SupportedLanguage,
 } from "@prisma/client";
 import { Bot as TelegramBot } from "grammy";
+import type { Redis } from "ioredis";
 import type { Env } from "../../config/env.js";
 import {
   decryptToken,
   encryptToken,
 } from "../../lib/token-crypto.js";
-import {
-  normalizeTelegramLanguage,
-  translate,
-} from "../localization/localization.service.js";
+import { translate } from "../localization/localization.service.js";
 import {
   BotAdminRequiredError,
   ChannelNotFoundError,
   ChannelOwnerRequiredError,
+  BotPermissionsRequiredError,
   verifyAndLinkChannel,
 } from "../channels/channel.service.js";
+import {
+  getDashboardState,
+  saveDashboardState,
+} from "./dashboard-state.js";
+import {
+  buildMainMenu,
+  type DashboardView,
+} from "./platform-menu.js";
+import { buildSubBotHome } from "./sub-bot-menu.js";
+import { syncBotUser } from "../users/user.service.js";
 
 export interface ManagedBotRuntime {
   bot: TelegramBot;
@@ -81,33 +91,13 @@ function defaultMessages(botType: BotType): {
   };
 }
 
-function localizedWelcome(record: DatabaseBot, languageCode?: string): string {
-  const messages = record.welcomeMessages as Record<string, unknown>;
-  const key =
-    normalizeTelegramLanguage(languageCode) === "AR" ? "ar" : "en";
-  const value = messages[key];
-  return typeof value === "string"
-    ? value
-    : "This bot is not configured yet.";
-}
-
-function registerUserBotHandlers(runtime: ManagedBotRuntime): void {
-  runtime.bot.command("start", async (context) => {
-    await context.reply(
-      localizedWelcome(
-        runtime.botRecord,
-        context.from?.language_code,
-      ),
-    );
-  });
-}
-
 export class BotRuntimeManager {
   readonly #runtimes = new Map<string, ManagedBotRuntime>();
 
   constructor(
     private readonly env: Env,
     private readonly prisma: PrismaClient,
+    private readonly redis: Redis,
   ) {}
 
   add(runtime: ManagedBotRuntime): void {
@@ -119,6 +109,144 @@ export class BotRuntimeManager {
 
   get(botId: string): ManagedBotRuntime | undefined {
     return this.#runtimes.get(botId);
+  }
+
+  private buildHome(
+    record: DatabaseBot,
+    language: SupportedLanguage,
+  ): DashboardView {
+    return record.botType === BotType.PLATFORM_BOT
+      ? buildMainMenu(language)
+      : buildSubBotHome(record, language);
+  }
+
+  private isMessageNotModified(error: unknown): boolean {
+    return (
+      error instanceof Error &&
+      error.message.toLowerCase().includes("message is not modified")
+    );
+  }
+
+  private registerUserBotHandlers(runtime: ManagedBotRuntime): void {
+    runtime.bot.command("start", async (context) => {
+      if (!context.from || context.chat.type !== "private") {
+        return;
+      }
+
+      const { preference } = await syncBotUser(
+        this.prisma,
+        context.from,
+        runtime.botRecord.id,
+      );
+      const view = this.buildHome(
+        runtime.botRecord,
+        preference.language,
+      );
+      const dashboard = await getDashboardState(
+        this.redis,
+        runtime.botRecord.id,
+        context.from.id,
+      );
+
+      if (dashboard?.chatId === context.chat.id) {
+        await context.deleteMessage().catch(() => undefined);
+        try {
+          await context.api.editMessageText(
+            dashboard.chatId,
+            dashboard.messageId,
+            view.text,
+            { reply_markup: view.keyboard },
+          );
+          return;
+        } catch (error) {
+          if (this.isMessageNotModified(error)) {
+            return;
+          }
+        }
+      }
+
+      const message = await context.reply(view.text, {
+        reply_markup: view.keyboard,
+      });
+      await saveDashboardState(
+        this.redis,
+        runtime.botRecord.id,
+        context.from.id,
+        {
+          chatId: context.chat.id,
+          messageId: message.message_id,
+        },
+      );
+    });
+  }
+
+  private async deactivateChannelLink(
+    botId: string,
+    channelTelegramId: number,
+  ): Promise<void> {
+    const channel = await this.prisma.channel.findUnique({
+      where: { channelTelegramId: BigInt(channelTelegramId) },
+      select: { id: true },
+    });
+    if (!channel) {
+      return;
+    }
+    await this.prisma.botChannelLink.updateMany({
+      where: { botId, channelId: channel.id },
+      data: { status: LinkStatus.INACTIVE },
+    });
+  }
+
+  private async showTemporarySuccess(input: {
+    runtime: ManagedBotRuntime;
+    telegramUserId: number;
+    language: SupportedLanguage;
+    text: string;
+  }): Promise<void> {
+    const confirmation = await input.runtime.bot.api
+      .sendMessage(input.telegramUserId, input.text)
+      .catch(() => null);
+    const dashboard = await getDashboardState(
+      this.redis,
+      input.runtime.botRecord.id,
+      input.telegramUserId,
+    );
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (confirmation) {
+          await input.runtime.bot.api
+            .deleteMessage(
+              confirmation.chat.id,
+              confirmation.message_id,
+            )
+            .catch(() => undefined);
+        }
+        if (!dashboard) {
+          return;
+        }
+
+        const home = this.buildHome(
+          input.runtime.botRecord,
+          input.language,
+        );
+        try {
+          await input.runtime.bot.api.editMessageText(
+            dashboard.chatId,
+            dashboard.messageId,
+            home.text,
+            { reply_markup: home.keyboard },
+          );
+        } catch (error) {
+          if (!this.isMessageNotModified(error)) {
+            console.error(
+              `Failed to restore bot dashboard ${input.runtime.botRecord.id}`,
+            );
+          }
+        }
+      })();
+    }, 5_000);
+    timer.unref();
   }
 
   private registerChannelMembershipHandler(
@@ -138,40 +266,21 @@ export class BotRuntimeManager {
 
       if (!isNowAdmin) {
         if (wasLinked) {
-          const channel = await this.prisma.channel.findUnique({
-            where: { channelTelegramId: BigInt(context.chat.id) },
-            select: { id: true },
-          });
-          if (channel) {
-            await this.prisma.botChannelLink.updateMany({
-              where: {
-                botId: runtime.botRecord.id,
-                channelId: channel.id,
-              },
-              data: { status: LinkStatus.INACTIVE },
-            });
-          }
+          await this.deactivateChannelLink(
+            runtime.botRecord.id,
+            context.chat.id,
+          );
         }
         return;
       }
 
       const actor = context.from;
-      const language = normalizeTelegramLanguage(actor.language_code);
-      const user = await this.prisma.user.upsert({
-        where: { telegramId: BigInt(actor.id) },
-        create: {
-          telegramId: BigInt(actor.id),
-          username: actor.username ?? null,
-          firstName: actor.first_name,
-          lastName: actor.last_name ?? null,
-        },
-        update: {
-          username: actor.username ?? null,
-          firstName: actor.first_name,
-          lastName: actor.last_name ?? null,
-          deletedAt: null,
-        },
-      });
+      const { user, preference } = await syncBotUser(
+        this.prisma,
+        actor,
+        runtime.botRecord.id,
+      );
+      const language = preference.language;
 
       const notify = async (text: string) => {
         await runtime.bot.api
@@ -188,20 +297,34 @@ export class BotRuntimeManager {
           ownerTelegramId: actor.id,
           chatReference: context.chat.id,
         });
-        await notify(
-          translate(language, "channelLink.success", {
+        await this.showTemporarySuccess({
+          runtime,
+          telegramUserId: actor.id,
+          language,
+          text: translate(language, "channelLink.success", {
             title:
               result.channel.title ??
               result.channel.username ??
               result.channel.channelTelegramId.toString(),
           }),
-        );
+        });
       } catch (error) {
+        if (
+          error instanceof BotAdminRequiredError ||
+          error instanceof BotPermissionsRequiredError
+        ) {
+          await this.deactivateChannelLink(
+            runtime.botRecord.id,
+            context.chat.id,
+          );
+        }
         const messageKey =
           error instanceof ChannelOwnerRequiredError
             ? "channelLink.ownerRequired"
             : error instanceof BotAdminRequiredError
               ? "channelLink.botAdminRequired"
+              : error instanceof BotPermissionsRequiredError
+                ? "channelLink.requiredPermissions"
               : error instanceof ChannelNotFoundError
                 ? "channelLink.notFound"
                 : "channelLink.failed";
@@ -228,7 +351,7 @@ export class BotRuntimeManager {
         const bot = new TelegramBot(token);
         await bot.init();
         const runtime = { bot, botRecord: record };
-        registerUserBotHandlers(runtime);
+        this.registerUserBotHandlers(runtime);
         this.add(runtime);
       } catch (error) {
         const reason =
@@ -329,7 +452,7 @@ export class BotRuntimeManager {
       );
 
       const activeRuntime = { bot, botRecord: activeRecord };
-      registerUserBotHandlers(activeRuntime);
+      this.registerUserBotHandlers(activeRuntime);
       this.add(activeRuntime);
       return activeRecord;
     } catch (error) {
