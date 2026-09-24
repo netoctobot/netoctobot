@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import {
   BotType,
+  LinkStatus,
   type Bot as DatabaseBot,
   type PrismaClient,
 } from "@prisma/client";
@@ -10,7 +11,16 @@ import {
   decryptToken,
   encryptToken,
 } from "../../lib/token-crypto.js";
-import { normalizeTelegramLanguage } from "../localization/localization.service.js";
+import {
+  normalizeTelegramLanguage,
+  translate,
+} from "../localization/localization.service.js";
+import {
+  BotAdminRequiredError,
+  ChannelNotFoundError,
+  ChannelOwnerRequiredError,
+  verifyAndLinkChannel,
+} from "../channels/channel.service.js";
 
 export interface ManagedBotRuntime {
   bot: TelegramBot;
@@ -101,11 +111,103 @@ export class BotRuntimeManager {
   ) {}
 
   add(runtime: ManagedBotRuntime): void {
+    if (!this.#runtimes.has(runtime.botRecord.id)) {
+      this.registerChannelMembershipHandler(runtime);
+    }
     this.#runtimes.set(runtime.botRecord.id, runtime);
   }
 
   get(botId: string): ManagedBotRuntime | undefined {
     return this.#runtimes.get(botId);
+  }
+
+  private registerChannelMembershipHandler(
+    runtime: ManagedBotRuntime,
+  ): void {
+    runtime.bot.on("my_chat_member", async (context) => {
+      if (context.chat.type !== "channel") {
+        return;
+      }
+
+      const newStatus = context.myChatMember.new_chat_member.status;
+      const wasLinked =
+        context.myChatMember.old_chat_member.status === "administrator" ||
+        context.myChatMember.old_chat_member.status === "creator";
+      const isNowAdmin =
+        newStatus === "administrator" || newStatus === "creator";
+
+      if (!isNowAdmin) {
+        if (wasLinked) {
+          const channel = await this.prisma.channel.findUnique({
+            where: { channelTelegramId: BigInt(context.chat.id) },
+            select: { id: true },
+          });
+          if (channel) {
+            await this.prisma.botChannelLink.updateMany({
+              where: {
+                botId: runtime.botRecord.id,
+                channelId: channel.id,
+              },
+              data: { status: LinkStatus.INACTIVE },
+            });
+          }
+        }
+        return;
+      }
+
+      const actor = context.from;
+      const language = normalizeTelegramLanguage(actor.language_code);
+      const user = await this.prisma.user.upsert({
+        where: { telegramId: BigInt(actor.id) },
+        create: {
+          telegramId: BigInt(actor.id),
+          username: actor.username ?? null,
+          firstName: actor.first_name,
+          lastName: actor.last_name ?? null,
+        },
+        update: {
+          username: actor.username ?? null,
+          firstName: actor.first_name,
+          lastName: actor.last_name ?? null,
+          deletedAt: null,
+        },
+      });
+
+      const notify = async (text: string) => {
+        await runtime.bot.api
+          .sendMessage(actor.id, text)
+          .catch(() => undefined);
+      };
+
+      try {
+        const result = await verifyAndLinkChannel({
+          prisma: this.prisma,
+          telegramBot: runtime.bot,
+          databaseBot: runtime.botRecord,
+          ownerId: user.id,
+          ownerTelegramId: actor.id,
+          chatReference: context.chat.id,
+        });
+        await notify(
+          translate(language, "channelLink.success", {
+            title:
+              result.channel.title ??
+              result.channel.username ??
+              result.channel.channelTelegramId.toString(),
+          }),
+        );
+      } catch (error) {
+        const messageKey =
+          error instanceof ChannelOwnerRequiredError
+            ? "channelLink.ownerRequired"
+            : error instanceof BotAdminRequiredError
+              ? "channelLink.botAdminRequired"
+              : error instanceof ChannelNotFoundError
+                ? "channelLink.notFound"
+                : "channelLink.failed";
+        await notify(translate(language, messageKey));
+      }
+    });
   }
 
   async loadActiveUserBots(): Promise<void> {
@@ -257,7 +359,11 @@ export class BotRuntimeManager {
         this.env.WEBHOOK_SECRET,
         runtime.botRecord.id,
       ),
-      allowed_updates: ["message", "callback_query"],
+      allowed_updates: [
+        "message",
+        "callback_query",
+        "my_chat_member",
+      ],
     });
   }
 }

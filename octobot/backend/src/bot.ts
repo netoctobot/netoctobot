@@ -14,9 +14,7 @@ import {
   buildBotCreationSuccess,
   buildBotTokenPrompt,
   buildBotTypeMenu,
-  buildChannelBotSelection,
-  buildChannelLinkPrompt,
-  buildChannelLinkSuccess,
+  buildAutomaticChannelInstructions,
   buildComingSoonMenu,
   buildLanguageMenu,
   buildMainMenu,
@@ -40,17 +38,6 @@ import {
   saveDashboardState,
 } from "./modules/bots/dashboard-state.js";
 import {
-  clearChannelLinkState,
-  getChannelLinkState,
-  saveChannelLinkState,
-} from "./modules/channels/channel-link-state.js";
-import {
-  BotAdminRequiredError,
-  ChannelNotFoundError,
-  ChannelOwnerRequiredError,
-  verifyAndLinkChannel,
-} from "./modules/channels/channel.service.js";
-import {
   normalizeTelegramLanguage,
   translate,
 } from "./modules/localization/localization.service.js";
@@ -66,9 +53,15 @@ async function editDashboard(
   redis: Redis,
   view: DashboardView,
 ): Promise<void> {
-  await context.editMessageText(view.text, {
-    reply_markup: view.keyboard,
-  });
+  try {
+    await context.editMessageText(view.text, {
+      reply_markup: view.keyboard,
+    });
+  } catch (error) {
+    if (!isMessageNotModified(error)) {
+      throw error;
+    }
+  }
 
   const message = context.callbackQuery?.message;
   if (context.from && context.chat && message) {
@@ -90,10 +83,7 @@ async function clearActiveFlow(
   redis: Redis,
   telegramUserId: number,
 ): Promise<void> {
-  await Promise.all([
-    clearBotCreationState(redis, telegramUserId),
-    clearChannelLinkState(redis, telegramUserId),
-  ]);
+  await clearBotCreationState(redis, telegramUserId);
 }
 
 function registerPlatformHandlers(
@@ -122,10 +112,6 @@ function registerPlatformHandlers(
       redis,
       context.from.id,
     );
-    const channelState = await getChannelLinkState(
-      redis,
-      context.from.id,
-    );
     await clearActiveFlow(redis, context.from.id);
     const { preference } = await syncPlatformUser(
       prisma,
@@ -140,12 +126,7 @@ function registerPlatformHandlers(
             chatId: creationState.chatId,
             messageId: creationState.dashboardMessageId,
           }
-        : channelState
-          ? {
-              chatId: channelState.chatId,
-              messageId: channelState.dashboardMessageId,
-            }
-          : null);
+        : null);
 
     if (dashboard?.chatId === context.chat.id) {
       await context.deleteMessage().catch(() => undefined);
@@ -274,82 +255,6 @@ function registerPlatformHandlers(
 
   bot.callbackQuery("menu:add-channel", async (context) => {
     await clearActiveFlow(redis, context.from.id);
-    const { user, preference } = await syncPlatformUser(
-      prisma,
-      context.from,
-      platformBotId,
-    );
-    const bots = await prisma.bot.findMany({
-      where: {
-        ownerId: user.id,
-        isActive: true,
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        botUsername: true,
-        botType: true,
-      },
-    });
-    await editDashboard(
-      context,
-      redis,
-      buildChannelBotSelection(preference.language, bots),
-    );
-    await context.answerCallbackQuery();
-  });
-
-  bot.callbackQuery(/^channel:bot:(.+)$/, async (context) => {
-    const message = context.callbackQuery.message;
-    if (!message || context.chat?.type !== "private") {
-      await context.answerCallbackQuery();
-      return;
-    }
-
-    const { user, preference } = await syncPlatformUser(
-      prisma,
-      context.from,
-      platformBotId,
-    );
-    const selectedBot = await prisma.bot.findFirst({
-      where: {
-        id: context.match[1],
-        ownerId: user.id,
-        isActive: true,
-        deletedAt: null,
-      },
-    });
-    if (!selectedBot || !runtimeManager.get(selectedBot.id)) {
-      await editDashboard(
-        context,
-        redis,
-        buildChannelLinkPrompt(
-          preference.language,
-          "channelLink.failed",
-        ),
-      );
-      await context.answerCallbackQuery();
-      return;
-    }
-
-    await clearActiveFlow(redis, context.from.id);
-    await saveChannelLinkState(redis, context.from.id, {
-      ownerId: user.id,
-      botId: selectedBot.id,
-      chatId: context.chat.id,
-      dashboardMessageId: message.message_id,
-    });
-    await editDashboard(
-      context,
-      redis,
-      buildChannelLinkPrompt(preference.language),
-    );
-    await context.answerCallbackQuery();
-  });
-
-  bot.callbackQuery("channel:cancel", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
     const { preference } = await syncPlatformUser(
       prisma,
       context.from,
@@ -358,7 +263,7 @@ function registerPlatformHandlers(
     await editDashboard(
       context,
       redis,
-      buildMainMenu(preference.language),
+      buildAutomaticChannelInstructions(preference.language),
     );
     await context.answerCallbackQuery();
   });
@@ -412,12 +317,18 @@ function registerPlatformHandlers(
     if (creationState?.chatId === context.chat.id) {
       await context.deleteMessage().catch(() => undefined);
       const updateCreationMessage = async (view: DashboardView) => {
-        await context.api.editMessageText(
-          creationState.chatId,
-          creationState.dashboardMessageId,
-          view.text,
-          { reply_markup: view.keyboard },
-        );
+        try {
+          await context.api.editMessageText(
+            creationState.chatId,
+            creationState.dashboardMessageId,
+            view.text,
+            { reply_markup: view.keyboard },
+          );
+        } catch (error) {
+          if (!isMessageNotModified(error)) {
+            throw error;
+          }
+        }
         await saveDashboardState(redis, context.from.id, {
           chatId: creationState.chatId,
           messageId: creationState.dashboardMessageId,
@@ -460,80 +371,6 @@ function registerPlatformHandlers(
         );
       }
       return;
-    }
-
-    const channelState = await getChannelLinkState(
-      redis,
-      context.from.id,
-    );
-    if (!channelState || channelState.chatId !== context.chat.id) {
-      return;
-    }
-
-    await context.deleteMessage().catch(() => undefined);
-    const updateChannelMessage = async (view: DashboardView) => {
-      await context.api.editMessageText(
-        channelState.chatId,
-        channelState.dashboardMessageId,
-        view.text,
-        { reply_markup: view.keyboard },
-      );
-      await saveDashboardState(redis, context.from.id, {
-        chatId: channelState.chatId,
-        messageId: channelState.dashboardMessageId,
-      });
-    };
-
-    const forwardOrigin = context.message.forward_origin;
-    const text = context.message.text?.trim();
-    const chatReference =
-      forwardOrigin?.type === "channel"
-        ? forwardOrigin.chat.id
-        : text && /^@[A-Za-z0-9_]{5,}$/.test(text)
-          ? text
-          : null;
-    const selectedRuntime = runtimeManager.get(channelState.botId);
-
-    if (!chatReference || !selectedRuntime) {
-      await updateChannelMessage(
-        buildChannelLinkPrompt(
-          preference.language,
-          "channelLink.notFound",
-        ),
-      );
-      return;
-    }
-
-    try {
-      const result = await verifyAndLinkChannel({
-        prisma,
-        telegramBot: selectedRuntime.bot,
-        databaseBot: selectedRuntime.botRecord,
-        ownerId: channelState.ownerId,
-        ownerTelegramId: context.from.id,
-        chatReference,
-      });
-      await clearActiveFlow(redis, context.from.id);
-      await updateChannelMessage(
-        buildChannelLinkSuccess(
-          preference.language,
-          result.channel.title ??
-            result.channel.username ??
-            result.channel.channelTelegramId.toString(),
-        ),
-      );
-    } catch (error) {
-      const messageKey =
-        error instanceof ChannelOwnerRequiredError
-          ? "channelLink.ownerRequired"
-          : error instanceof BotAdminRequiredError
-            ? "channelLink.botAdminRequired"
-            : error instanceof ChannelNotFoundError
-              ? "channelLink.notFound"
-              : "channelLink.failed";
-      await updateChannelMessage(
-        buildChannelLinkPrompt(preference.language, messageKey),
-      );
     }
   });
 }

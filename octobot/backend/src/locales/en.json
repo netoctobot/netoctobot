@@ -36,6 +36,7 @@
     "cancel": "Cancel"
   },
   "channelLink": {
+    "autoInstructions": "To link a channel, add the desired bot as a channel administrator. The bot will verify automatically that you own the channel and link it without forwarded messages.",
     "selectBot": "Choose the bot you added as a channel administrator:",
     "noBots": "You have no active bot. Create one first, then add it as a channel administrator.",
     "sendReference": "Send the channel username, such as @channel, or forward a message from the channel.",
