@@ -32,6 +32,11 @@ import {
   saveBotCreationState,
 } from "./modules/bots/bot-creation-state.js";
 import {
+  clearDashboardState,
+  getDashboardState,
+  saveDashboardState,
+} from "./modules/bots/dashboard-state.js";
+import {
   normalizeTelegramLanguage,
   translate,
 } from "./modules/localization/localization.service.js";
@@ -44,11 +49,27 @@ export type PlatformBotRuntime = ManagedBotRuntime;
 
 async function editDashboard(
   context: Context,
+  redis: Redis,
   view: DashboardView,
 ): Promise<void> {
   await context.editMessageText(view.text, {
     reply_markup: view.keyboard,
   });
+
+  const message = context.callbackQuery?.message;
+  if (context.from && context.chat && message) {
+    await saveDashboardState(redis, context.from.id, {
+      chatId: context.chat.id,
+      messageId: message.message_id,
+    });
+  }
+}
+
+function isMessageNotModified(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.toLowerCase().includes("message is not modified")
+  );
 }
 
 function registerPlatformHandlers(
@@ -58,12 +79,12 @@ function registerPlatformHandlers(
   runtimeManager: BotRuntimeManager,
   redis: Redis,
 ): void {
-  bot.command("start", async (context) => {
+  const showHomeFromCommand = async (context: Context) => {
     if (!context.from) {
       return;
     }
 
-    if (context.chat.type !== "private") {
+    if (context.chat?.type !== "private") {
       await context.reply(
         translate(
           normalizeTelegramLanguage(context.from.language_code),
@@ -73,14 +94,56 @@ function registerPlatformHandlers(
       return;
     }
 
+    const creationState = await getBotCreationState(
+      redis,
+      context.from.id,
+    );
+    await clearBotCreationState(redis, context.from.id);
     const { preference } = await syncPlatformUser(
       prisma,
       context.from,
       platformBotId,
     );
     const view = buildMainMenu(preference.language);
-    await context.reply(view.text, { reply_markup: view.keyboard });
-  });
+    const dashboard =
+      (await getDashboardState(redis, context.from.id)) ??
+      (creationState
+        ? {
+            chatId: creationState.chatId,
+            messageId: creationState.dashboardMessageId,
+          }
+        : null);
+
+    if (dashboard?.chatId === context.chat.id) {
+      await context.deleteMessage().catch(() => undefined);
+      try {
+        await context.api.editMessageText(
+          dashboard.chatId,
+          dashboard.messageId,
+          view.text,
+          { reply_markup: view.keyboard },
+        );
+        await saveDashboardState(redis, context.from.id, dashboard);
+        return;
+      } catch (error) {
+        if (isMessageNotModified(error)) {
+          return;
+        }
+        await clearDashboardState(redis, context.from.id);
+      }
+    }
+
+    const message = await context.reply(view.text, {
+      reply_markup: view.keyboard,
+    });
+    await saveDashboardState(redis, context.from.id, {
+      chatId: context.chat.id,
+      messageId: message.message_id,
+    });
+  };
+
+  bot.command("start", showHomeFromCommand);
+  bot.command("cancel", showHomeFromCommand);
 
   bot.callbackQuery("menu:home", async (context) => {
     await clearBotCreationState(redis, context.from.id);
@@ -89,7 +152,11 @@ function registerPlatformHandlers(
       context.from,
       platformBotId,
     );
-    await editDashboard(context, buildMainMenu(preference.language));
+    await editDashboard(
+      context,
+      redis,
+      buildMainMenu(preference.language),
+    );
     await context.answerCallbackQuery();
   });
 
@@ -99,7 +166,11 @@ function registerPlatformHandlers(
       context.from,
       platformBotId,
     );
-    await editDashboard(context, buildLanguageMenu(preference.language));
+    await editDashboard(
+      context,
+      redis,
+      buildLanguageMenu(preference.language),
+    );
     await context.answerCallbackQuery();
   });
 
@@ -110,7 +181,11 @@ function registerPlatformHandlers(
       context.from,
       platformBotId,
     );
-    await editDashboard(context, buildBotTypeMenu(preference.language));
+    await editDashboard(
+      context,
+      redis,
+      buildBotTypeMenu(preference.language),
+    );
     await context.answerCallbackQuery();
   });
 
@@ -140,6 +215,7 @@ function registerPlatformHandlers(
       });
       await editDashboard(
         context,
+        redis,
         buildBotTokenPrompt(preference.language),
       );
       await context.answerCallbackQuery();
@@ -153,7 +229,11 @@ function registerPlatformHandlers(
       context.from,
       platformBotId,
     );
-    await editDashboard(context, buildMainMenu(preference.language));
+    await editDashboard(
+      context,
+      redis,
+      buildMainMenu(preference.language),
+    );
     await context.answerCallbackQuery();
   });
 
@@ -165,7 +245,7 @@ function registerPlatformHandlers(
     );
     const language = context.match[1] as SupportedLanguage;
     await setExplicitLanguage(prisma, user.id, platformBotId, language);
-    await editDashboard(context, buildMainMenu(language));
+    await editDashboard(context, redis, buildMainMenu(language));
     await context.answerCallbackQuery();
   });
 
@@ -177,7 +257,11 @@ function registerPlatformHandlers(
         context.from,
         platformBotId,
       );
-      await editDashboard(context, buildComingSoonMenu(preference.language));
+      await editDashboard(
+        context,
+        redis,
+        buildComingSoonMenu(preference.language),
+      );
       await context.answerCallbackQuery();
     },
   );
@@ -207,6 +291,10 @@ function registerPlatformHandlers(
         view.text,
         { reply_markup: view.keyboard },
       );
+      await saveDashboardState(redis, context.from.id, {
+        chatId: state.chatId,
+        messageId: state.dashboardMessageId,
+      });
     };
 
     if (!isBotTokenFormatValid(token)) {
