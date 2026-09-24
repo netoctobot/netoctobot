@@ -335,7 +335,6 @@ CREATE TABLE "forced_subscriptions" (
     "id" TEXT NOT NULL,
     "botId" TEXT NOT NULL,
     "channelId" TEXT NOT NULL,
-    "isPlatform" BOOLEAN NOT NULL DEFAULT false,
     "addedBy" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -565,7 +564,7 @@ CREATE INDEX "forced_subscriptions_botId_idx" ON "forced_subscriptions"("botId")
 CREATE INDEX "forced_subscriptions_channelId_idx" ON "forced_subscriptions"("channelId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "forced_subscriptions_botId_channelId_isPlatform_key" ON "forced_subscriptions"("botId", "channelId", "isPlatform");
+CREATE UNIQUE INDEX "forced_subscriptions_botId_channelId_key" ON "forced_subscriptions"("botId", "channelId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "admin_roles_userId_key" ON "admin_roles"("userId");

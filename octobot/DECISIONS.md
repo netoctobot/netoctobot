@@ -14,6 +14,8 @@ These decisions are the source of truth for implementation. They supersede confl
 - It is not offered in the “create bot” UI.
 - `PlatformSettings` is a singleton that points at `platformBotId`.
 - On boot: read `BOT_TOKEN` from env, call `getMe`, upsert the row, register the webhook.
+- Bootstrap the Owner user from `OWNER_TELEGRAM_ID`; this does not create a wallet.
+- Webhook registration can be disabled for local development, but must use HTTPS when enabled.
 
 ## Users and contact visitors
 

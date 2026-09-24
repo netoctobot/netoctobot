@@ -4,5 +4,27 @@
   },
   "health": {
     "ok": "سليم"
+  },
+  "menu": {
+    "title": "لوحة تحكم أوكتوبوت",
+    "createBot": "إنشاء بوت جديد",
+    "addChannel": "إضافة قناة",
+    "myBots": "بوتاتي",
+    "myChannels": "قنواتي",
+    "ads": "الإعلانات",
+    "wallet": "المحفظة",
+    "help": "مساعدة",
+    "language": "اللغة",
+    "comingSoon": "هذا القسم قيد البناء.",
+    "back": "رجوع"
+  },
+  "language": {
+    "select": "اختر لغة الواجهة:",
+    "arabic": "العربية",
+    "english": "English"
+  },
+  "errors": {
+    "privateOnly": "استخدم هذا البوت في محادثة خاصة.",
+    "generic": "حدث خطأ غير متوقع. حاول مرة أخرى."
   }
 }

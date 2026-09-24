@@ -501,18 +501,17 @@ enum WithdrawalStatus {
 }
 
 model ForcedSubscription {
-  id         String   @id @default(cuid())
-  botId      String
-  channelId  String
-  isPlatform Boolean  @default(false)
-  addedBy    String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  botId     String
+  channelId String
+  addedBy   String
+  createdAt DateTime @default(now())
 
   bot         Bot     @relation(fields: [botId], references: [id])
   channel     Channel @relation(fields: [channelId], references: [id])
   addedByUser User    @relation(fields: [addedBy], references: [id])
 
-  @@unique([botId, channelId, isPlatform])
+  @@unique([botId, channelId])
   @@index([botId])
   @@index([channelId])
   @@map("forced_subscriptions")

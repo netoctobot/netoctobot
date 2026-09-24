@@ -4,5 +4,27 @@
   },
   "health": {
     "ok": "ok"
+  },
+  "menu": {
+    "title": "Octobot Control Panel",
+    "createBot": "Create a new bot",
+    "addChannel": "Add a channel",
+    "myBots": "My bots",
+    "myChannels": "My channels",
+    "ads": "Ads",
+    "wallet": "Wallet",
+    "help": "Help",
+    "language": "Language",
+    "comingSoon": "This section is under construction.",
+    "back": "Back"
+  },
+  "language": {
+    "select": "Choose the interface language:",
+    "arabic": "العربية",
+    "english": "English"
+  },
+  "errors": {
+    "privateOnly": "Use this bot in a private chat.",
+    "generic": "An unexpected error occurred. Please try again."
   }
 }
