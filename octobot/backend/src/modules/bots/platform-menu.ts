@@ -1,4 +1,7 @@
-import { SupportedLanguage } from "@prisma/client";
+import {
+  type Bot as DatabaseBot,
+  SupportedLanguage,
+} from "@prisma/client";
 import { InlineKeyboard } from "grammy";
 import {
   translate,
@@ -113,6 +116,65 @@ export function buildBotCreationSuccess(
 ): DashboardView {
   return {
     text: translate(language, "botCreation.success", { username }),
+    keyboard: new InlineKeyboard().text(
+      translate(language, "menu.back"),
+      "menu:home",
+    ),
+  };
+}
+
+export function buildChannelBotSelection(
+  language: SupportedLanguage,
+  bots: Array<
+    Pick<DatabaseBot, "id" | "botUsername" | "botType">
+  >,
+): DashboardView {
+  if (bots.length === 0) {
+    return {
+      text: translate(language, "channelLink.noBots"),
+      keyboard: new InlineKeyboard().text(
+        translate(language, "menu.back"),
+        "menu:home",
+      ),
+    };
+  }
+
+  const keyboard = new InlineKeyboard();
+  bots.forEach((bot) => {
+    keyboard.text(`@${bot.botUsername}`, `channel:bot:${bot.id}`).row();
+  });
+  keyboard.text(translate(language, "menu.back"), "menu:home");
+
+  return {
+    text: translate(language, "channelLink.selectBot"),
+    keyboard,
+  };
+}
+
+export function buildChannelLinkPrompt(
+  language: SupportedLanguage,
+  messageKey:
+    | "channelLink.sendReference"
+    | "channelLink.notFound"
+    | "channelLink.ownerRequired"
+    | "channelLink.botAdminRequired"
+    | "channelLink.failed" = "channelLink.sendReference",
+): DashboardView {
+  return {
+    text: translate(language, messageKey),
+    keyboard: new InlineKeyboard().text(
+      translate(language, "channelLink.cancel"),
+      "channel:cancel",
+    ),
+  };
+}
+
+export function buildChannelLinkSuccess(
+  language: SupportedLanguage,
+  title: string,
+): DashboardView {
+  return {
+    text: translate(language, "channelLink.success", { title }),
     keyboard: new InlineKeyboard().text(
       translate(language, "menu.back"),
       "menu:home",

@@ -35,6 +35,17 @@
     "failed": "The bot could not be created now. Please try again later.",
     "cancel": "Cancel"
   },
+  "channelLink": {
+    "selectBot": "Choose the bot you added as a channel administrator:",
+    "noBots": "You have no active bot. Create one first, then add it as a channel administrator.",
+    "sendReference": "Send the channel username, such as @channel, or forward a message from the channel.",
+    "notFound": "The channel could not be found. Check the username or forward a message from it.",
+    "ownerRequired": "You must be the channel owner (creator), not only an administrator.",
+    "botAdminRequired": "Add the selected bot as a channel administrator, then try again.",
+    "success": "Channel “{{title}}” was linked to the bot successfully.",
+    "failed": "The channel could not be linked now. Please try again later.",
+    "cancel": "Cancel"
+  },
   "errors": {
     "privateOnly": "Use this bot in a private chat.",
     "generic": "An unexpected error occurred. Please try again."

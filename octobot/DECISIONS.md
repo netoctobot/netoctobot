@@ -21,6 +21,8 @@ These decisions are the source of truth for implementation. They supersede confl
 
 - Contact-bot visitors do not get a SaaS `User` or wallet. Conversations use Telegram `originalUserId` only.
 - A `User` is created when someone uses the platform bot (`/start`). No wallet at that point.
+- The platform bot keeps one dashboard message and one active flow per user in Redis.
+- `/start`, `/cancel`, Home, or entering another section cancels stale flow state and edits the existing dashboard instead of leaving old prompts behind.
 
 ## Revenue share vs wallet
 
@@ -40,6 +42,13 @@ These decisions are the source of truth for implementation. They supersede confl
 - Every bot reads the live catalog: current active and inactive platform channels, not a snapshot from create time.
 - Owner-forced subscriptions (non-platform) still use `ForcedSubscription` as today.
 - If a bot owner removes platform forced subscription (later via `PLATFORM_FORCED_SUBSCRIPTION_REMOVAL`), record that opt-out on the bot (e.g. `allowPlatformForced = false`). The shared catalog is unchanged for other bots.
+
+## Channel ownership
+
+- Linking requires Telegram `creator` status; administrator status alone is insufficient.
+- The currently verified Telegram creator becomes `Channel.ownerId`. A later verified ownership transfer updates the channel owner for future activity only.
+- Historical ad placements keep their snapshotted `channelOwnerId` and revenue policy.
+- The first successfully linked channel lazily creates the owner’s single wallet.
 
 ## Schema
 
