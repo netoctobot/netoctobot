@@ -19,6 +19,16 @@ export type TranslationKey =
   | "language.select"
   | "language.arabic"
   | "language.english"
+  | "botCreation.selectType"
+  | "botCreation.contactBot"
+  | "botCreation.supportListBot"
+  | "botCreation.sendToken"
+  | "botCreation.invalidFormat"
+  | "botCreation.invalidToken"
+  | "botCreation.alreadyRegistered"
+  | "botCreation.success"
+  | "botCreation.failed"
+  | "botCreation.cancel"
   | "errors.privateOnly"
   | "errors.generic";
 

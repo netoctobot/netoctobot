@@ -4,17 +4,33 @@ import {
 } from "grammy";
 import {
   BotType,
-  type Bot as DatabaseBot,
   type PrismaClient,
   SupportedLanguage,
 } from "@prisma/client";
+import type { Redis } from "ioredis";
 import type { Env } from "./config/env.js";
 import { encryptToken } from "./lib/token-crypto.js";
 import {
+  buildBotCreationSuccess,
+  buildBotTokenPrompt,
+  buildBotTypeMenu,
   buildComingSoonMenu,
   buildLanguageMenu,
   buildMainMenu,
+  type DashboardView,
 } from "./modules/bots/platform-menu.js";
+import {
+  BotAlreadyRegisteredError,
+  type BotRuntimeManager,
+  InvalidBotTokenError,
+  isBotTokenFormatValid,
+  type ManagedBotRuntime,
+} from "./modules/bots/bot-runtime-manager.js";
+import {
+  clearBotCreationState,
+  getBotCreationState,
+  saveBotCreationState,
+} from "./modules/bots/bot-creation-state.js";
 import {
   normalizeTelegramLanguage,
   translate,
@@ -24,16 +40,11 @@ import {
   syncPlatformUser,
 } from "./modules/users/user.service.js";
 
-export interface PlatformBotRuntime {
-  bot: TelegramBot;
-  botRecord: DatabaseBot;
-}
+export type PlatformBotRuntime = ManagedBotRuntime;
 
 async function editDashboard(
   context: Context,
-  view: ReturnType<
-    typeof buildMainMenu | typeof buildLanguageMenu | typeof buildComingSoonMenu
-  >,
+  view: DashboardView,
 ): Promise<void> {
   await context.editMessageText(view.text, {
     reply_markup: view.keyboard,
@@ -44,6 +55,8 @@ function registerPlatformHandlers(
   bot: TelegramBot,
   prisma: PrismaClient,
   platformBotId: string,
+  runtimeManager: BotRuntimeManager,
+  redis: Redis,
 ): void {
   bot.command("start", async (context) => {
     if (!context.from) {
@@ -70,6 +83,7 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery("menu:home", async (context) => {
+    await clearBotCreationState(redis, context.from.id);
     const { preference } = await syncPlatformUser(
       prisma,
       context.from,
@@ -89,6 +103,60 @@ function registerPlatformHandlers(
     await context.answerCallbackQuery();
   });
 
+  bot.callbackQuery("menu:create-bot", async (context) => {
+    await clearBotCreationState(redis, context.from.id);
+    const { preference } = await syncPlatformUser(
+      prisma,
+      context.from,
+      platformBotId,
+    );
+    await editDashboard(context, buildBotTypeMenu(preference.language));
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(
+    /^bot:create:type:(CONTACT_BOT|SUPPORT_LIST_BOT)$/,
+    async (context) => {
+      const message = context.callbackQuery.message;
+      if (!message || context.chat?.type !== "private") {
+        await context.answerCallbackQuery();
+        return;
+      }
+
+      const { user, preference } = await syncPlatformUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      const botType = context.match[1] as Extract<
+        BotType,
+        "CONTACT_BOT" | "SUPPORT_LIST_BOT"
+      >;
+      await saveBotCreationState(redis, context.from.id, {
+        ownerId: user.id,
+        botType,
+        chatId: context.chat.id,
+        dashboardMessageId: message.message_id,
+      });
+      await editDashboard(
+        context,
+        buildBotTokenPrompt(preference.language),
+      );
+      await context.answerCallbackQuery();
+    },
+  );
+
+  bot.callbackQuery("bot:create:cancel", async (context) => {
+    await clearBotCreationState(redis, context.from.id);
+    const { preference } = await syncPlatformUser(
+      prisma,
+      context.from,
+      platformBotId,
+    );
+    await editDashboard(context, buildMainMenu(preference.language));
+    await context.answerCallbackQuery();
+  });
+
   bot.callbackQuery(/^language:set:(AR|EN)$/, async (context) => {
     const { user } = await syncPlatformUser(
       prisma,
@@ -102,7 +170,7 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery(
-    /^menu:(create-bot|add-channel|my-bots|my-channels|ads|wallet|help)$/,
+    /^menu:(add-channel|my-bots|my-channels|ads|wallet|help)$/,
     async (context) => {
       const { preference } = await syncPlatformUser(
         prisma,
@@ -113,11 +181,76 @@ function registerPlatformHandlers(
       await context.answerCallbackQuery();
     },
   );
+
+  bot.on("message:text", async (context) => {
+    if (!context.from || context.chat.type !== "private") {
+      return;
+    }
+
+    const state = await getBotCreationState(redis, context.from.id);
+    if (!state || state.chatId !== context.chat.id) {
+      return;
+    }
+
+    await context.deleteMessage().catch(() => undefined);
+    const { preference } = await syncPlatformUser(
+      prisma,
+      context.from,
+      platformBotId,
+    );
+    const token = context.message.text.trim();
+
+    const updateCreationMessage = async (view: DashboardView) => {
+      await context.api.editMessageText(
+        state.chatId,
+        state.dashboardMessageId,
+        view.text,
+        { reply_markup: view.keyboard },
+      );
+    };
+
+    if (!isBotTokenFormatValid(token)) {
+      await updateCreationMessage(
+        buildBotTokenPrompt(
+          preference.language,
+          "botCreation.invalidFormat",
+        ),
+      );
+      return;
+    }
+
+    try {
+      const createdBot = await runtimeManager.createUserBot({
+        ownerId: state.ownerId,
+        token,
+        botType: state.botType,
+      });
+      await clearBotCreationState(redis, context.from.id);
+      await updateCreationMessage(
+        buildBotCreationSuccess(
+          preference.language,
+          createdBot.botUsername,
+        ),
+      );
+    } catch (error) {
+      const messageKey =
+        error instanceof InvalidBotTokenError
+          ? "botCreation.invalidToken"
+          : error instanceof BotAlreadyRegisteredError
+            ? "botCreation.alreadyRegistered"
+            : "botCreation.failed";
+      await updateCreationMessage(
+        buildBotTokenPrompt(preference.language, messageKey),
+      );
+    }
+  });
 }
 
 export async function createPlatformBotRuntime(
   env: Env,
   prisma: PrismaClient,
+  runtimeManager: BotRuntimeManager,
+  redis: Redis,
 ): Promise<PlatformBotRuntime> {
   const bot = new TelegramBot(env.BOT_TOKEN);
   await bot.init();
@@ -171,28 +304,12 @@ export async function createPlatformBotRuntime(
     return platformBot;
   });
 
-  registerPlatformHandlers(bot, prisma, botRecord.id);
+  registerPlatformHandlers(
+    bot,
+    prisma,
+    botRecord.id,
+    runtimeManager,
+    redis,
+  );
   return { bot, botRecord };
-}
-
-export async function registerPlatformWebhook(
-  runtime: PlatformBotRuntime,
-  env: Env,
-): Promise<void> {
-  if (!env.WEBHOOK_REGISTRATION_ENABLED) {
-    return;
-  }
-
-  const baseUrl = env.PUBLIC_BASE_URL.endsWith("/")
-    ? env.PUBLIC_BASE_URL
-    : `${env.PUBLIC_BASE_URL}/`;
-  const webhookUrl = new URL(
-    `webhooks/telegram/${runtime.botRecord.id}`,
-    baseUrl,
-  ).toString();
-
-  await runtime.bot.api.setWebhook(webhookUrl, {
-    secret_token: env.WEBHOOK_SECRET,
-    allowed_updates: ["message", "callback_query"],
-  });
 }

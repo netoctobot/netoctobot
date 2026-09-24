@@ -23,6 +23,18 @@
     "arabic": "العربية",
     "english": "English"
   },
+  "botCreation": {
+    "selectType": "Choose the type of bot to create:",
+    "contactBot": "Contact bot",
+    "supportListBot": "Support-list bot",
+    "sendToken": "Send the bot token now. Your message will be deleted immediately after it is read.",
+    "invalidFormat": "The token format is invalid. Send a valid token or cancel.",
+    "invalidToken": "Telegram rejected this token. Check it and send it again.",
+    "alreadyRegistered": "This bot is already registered in Octobot.",
+    "success": "Bot @{{username}} was created successfully.",
+    "failed": "The bot could not be created now. Please try again later.",
+    "cancel": "Cancel"
+  },
   "errors": {
     "privateOnly": "Use this bot in a private chat.",
     "generic": "An unexpected error occurred. Please try again."

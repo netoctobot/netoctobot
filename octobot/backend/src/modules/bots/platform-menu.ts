@@ -5,6 +5,11 @@ import {
   type TranslationKey,
 } from "../localization/localization.service.js";
 
+export interface DashboardView {
+  text: string;
+  keyboard: InlineKeyboard;
+}
+
 const menuItems: ReadonlyArray<{
   callback: string;
   translationKey: TranslationKey;
@@ -18,10 +23,7 @@ const menuItems: ReadonlyArray<{
   { callback: "menu:help", translationKey: "menu.help" },
 ];
 
-export function buildMainMenu(language: SupportedLanguage): {
-  text: string;
-  keyboard: InlineKeyboard;
-} {
+export function buildMainMenu(language: SupportedLanguage): DashboardView {
   const keyboard = new InlineKeyboard();
 
   menuItems.forEach((item, index) => {
@@ -42,10 +44,9 @@ export function buildMainMenu(language: SupportedLanguage): {
   };
 }
 
-export function buildLanguageMenu(language: SupportedLanguage): {
-  text: string;
-  keyboard: InlineKeyboard;
-} {
+export function buildLanguageMenu(
+  language: SupportedLanguage,
+): DashboardView {
   return {
     text: translate(language, "language.select"),
     keyboard: new InlineKeyboard()
@@ -56,12 +57,62 @@ export function buildLanguageMenu(language: SupportedLanguage): {
   };
 }
 
-export function buildComingSoonMenu(language: SupportedLanguage): {
-  text: string;
-  keyboard: InlineKeyboard;
-} {
+export function buildComingSoonMenu(
+  language: SupportedLanguage,
+): DashboardView {
   return {
     text: translate(language, "menu.comingSoon"),
+    keyboard: new InlineKeyboard().text(
+      translate(language, "menu.back"),
+      "menu:home",
+    ),
+  };
+}
+
+export function buildBotTypeMenu(
+  language: SupportedLanguage,
+): DashboardView {
+  return {
+    text: translate(language, "botCreation.selectType"),
+    keyboard: new InlineKeyboard()
+      .text(
+        translate(language, "botCreation.contactBot"),
+        "bot:create:type:CONTACT_BOT",
+      )
+      .row()
+      .text(
+        translate(language, "botCreation.supportListBot"),
+        "bot:create:type:SUPPORT_LIST_BOT",
+      )
+      .row()
+      .text(translate(language, "menu.back"), "menu:home"),
+  };
+}
+
+export function buildBotTokenPrompt(
+  language: SupportedLanguage,
+  messageKey:
+    | "botCreation.sendToken"
+    | "botCreation.invalidFormat"
+    | "botCreation.invalidToken"
+    | "botCreation.alreadyRegistered"
+    | "botCreation.failed" = "botCreation.sendToken",
+): DashboardView {
+  return {
+    text: translate(language, messageKey),
+    keyboard: new InlineKeyboard().text(
+      translate(language, "botCreation.cancel"),
+      "bot:create:cancel",
+    ),
+  };
+}
+
+export function buildBotCreationSuccess(
+  language: SupportedLanguage,
+  username: string,
+): DashboardView {
+  return {
+    text: translate(language, "botCreation.success", { username }),
     keyboard: new InlineKeyboard().text(
       translate(language, "menu.back"),
       "menu:home",

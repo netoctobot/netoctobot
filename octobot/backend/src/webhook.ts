@@ -2,7 +2,10 @@ import { timingSafeEqual } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { Update } from "grammy/types";
 import type { Env } from "./config/env.js";
-import type { PlatformBotRuntime } from "./bot.js";
+import {
+  type BotRuntimeManager,
+  deriveWebhookSecret,
+} from "./modules/bots/bot-runtime-manager.js";
 
 function secretsMatch(actual: string | undefined, expected: string): boolean {
   if (!actual) {
@@ -18,14 +21,15 @@ function secretsMatch(actual: string | undefined, expected: string): boolean {
 
 export function registerTelegramWebhookRoute(
   app: FastifyInstance,
-  runtime: PlatformBotRuntime,
+  runtimeManager: BotRuntimeManager,
   env: Env,
 ): void {
   app.post<{
     Params: { botId: string };
     Body: Update;
   }>("/webhooks/telegram/:botId", async (request, reply) => {
-    if (request.params.botId !== runtime.botRecord.id) {
+    const runtime = runtimeManager.get(request.params.botId);
+    if (!runtime) {
       return reply.code(404).send({ error: "Not found" });
     }
 
@@ -34,7 +38,10 @@ export function registerTelegramWebhookRoute(
     ];
     if (
       typeof providedSecret !== "string" ||
-      !secretsMatch(providedSecret, env.WEBHOOK_SECRET)
+      !secretsMatch(
+        providedSecret,
+        deriveWebhookSecret(env.WEBHOOK_SECRET, request.params.botId),
+      )
     ) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
