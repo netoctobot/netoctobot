@@ -33,6 +33,12 @@ These decisions are the source of truth for implementation. They supersede confl
 - On user-bot create, every active catalog channel is copied as `ForcedSubscription` with `isPlatform = true`.
 - Later payment (`PLATFORM_FORCED_SUBSCRIPTION_REMOVAL`) removes all platform forced subscriptions from that bot at once (`allowPlatformForced = false`). The catalog is unchanged for new bots.
 
-## Schema timing
+## Schema
 
-- Corrected Prisma models (types, catalog, single wallet, relation fixes) land in step 2. This repo bootstrap does not copy the blueprint schema as-is.
+- Corrected models live in `backend/prisma/schema.prisma`. Do not copy the blueprint schema as-is.
+- `BotType`: `PLATFORM_BOT`, `CONTACT_BOT`, `SUPPORT_LIST_BOT`.
+- `PlatformSettings` is a singleton pointing at the platform bot.
+- Contact conversations have no `userId`; visitors are Telegram IDs only.
+- Creator tier is stored on `Bot.currentTierId`, not on `User`.
+- `Channel.isPlatformCatalog` plus `PlatformForcedChannel` hold multiple platform forced-subscription channels.
+- Placement message deletion time is `AdPlacement.messageDeletedAt`, not a row soft-delete.

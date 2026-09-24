@@ -1,7 +1,3 @@
-// Domain models (PLATFORM_BOT, CONTACT_BOT, SUPPORT_LIST_BOT,
-// platform channel catalog, single user wallet, relation fixes)
-// are added in step 2. Do not copy PROJECT_BLUEPRINT.md schema as-is.
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,4 +5,621 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model PlatformSettings {
+  id            String   @id @default("default")
+  platformBotId String   @unique
+  platformBot   Bot      @relation(fields: [platformBotId], references: [id])
+  updatedAt     DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+model User {
+  id                  String    @id @default(cuid())
+  telegramId          BigInt    @unique
+  username            String?
+  firstName           String?
+  lastName            String?
+  isTrustedAdvertiser Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  bots                        Bot[]
+  channels                    Channel[]
+  ads                         Ad[]
+  wallet                      Wallet?
+  earnings                    Earning[]
+  withdrawals                 Withdrawal[]         @relation("WithdrawalUser")
+  withdrawalsApproved         Withdrawal[]         @relation("WithdrawalApprovedBy")
+  withdrawalsProcessed        Withdrawal[]         @relation("WithdrawalProcessedBy")
+  forcedSubscriptions         ForcedSubscription[]
+  adminRoles                  AdminRole[]
+  auditLogs                   AuditLog[]
+  payments                    Payment[]
+  paymentIntents              PaymentIntent[]
+  userBotPreferences          UserBotPreference[]
+  referralLink                ReferralLink?
+  referralRelationsAsReferrer ReferralRelation[]   @relation("Referrer")
+  referralRelationsAsReferred ReferralRelation[]   @relation("Referred")
+  adPlacementsAsBotCreator    AdPlacement[]        @relation("AdPlacementBotCreator")
+  adPlacementsAsChannelOwner  AdPlacement[]        @relation("AdPlacementChannelOwner")
+
+  @@map("users")
+}
+
+model Bot {
+  id                       String    @id @default(cuid())
+  ownerId                  String
+  telegramBotId            BigInt    @unique
+  tokenEncrypted           String
+  encryptionKeyVersion     Int       @default(1)
+  botUsername              String    @unique
+  botType                  BotType   @default(CONTACT_BOT)
+  welcomeMessages          Json
+  footerEnabled            Boolean   @default(true)
+  footerTexts              Json
+  isActive                 Boolean   @default(true)
+  forcedSubscriptionsLimit Int       @default(1)
+  allowPlatformForced      Boolean   @default(true)
+  currentTierId            String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  deletedAt                DateTime?
+
+  owner                User                  @relation(fields: [ownerId], references: [id])
+  currentTier          BotCreatorTier?       @relation("BotCurrentTier", fields: [currentTierId], references: [id])
+  platformSettings     PlatformSettings?
+  botChannelLinks      BotChannelLink[]
+  adPlacements         AdPlacement[]
+  forcedSubscriptions  ForcedSubscription[]
+  contactConversations ContactConversation[]
+  userPreferences      UserBotPreference[]
+  paymentIntents       PaymentIntent[]
+  payments             Payment[]
+
+  @@index([ownerId])
+  @@index([botType])
+  @@map("bots")
+}
+
+enum BotType {
+  PLATFORM_BOT
+  CONTACT_BOT
+  SUPPORT_LIST_BOT
+}
+
+model UserBotPreference {
+  id         String            @id @default(cuid())
+  userId     String
+  botId      String
+  language   SupportedLanguage @default(EN)
+  isExplicit Boolean           @default(false)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  bot  Bot  @relation(fields: [botId], references: [id])
+
+  @@unique([userId, botId])
+  @@index([botId])
+  @@map("user_bot_preferences")
+}
+
+enum SupportedLanguage {
+  AR
+  EN
+}
+
+model Channel {
+  id                 String    @id @default(cuid())
+  ownerId            String
+  channelTelegramId  BigInt    @unique
+  title              String?
+  username           String?
+  memberCount        Int       @default(0)
+  category           String?
+  isPlatformCatalog  Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  deactivationReason String?
+  addedAt            DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  owner                 User                   @relation(fields: [ownerId], references: [id])
+  botChannelLinks       BotChannelLink[]
+  adPlacements          AdPlacement[]
+  forcedSubscriptions   ForcedSubscription[]
+  platformForcedCatalog PlatformForcedChannel?
+
+  @@index([ownerId])
+  @@index([isPlatformCatalog])
+  @@map("channels")
+}
+
+model PlatformForcedChannel {
+  id        String   @id @default(cuid())
+  channelId String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id])
+
+  @@index([isActive, sortOrder])
+  @@map("platform_forced_channels")
+}
+
+model BotChannelLink {
+  id          String     @id @default(cuid())
+  botId       String
+  channelId   String
+  permissions Json
+  status      LinkStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  bot     Bot     @relation(fields: [botId], references: [id])
+  channel Channel @relation(fields: [channelId], references: [id])
+
+  @@unique([botId, channelId])
+  @@index([channelId])
+  @@index([status])
+  @@map("bot_channel_links")
+}
+
+enum LinkStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model RevenueSharePolicy {
+  id              String   @id @default(cuid())
+  name            String
+  channelOwnerPct Int
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  adPlacements    AdPlacement[]
+  botCreatorTiers BotCreatorTier[]
+
+  @@map("revenue_share_policies")
+}
+
+model BotCreatorTier {
+  id                   String   @id @default(cuid())
+  policyId             String
+  name                 String
+  minTotalMembers      Int
+  maxTotalMembers      Int?
+  botCreatorPercentage Int
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  policy RevenueSharePolicy @relation(fields: [policyId], references: [id])
+  bots   Bot[]              @relation("BotCurrentTier")
+
+  @@index([policyId])
+  @@map("bot_creator_tiers")
+}
+
+model Ad {
+  id               String    @id @default(cuid())
+  advertiserId     String
+  title            String
+  content          Json
+  budget           Int
+  cpmRate          Int?
+  durationHours    Int
+  targetCategories String[]
+  status           AdStatus  @default(PENDING)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  advertiser     User            @relation(fields: [advertiserId], references: [id])
+  placements     AdPlacement[]
+  paymentIntents PaymentIntent[]
+  payments       Payment[]
+
+  @@index([advertiserId])
+  @@index([status])
+  @@map("ads")
+}
+
+enum AdStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELED
+}
+
+model AdPlacement {
+  id                   String           @id @default(cuid())
+  adId                 String
+  channelId            String
+  botId                String
+  botCreatorId         String
+  channelOwnerId       String
+  revenueSharePolicyId String
+  revenueShareSnapshot Json
+  scheduledPostAt      DateTime
+  scheduledDeleteAt    DateTime?
+  price                Int
+  status               PlacementStatus  @default(SCHEDULED)
+  postedMessageId      BigInt?
+  postedAt             DateTime?
+  messageDeletedAt     DateTime?
+  errorMessage         String?
+  settlementStatus     SettlementStatus @default(PENDING)
+  earningSettledAt     DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  ad                 Ad                 @relation(fields: [adId], references: [id])
+  channel            Channel            @relation(fields: [channelId], references: [id])
+  bot                Bot                @relation(fields: [botId], references: [id])
+  botCreator         User               @relation("AdPlacementBotCreator", fields: [botCreatorId], references: [id])
+  channelOwner       User               @relation("AdPlacementChannelOwner", fields: [channelOwnerId], references: [id])
+  revenueSharePolicy RevenueSharePolicy @relation(fields: [revenueSharePolicyId], references: [id])
+  earnings           Earning[]
+  platformLedger     PlatformLedger?
+
+  @@index([adId])
+  @@index([channelId])
+  @@index([botId])
+  @@index([status])
+  @@index([settlementStatus])
+  @@map("ad_placements")
+}
+
+enum PlacementStatus {
+  SCHEDULED
+  POSTED
+  DELETED
+  FAILED
+  MANUALLY_DELETED
+  PERMISSION_ERROR
+  DELETE_FAILED
+  CHANNEL_NOT_FOUND
+  CANCELED
+}
+
+enum SettlementStatus {
+  PENDING
+  SETTLED
+  FAILED
+}
+
+model Earning {
+  id            String        @id @default(cuid())
+  userId        String
+  adPlacementId String
+  amount        Int
+  type          EarningType
+  status        EarningStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id])
+  adPlacement AdPlacement @relation(fields: [adPlacementId], references: [id])
+
+  @@unique([adPlacementId, type])
+  @@index([userId])
+  @@map("earnings")
+}
+
+enum EarningType {
+  BOT_CREATOR_SHARE
+  CHANNEL_OWNER_SHARE
+}
+
+enum EarningStatus {
+  PENDING
+  PAID
+  CANCELED
+}
+
+model PlatformLedger {
+  id            String   @id @default(cuid())
+  adPlacementId String   @unique
+  amount        Int
+  description   String?
+  createdAt     DateTime @default(now())
+
+  adPlacement AdPlacement @relation(fields: [adPlacementId], references: [id])
+
+  @@map("platform_ledger")
+}
+
+model Wallet {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  balance         Int      @default(0)
+  reservedBalance Int      @default(0)
+  currency        String   @default("STARS")
+  updatedAt       DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+  withdrawals  Withdrawal[]
+
+  @@map("wallets")
+}
+
+model Transaction {
+  id          String              @id @default(cuid())
+  walletId    String
+  type        TransactionType
+  purpose     TransactionPurpose?
+  amount      Int
+  description String?
+  externalId  String?             @unique
+  status      TransactionStatus   @default(PENDING)
+  createdAt   DateTime            @default(now())
+
+  wallet                Wallet      @relation(fields: [walletId], references: [id])
+  payment               Payment?
+  withdrawalReservation Withdrawal? @relation("WithdrawalReservation")
+  withdrawalFinal       Withdrawal? @relation("WithdrawalFinal")
+  withdrawalRelease     Withdrawal? @relation("WithdrawalRelease")
+
+  @@index([walletId])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  DEPOSIT
+  EARNING
+  REFUND
+  RESERVATION
+  RELEASE
+  WITHDRAWAL
+}
+
+enum TransactionPurpose {
+  AD_PAYMENT
+  FOOTER_REMOVAL
+  PLATFORM_FORCED_SUBSCRIPTION_REMOVAL
+  FORCED_SUBSCRIPTION_LIMIT_INCREASE
+  WALLET_DEPOSIT
+  WITHDRAWAL
+  REFUND
+  OTHER
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model PaymentIntent {
+  id                     String              @id @default(cuid())
+  userId                 String
+  purpose                TransactionPurpose
+  amount                 Int
+  currency               String              @default("XTR")
+  telegramInvoicePayload String?             @unique
+  status                 PaymentIntentStatus @default(PENDING)
+  adId                   String?
+  botId                  String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id])
+  ad      Ad?      @relation(fields: [adId], references: [id])
+  bot     Bot?     @relation(fields: [botId], references: [id])
+  payment Payment?
+
+  @@index([userId])
+  @@index([adId])
+  @@map("payment_intents")
+}
+
+enum PaymentIntentStatus {
+  PENDING
+  PAID
+  CANCELED
+  FAILED
+}
+
+model Payment {
+  id                     String             @id @default(cuid())
+  paymentIntentId        String             @unique
+  userId                 String
+  transactionId          String             @unique
+  purpose                TransactionPurpose
+  amount                 Int
+  currency               String             @default("XTR")
+  telegramChargeId       String             @unique
+  telegramInvoicePayload String?
+  adId                   String?            @unique
+  botId                  String?
+  createdAt              DateTime           @default(now())
+
+  user          User          @relation(fields: [userId], references: [id])
+  transaction   Transaction   @relation(fields: [transactionId], references: [id])
+  paymentIntent PaymentIntent @relation(fields: [paymentIntentId], references: [id])
+  ad            Ad?           @relation(fields: [adId], references: [id])
+  bot           Bot?          @relation(fields: [botId], references: [id])
+
+  @@index([userId])
+  @@map("payments")
+}
+
+model Withdrawal {
+  id                       String           @id @default(cuid())
+  userId                   String
+  walletId                 String
+  amount                   Int
+  method                   WithdrawalMethod
+  encryptedAccountDetails  String?
+  status                   WithdrawalStatus @default(PENDING)
+  reservationTransactionId String?          @unique
+  finalTransactionId       String?          @unique
+  releaseTransactionId     String?          @unique
+  externalId               String?          @unique
+  approvedById             String?
+  processedById            String?
+  processedAt              DateTime?
+  rejectionReason          String?
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  user                   User         @relation("WithdrawalUser", fields: [userId], references: [id])
+  wallet                 Wallet       @relation(fields: [walletId], references: [id])
+  reservationTransaction Transaction? @relation("WithdrawalReservation", fields: [reservationTransactionId], references: [id])
+  finalTransaction       Transaction? @relation("WithdrawalFinal", fields: [finalTransactionId], references: [id])
+  releaseTransaction     Transaction? @relation("WithdrawalRelease", fields: [releaseTransactionId], references: [id])
+  approvedBy             User?        @relation("WithdrawalApprovedBy", fields: [approvedById], references: [id])
+  processedBy            User?        @relation("WithdrawalProcessedBy", fields: [processedById], references: [id])
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([status])
+  @@map("withdrawals")
+}
+
+enum WithdrawalMethod {
+  TELEGRAM_STARS
+  PAYPAL
+  USDT
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSING
+  SUCCESS
+}
+
+model ForcedSubscription {
+  id         String   @id @default(cuid())
+  botId      String
+  channelId  String
+  isPlatform Boolean  @default(false)
+  addedBy    String
+  createdAt  DateTime @default(now())
+
+  bot         Bot     @relation(fields: [botId], references: [id])
+  channel     Channel @relation(fields: [channelId], references: [id])
+  addedByUser User    @relation(fields: [addedBy], references: [id])
+
+  @@unique([botId, channelId, isPlatform])
+  @@index([botId])
+  @@index([channelId])
+  @@map("forced_subscriptions")
+}
+
+model AdminRole {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  permissions Json
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("admin_roles")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String?
+  entityId   String?
+  details    Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model ContactConversation {
+  id             String   @id @default(cuid())
+  botId          String
+  originalUserId BigInt
+  ownerChatId    BigInt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  bot      Bot              @relation(fields: [botId], references: [id])
+  messages ContactMessage[]
+
+  @@unique([botId, originalUserId])
+  @@index([botId])
+  @@map("contact_conversations")
+}
+
+model ContactMessage {
+  id              String                  @id @default(cuid())
+  conversationId  String
+  direction       ContactMessageDirection
+  sourceChatId    BigInt
+  sourceMessageId BigInt
+  targetChatId    BigInt?
+  targetMessageId BigInt?
+  mediaGroupId    String?
+  createdAt       DateTime                @default(now())
+
+  conversation ContactConversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId])
+  @@index([sourceChatId, sourceMessageId])
+  @@index([targetChatId, targetMessageId])
+  @@map("contact_messages")
+}
+
+enum ContactMessageDirection {
+  INCOMING
+  COPIED
+  REPLY
+  SENT
+}
+
+model ReferralLink {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  code      String   @unique
+  createdAt DateTime @default(now())
+
+  user   User            @relation(fields: [userId], references: [id])
+  clicks ReferralClick[]
+
+  @@map("referral_links")
+}
+
+model ReferralClick {
+  id             String   @id @default(cuid())
+  referralLinkId String
+  telegramUserId BigInt?
+  clickedAt      DateTime @default(now())
+
+  referralLink ReferralLink @relation(fields: [referralLinkId], references: [id])
+
+  @@index([referralLinkId])
+  @@map("referral_clicks")
+}
+
+model ReferralRelation {
+  id         String   @id @default(cuid())
+  referrerId String
+  referredId String   @unique
+  createdAt  DateTime @default(now())
+
+  referrer User @relation("Referrer", fields: [referrerId], references: [id])
+  referred User @relation("Referred", fields: [referredId], references: [id])
+
+  @@index([referrerId])
+  @@map("referral_relations")
 }
