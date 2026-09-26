@@ -276,14 +276,18 @@ export class BotRuntimeManager {
         await context.deleteMessage().catch(() => undefined);
         return;
       } catch (error) {
-        if (!this.isMessageNotModified(error)) {
-          await clearDashboardState(
-            this.redis,
-            runtime.botRecord.id,
-            context.from.id,
-          );
-        } else {
-          return;
+        await clearDashboardState(
+          this.redis,
+          runtime.botRecord.id,
+          context.from.id,
+        );
+        if (this.isMessageNotModified(error)) {
+          await context.api
+            .deleteMessage(
+              dashboard.chatId,
+              dashboard.messageId,
+            )
+            .catch(() => undefined);
         }
       }
     }
@@ -299,6 +303,7 @@ export class BotRuntimeManager {
         messageId: message.message_id,
       },
     );
+    await context.deleteMessage().catch(() => undefined);
   }
 
   private async editRuntimeDashboard(

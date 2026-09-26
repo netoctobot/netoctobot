@@ -6,7 +6,11 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 import type { Redis } from "ioredis";
-import type { Bot as TelegramBot } from "grammy";
+import {
+  InlineKeyboard,
+  type Bot as TelegramBot,
+  type Context,
+} from "grammy";
 import type { Env } from "../../config/env.js";
 import {
   BotRuntimeManager,
@@ -138,4 +142,82 @@ test("soft-deletes a bot without deleting its historical row", async () => {
     "BOT_DELETED",
   );
   assert.equal(value.audits.length, 1);
+});
+
+test("recreates a dashboard when Telegram says the hidden old message is unchanged", async () => {
+  const redisValues = new Map<string, string>([
+    [
+      "bot:dashboard:bot-id:123",
+      JSON.stringify({ chatId: 123, messageId: 55 }),
+    ],
+  ]);
+  const redis = {
+    get: async (key: string) => redisValues.get(key) ?? null,
+    set: async (key: string, value: string) => {
+      redisValues.set(key, value);
+      return "OK";
+    },
+    del: async (key: string) => {
+      redisValues.delete(key);
+      return 1;
+    },
+  } as unknown as Redis;
+  const manager = new BotRuntimeManager(
+    { WEBHOOK_REGISTRATION_ENABLED: true } as Env,
+    {} as PrismaClient,
+    redis,
+  );
+  const deletedMessageIds: number[] = [];
+  let replies = 0;
+  const context = {
+    from: { id: 123, is_bot: false, first_name: "Owner" },
+    chat: { id: 123, type: "private" },
+    api: {
+      editMessageText: async () => {
+        throw new Error("Bad Request: message is not modified");
+      },
+      deleteMessage: async (_chatId: number, messageId: number) => {
+        deletedMessageIds.push(messageId);
+        return true;
+      },
+    },
+    reply: async () => {
+      replies += 1;
+      return {
+        message_id: 77,
+        chat: { id: 123, type: "private" },
+        date: 1,
+      };
+    },
+    deleteMessage: async () => true,
+  } as unknown as Context;
+  const runtime = {
+    bot: {} as TelegramBot,
+    botRecord: { id: "bot-id" } as Bot,
+  };
+  const dashboardManager = manager as unknown as {
+    showRuntimeDashboard(
+      context: Context,
+      runtime: typeof runtime,
+      view: { text: string; keyboard: InlineKeyboard },
+    ): Promise<void>;
+  };
+
+  await dashboardManager.showRuntimeDashboard(
+    context,
+    runtime,
+    {
+      text: "Owner panel",
+      keyboard: new InlineKeyboard(),
+    },
+  );
+
+  assert.equal(replies, 1);
+  assert.deepEqual(deletedMessageIds, [55]);
+  assert.deepEqual(
+    JSON.parse(
+      redisValues.get("bot:dashboard:bot-id:123") ?? "{}",
+    ),
+    { chatId: 123, messageId: 77 },
+  );
 });
