@@ -38,6 +38,12 @@ import {
   saveDashboardState,
 } from "./modules/bots/dashboard-state.js";
 import {
+  clearChannelLinkState,
+  getChannelLinkState,
+  saveChannelLinkState,
+} from "./modules/channels/channel-link-state.js";
+import { resolveChannelChatReference } from "./modules/channels/channel-reference.js";
+import {
   normalizeTelegramLanguage,
   translate,
 } from "./modules/localization/localization.service.js";
@@ -45,6 +51,33 @@ import {
   setExplicitLanguage,
   syncBotUser,
 } from "./modules/users/user.service.js";
+import {
+  isPrivateSlashCommand,
+  PRIVATE_HOME_COMMAND_PATTERN,
+} from "./modules/bots/slash-command.js";
+import {
+  getOwnedBot,
+  listOwnedBots,
+} from "./modules/bots/bot-management.service.js";
+import {
+  ManagedResourceNotFoundError,
+} from "./modules/channels/channel-management.service.js";
+import {
+  buildBotConfirmation,
+  buildOwnedBotsMenu,
+} from "./modules/bots/management-menu.js";
+import {
+  activateManagedBotChannel,
+  deactivateManagedBotChannel,
+  getManagedBotChannel,
+  listManagedBotChannels,
+  removeManagedBotChannel,
+} from "./modules/channels/bot-channel-management.service.js";
+import {
+  buildManagedBotChannelsMenu,
+  buildManagedLinkConfirmation,
+  buildManagedLinkDetails,
+} from "./modules/bots/contact-channel-menu.js";
 
 export type PlatformBotRuntime = ManagedBotRuntime;
 
@@ -83,8 +116,12 @@ function isMessageNotModified(error: unknown): boolean {
 async function clearActiveFlow(
   redis: Redis,
   telegramUserId: number,
+  botId: string,
 ): Promise<void> {
-  await clearBotCreationState(redis, telegramUserId);
+  await Promise.all([
+    clearBotCreationState(redis, telegramUserId),
+    clearChannelLinkState(redis, botId, telegramUserId),
+  ]);
 }
 
 function registerPlatformHandlers(
@@ -113,7 +150,7 @@ function registerPlatformHandlers(
       redis,
       context.from.id,
     );
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -134,7 +171,6 @@ function registerPlatformHandlers(
         : null);
 
     if (dashboard?.chatId === context.chat.id) {
-      await context.deleteMessage().catch(() => undefined);
       try {
         await context.api.editMessageText(
           dashboard.chatId,
@@ -148,16 +184,16 @@ function registerPlatformHandlers(
           context.from.id,
           dashboard,
         );
+        await context.deleteMessage().catch(() => undefined);
         return;
       } catch (error) {
-        if (isMessageNotModified(error)) {
-          return;
+        if (!isMessageNotModified(error)) {
+          await clearDashboardState(
+            redis,
+            platformBotId,
+            context.from.id,
+          );
         }
-        await clearDashboardState(
-          redis,
-          platformBotId,
-          context.from.id,
-        );
       }
     }
 
@@ -170,11 +206,76 @@ function registerPlatformHandlers(
     });
   };
 
+  const showOwnedBots = async (
+    context: Context,
+    page: number,
+  ) => {
+    const { user, preference } = await syncBotUser(
+      prisma,
+      context.from!,
+      platformBotId,
+    );
+    const result = await listOwnedBots(prisma, user.id, page);
+    await editDashboard(
+      context,
+      redis,
+      platformBotId,
+      buildOwnedBotsMenu(preference.language, result),
+    );
+    return { user, preference };
+  };
+
+  const showOwnedChannels = async (
+    context: Context,
+    page: number,
+  ) => {
+    const { user, preference } = await syncBotUser(
+      prisma,
+      context.from!,
+      platformBotId,
+    );
+    const result = await listManagedBotChannels(
+      prisma,
+      platformBotId,
+      user.id,
+      page,
+      "CHANNEL_OWNER",
+    );
+    await editDashboard(
+      context,
+      redis,
+      platformBotId,
+      buildManagedBotChannelsMenu(
+        preference.language,
+        result,
+        "PLATFORM",
+      ),
+    );
+    return { user, preference };
+  };
+
+  const answerManagementError = async (
+    context: Context,
+    language: SupportedLanguage,
+    error: unknown,
+  ) => {
+    await context.answerCallbackQuery({
+      text: translate(
+        language,
+        error instanceof ManagedResourceNotFoundError
+          ? "management.notFound"
+          : "management.actionFailed",
+      ),
+      show_alert: true,
+    });
+  };
+
   bot.command("start", showHomeFromCommand);
   bot.command("cancel", showHomeFromCommand);
+  bot.hears(PRIVATE_HOME_COMMAND_PATTERN, showHomeFromCommand);
 
   bot.callbackQuery("menu:home", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -190,7 +291,7 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery("language:select", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -206,7 +307,7 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery("menu:create-bot", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -239,7 +340,7 @@ function registerPlatformHandlers(
         BotType,
         "CONTACT_BOT" | "SUPPORT_LIST_BOT"
       >;
-      await clearActiveFlow(redis, context.from.id);
+      await clearActiveFlow(redis, context.from.id, platformBotId);
       await saveBotCreationState(redis, context.from.id, {
         ownerId: user.id,
         botType,
@@ -257,7 +358,7 @@ function registerPlatformHandlers(
   );
 
   bot.callbackQuery("bot:create:cancel", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -273,11 +374,21 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery("menu:add-channel", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    if (!context.chat) {
+      await context.answerCallbackQuery();
+      return;
+    }
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
+    );
+    await saveChannelLinkState(
+      redis,
+      platformBotId,
+      context.from.id,
+      { chatId: context.chat.id },
     );
     await editDashboard(
       context,
@@ -292,7 +403,7 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery(/^language:set:(AR|EN)$/, async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { user } = await syncBotUser(
       prisma,
       context.from,
@@ -309,10 +420,285 @@ function registerPlatformHandlers(
     await context.answerCallbackQuery();
   });
 
+  bot.callbackQuery("menu:my-bots", async (context) => {
+    await clearActiveFlow(redis, context.from.id, platformBotId);
+    await showOwnedBots(context, 0);
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("menu:my-channels", async (context) => {
+    await clearActiveFlow(redis, context.from.id, platformBotId);
+    await showOwnedChannels(context, 0);
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^manage:b:p:(\d+)$/, async (context) => {
+    await showOwnedBots(context, Number(context.match[1]));
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^manage:l:p:(\d+)$/, async (context) => {
+    await showOwnedChannels(context, Number(context.match[1]));
+    await context.answerCallbackQuery();
+  });
+
   bot.callbackQuery(
-    /^menu:(my-bots|my-channels|ads|wallet|help)$/,
+    /^manage:b:(d|x):([A-Za-z0-9_-]+):(\d+)$/,
     async (context) => {
-      await clearActiveFlow(redis, context.from.id);
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        const managedBot = await getOwnedBot(
+          prisma,
+          user.id,
+          context.match[2],
+        );
+        await editDashboard(
+          context,
+          redis,
+          platformBotId,
+          buildBotConfirmation(
+            preference.language,
+            managedBot,
+            context.match[1] === "d" ? "deactivate" : "delete",
+            Number(context.match[3]),
+          ),
+        );
+        await context.answerCallbackQuery();
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:b:a:([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        await runtimeManager.activateUserBot(
+          user.id,
+          context.match[1],
+        );
+        await showOwnedBots(context, Number(context.match[2]));
+        await context.answerCallbackQuery({
+          text: translate(
+            preference.language,
+            "management.botActivated",
+          ),
+        });
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:b:(dc|xc):([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        const deleted = context.match[1] === "xc";
+        if (deleted) {
+          await runtimeManager.softDeleteUserBot(
+            user.id,
+            context.match[2],
+          );
+        } else {
+          await runtimeManager.deactivateUserBot(
+            user.id,
+            context.match[2],
+          );
+        }
+        await showOwnedBots(context, Number(context.match[3]));
+        await context.answerCallbackQuery({
+          text: translate(
+            preference.language,
+            deleted
+              ? "management.botDeleted"
+              : "management.botDeactivated",
+          ),
+        });
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:l:(d|x):([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        const link = await getManagedBotChannel(
+          prisma,
+          platformBotId,
+          user.id,
+          context.match[2],
+          "CHANNEL_OWNER",
+        );
+        await editDashboard(
+          context,
+          redis,
+          platformBotId,
+          buildManagedLinkConfirmation(
+            preference.language,
+            {
+              id: link.id,
+              status: link.status,
+              channelId: link.channel.id,
+              title: link.channel.title,
+              username: link.channel.username,
+              channelTelegramId:
+                link.channel.channelTelegramId,
+              channelIsActive: link.channel.isActive,
+            },
+            context.match[1] === "d"
+              ? "deactivate"
+              : "remove",
+            Number(context.match[3]),
+            "PLATFORM",
+          ),
+        );
+        await context.answerCallbackQuery();
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:l:(a|dc|xc):([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        if (context.match[1] === "a") {
+          await activateManagedBotChannel(
+            prisma,
+            bot,
+            platformBotId,
+            user.id,
+            context.match[2],
+            "CHANNEL_OWNER",
+          );
+        } else if (context.match[1] === "dc") {
+          await deactivateManagedBotChannel(
+            prisma,
+            platformBotId,
+            user.id,
+            context.match[2],
+            "CHANNEL_OWNER",
+          );
+        } else {
+          await removeManagedBotChannel(
+            prisma,
+            platformBotId,
+            user.id,
+            context.match[2],
+            "CHANNEL_OWNER",
+          );
+        }
+        await showOwnedChannels(
+          context,
+          Number(context.match[3]),
+        );
+        await context.answerCallbackQuery();
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:l:view:([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        const link = await getManagedBotChannel(
+          prisma,
+          platformBotId,
+          user.id,
+          context.match[1],
+          "CHANNEL_OWNER",
+        );
+        await editDashboard(
+          context,
+          redis,
+          platformBotId,
+          buildManagedLinkDetails(
+            preference.language,
+            {
+              id: link.id,
+              status: link.status,
+              channelId: link.channel.id,
+              title: link.channel.title,
+              username: link.channel.username,
+              channelTelegramId:
+                link.channel.channelTelegramId,
+              channelIsActive: link.channel.isActive,
+            },
+            Number(context.match[2]),
+            "PLATFORM",
+          ),
+        );
+        await context.answerCallbackQuery();
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^menu:(ads|wallet|help)$/,
+    async (context) => {
+      await clearActiveFlow(redis, context.from.id, platformBotId);
       const { preference } = await syncBotUser(
         prisma,
         context.from,
@@ -333,11 +719,56 @@ function registerPlatformHandlers(
       return;
     }
 
+    if (
+      isPrivateSlashCommand(context.message.text, "start") ||
+      isPrivateSlashCommand(context.message.text, "cancel")
+    ) {
+      return;
+    }
+
     const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
     );
+
+    const channelLinkState = await getChannelLinkState(
+      redis,
+      platformBotId,
+      context.from.id,
+    );
+    if (channelLinkState?.chatId === context.chat.id) {
+      await context.deleteMessage().catch(() => undefined);
+      const chatReference = resolveChannelChatReference(
+        context.message,
+      );
+      if (chatReference === null) {
+        await context.reply(
+          translate(preference.language, "channelLink.notFound"),
+        );
+        return;
+      }
+      const linked = await runtimeManager.linkChannelForUser({
+        botId: platformBotId,
+        actor: context.from,
+        chatReference,
+      });
+      if (linked) {
+        await clearChannelLinkState(
+          redis,
+          platformBotId,
+          context.from.id,
+        );
+      }
+      return;
+    }
+    if (channelLinkState) {
+      await clearChannelLinkState(
+        redis,
+        platformBotId,
+        context.from.id,
+      );
+    }
 
     const creationState = await getBotCreationState(
       redis,
@@ -386,7 +817,7 @@ function registerPlatformHandlers(
           token,
           botType: creationState.botType,
         });
-        await clearActiveFlow(redis, context.from.id);
+        await clearActiveFlow(redis, context.from.id, platformBotId);
         await updateCreationMessage(
           buildBotCreationSuccess(
             preference.language,
@@ -406,6 +837,19 @@ function registerPlatformHandlers(
       }
       return;
     }
+  });
+
+  bot.catch(async (error) => {
+    const context = error.ctx;
+    if (context.chat?.type !== "private") {
+      return;
+    }
+    const language = normalizeTelegramLanguage(
+      context.from?.language_code,
+    );
+    await context
+      .reply(translate(language, "errors.generic"))
+      .catch(() => undefined);
   });
 }
 

@@ -19,7 +19,11 @@ These decisions are the source of truth for implementation. They supersede confl
 
 ## Users and contact visitors
 
-- Contact-bot visitors do not get a SaaS `User` or wallet. Conversations use Telegram `originalUserId` only.
+- Contact-bot visitors do not get a SaaS `User` or wallet. Contact messages, conversations, and reply mappings are never stored in PostgreSQL or Redis.
+- Visitor messages are forwarded natively to the owner. Owner replies are copied back to hide the owner’s identity. Replies route from Telegram’s forward origin; privacy-hidden visitors receive a bot-authored anchor containing their Telegram ID.
+- Media albums may be buffered in process memory for about one second only, then forwarded as one Telegram album. Successful deliveries receive a best-effort 👍 reaction; failures receive an explicit error and no success signal.
+- A contact-bot owner sees an owner-only `/start` panel for welcome messages and that bot’s channel links. Visitors see only the localized welcome and never receive owner callbacks.
+- Welcome content is stored per supported language. View/edit/reset language choices are generated from the central language registry; reset restores the default for only the selected language. Interface and visitor welcome language default from each Telegram user’s current `language_code`.
 - A `User` is created when someone uses the platform bot (`/start`). No wallet at that point.
 - The platform bot keeps one dashboard message and one active flow per user in Redis.
 - `/start`, `/cancel`, Home, or entering another section cancels stale flow state and edits the existing dashboard instead of leaving old prompts behind.
@@ -45,14 +49,27 @@ These decisions are the source of truth for implementation. They supersede confl
 
 ## Channel ownership
 
-- Any Telegram channel creator can link their channel to any platform-managed bot; they do not need to own that bot.
-- Linking is event-driven from each bot’s `my_chat_member` update when it becomes a channel administrator. The platform bot does not ask the user to choose a bot or forward a channel message.
+- Any Telegram channel administrator or creator can link a channel to a platform-managed bot; they do not need to own that bot.
+- Linking is event-driven from each bot’s `my_chat_member` update when it becomes a channel administrator, and forwarding is available immediately after choosing “Add channel” or opening the exact bot’s private chat. The user can forward a channel post or submit the channel’s complete username/link/ID without first pressing a separate recovery button.
+- Manual channel references are accepted only while that bot-scoped flow is active. A forward must have a Telegram-attested channel origin, and text must consist solely of one channel reference; mentions embedded in arbitrary text are never used as channel identity.
 - The add-to-channel link suggests post, edit, delete, and invite rights. Linking requires only administrator status plus post and delete rights; edit and invite remain optional.
-- Linking requires Telegram `creator` status; administrator status alone is insufficient.
+- Linking requires the adding user to be a Telegram administrator or creator. The platform records that user as the channel adder and separately snapshots the Telegram ID of the current `creator`; future earnings policy will decide how those identities affect permissions and revenue.
+- A `my_chat_member` update immediately inactivates only that bot/channel link when the bot is removed or loses post/delete rights. The verified linker is notified when Telegram permits a private message. Restored rights never reactivate an inactive link; the creator must explicitly run the bot-scoped link flow again.
 - Channel-link feedback uses the user’s `UserBotPreference` for that specific bot. Success is a separate message deleted after five seconds, then the same dashboard message returns to that bot’s home view.
-- The currently verified Telegram creator becomes `Channel.ownerId`. A later verified ownership transfer updates the channel owner for future activity only.
+- “My channels” is always scoped to the bot where the button was pressed. The platform bot shows only that user’s links to the platform bot; each sub-bot shows only links to itself. Both surfaces use the same list and link-level actions.
+- `Channel.ownerId` identifies the platform user who added the channel for account management. `Channel.telegramOwnerId` stores the current Telegram creator and is refreshed on verified links.
 - Historical ad placements keep their snapshotted `channelOwnerId` and revenue policy.
 - The first successfully linked channel lazily creates the owner’s single wallet.
+
+## User-managed lifecycle
+
+- Bot, channel, and bot-channel-link status are separate. New service work is eligible only when the bot and channel are active and not deleted and the link is `ACTIVE`.
+- User deletion is always a soft delete: rows and historical relations remain, but deleted resources are hidden from user lists and excluded from new services.
+- Deleting a channel inactivates all of its bot links. Re-adding the channel reuses its row but activates only links that are explicitly verified again.
+- Deactivating a user bot preserves every channel-link status and setting. An inactive contact bot retains a dormant runtime/webhook solely to tell visitors that the owner stopped it and link them to the platform bot; it must not relay messages or perform management work. Other bot types unload their runtime and webhook. Deletion remains destructive to current service eligibility and inactivates links. Neither action changes Telegram administrator membership.
+- Reactivating a bot verifies its saved active links against current Telegram membership and post/delete permissions before restoring runtime services. Valid links resume without relinking; links that actually lost Telegram membership or permissions become inactive. Legacy links marked `BOT_DEACTIVATED` are restored when verification succeeds.
+- Channel management inside a contact bot is scoped to that bot’s `BotChannelLink`. Deactivate/remove actions must not alter the channel row or another bot’s link; activation verifies the contact bot’s current Telegram permissions.
+- The platform bot cannot be managed through the user “My bots” lifecycle.
 
 ## Schema
 

@@ -36,6 +36,7 @@ try {
     "Platform bot is ready",
   );
 } catch (error) {
+  await runtimeManager.shutdown();
   if (app) {
     await app.close();
   } else {
@@ -47,6 +48,7 @@ try {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {
+    await runtimeManager.shutdown();
     await app?.close();
     process.exit(0);
   });

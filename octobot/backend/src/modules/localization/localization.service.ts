@@ -1,6 +1,7 @@
 import { SupportedLanguage } from "@prisma/client";
 import ar from "../../locales/ar.json" with { type: "json" };
 import en from "../../locales/en.json" with { type: "json" };
+import { languageFromTelegram } from "./supported-languages.js";
 
 export type TranslationKey =
   | "app.name"
@@ -19,6 +20,9 @@ export type TranslationKey =
   | "language.select"
   | "language.arabic"
   | "language.english"
+  | "defaults.contactWelcome"
+  | "defaults.supportWelcome"
+  | "defaults.footer"
   | "botCreation.selectType"
   | "botCreation.contactBot"
   | "botCreation.supportListBot"
@@ -29,18 +33,69 @@ export type TranslationKey =
   | "botCreation.success"
   | "botCreation.failed"
   | "botCreation.cancel"
+  | "contact.privateReplyAnchor"
+  | "contact.deliveryFailed"
+  | "contact.replyRequired"
+  | "contact.replyFailed"
+  | "contact.disabled"
+  | "contact.createBot"
+  | "contactOwner.title"
+  | "contactOwner.editWelcome"
+  | "contactOwner.viewWelcome"
+  | "contactOwner.resetWelcome"
+  | "contactOwner.selectWelcomeLanguage"
+  | "contactOwner.welcomeView"
+  | "contactOwner.sendWelcome"
+  | "contactOwner.invalidWelcome"
+  | "contactOwner.linkedChannelsTitle"
+  | "contactOwner.noLinkedChannels"
+  | "contactOwner.deactivateLinkWarning"
+  | "contactOwner.removeLinkWarning"
+  | "contactOwner.privateChannelLink"
   | "channelLink.autoInstructions"
   | "channelLink.addBotButton"
   | "channelLink.selectBot"
   | "channelLink.noBots"
   | "channelLink.sendReference"
   | "channelLink.notFound"
-  | "channelLink.ownerRequired"
+  | "channelLink.administratorRequired"
   | "channelLink.botAdminRequired"
   | "channelLink.requiredPermissions"
   | "channelLink.success"
   | "channelLink.failed"
-  | "channelLink.cancel"
+  | "channelLink.removed"
+  | "channelLink.permissionsLost"
+  | "channelLink.relinkRequired"
+  | "management.active"
+  | "management.inactive"
+  | "management.previous"
+  | "management.next"
+  | "management.view"
+  | "management.activate"
+  | "management.deactivate"
+  | "management.delete"
+  | "management.confirm"
+  | "management.cancel"
+  | "management.botsTitle"
+  | "management.noBots"
+  | "management.channelsTitle"
+  | "management.noChannels"
+  | "management.contactDeactivateWarning"
+  | "management.contactDeleteWarning"
+  | "management.supportDeactivateWarning"
+  | "management.supportDeleteWarning"
+  | "management.channelDeactivateWarning"
+  | "management.channelInactiveLinksWarning"
+  | "management.channelDeleteWarning"
+  | "management.privateChannelView"
+  | "management.botActivated"
+  | "management.botDeactivated"
+  | "management.botDeleted"
+  | "management.channelActivated"
+  | "management.channelDeactivated"
+  | "management.channelDeleted"
+  | "management.notFound"
+  | "management.actionFailed"
   | "errors.privateOnly"
   | "errors.generic";
 
@@ -52,11 +107,7 @@ const catalogs: Record<SupportedLanguage, unknown> = {
 export function normalizeTelegramLanguage(
   languageCode?: string,
 ): SupportedLanguage {
-  const normalized = languageCode?.toLowerCase();
-  if (normalized?.startsWith("ar")) {
-    return SupportedLanguage.AR;
-  }
-  return SupportedLanguage.EN;
+  return languageFromTelegram(languageCode);
 }
 
 export function translate(

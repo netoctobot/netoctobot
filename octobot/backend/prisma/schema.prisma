@@ -75,12 +75,12 @@ model Bot {
   botChannelLinks      BotChannelLink[]
   adPlacements         AdPlacement[]
   forcedSubscriptions  ForcedSubscription[]
-  contactConversations ContactConversation[]
   userPreferences      UserBotPreference[]
   paymentIntents       PaymentIntent[]
   payments             Payment[]
 
   @@index([ownerId])
+  @@index([ownerId, deletedAt])
   @@index([botType])
   @@map("bots")
 }
@@ -116,6 +116,7 @@ enum SupportedLanguage {
 model Channel {
   id                 String    @id @default(cuid())
   ownerId            String
+  telegramOwnerId    BigInt
   channelTelegramId  BigInt    @unique
   title              String?
   username           String?
@@ -135,6 +136,8 @@ model Channel {
   platformForcedCatalog PlatformForcedChannel?
 
   @@index([ownerId])
+  @@index([telegramOwnerId])
+  @@index([ownerId, deletedAt])
   @@index([isPlatformCatalog])
   @@map("channels")
 }
@@ -154,13 +157,16 @@ model PlatformForcedChannel {
 }
 
 model BotChannelLink {
-  id          String     @id @default(cuid())
-  botId       String
-  channelId   String
-  permissions Json
-  status      LinkStatus @default(ACTIVE)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id                 String     @id @default(cuid())
+  botId              String
+  channelId          String
+  permissions        Json
+  status             LinkStatus @default(ACTIVE)
+  linkedByTelegramId BigInt?
+  deactivatedAt      DateTime?
+  deactivationReason String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   bot     Bot     @relation(fields: [botId], references: [id])
   channel Channel @relation(fields: [channelId], references: [id])
@@ -542,48 +548,6 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@map("audit_logs")
-}
-
-model ContactConversation {
-  id             String   @id @default(cuid())
-  botId          String
-  originalUserId BigInt
-  ownerChatId    BigInt
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  bot      Bot              @relation(fields: [botId], references: [id])
-  messages ContactMessage[]
-
-  @@unique([botId, originalUserId])
-  @@index([botId])
-  @@map("contact_conversations")
-}
-
-model ContactMessage {
-  id              String                  @id @default(cuid())
-  conversationId  String
-  direction       ContactMessageDirection
-  sourceChatId    BigInt
-  sourceMessageId BigInt
-  targetChatId    BigInt?
-  targetMessageId BigInt?
-  mediaGroupId    String?
-  createdAt       DateTime                @default(now())
-
-  conversation ContactConversation @relation(fields: [conversationId], references: [id])
-
-  @@index([conversationId])
-  @@index([sourceChatId, sourceMessageId])
-  @@index([targetChatId, targetMessageId])
-  @@map("contact_messages")
-}
-
-enum ContactMessageDirection {
-  INCOMING
-  COPIED
-  REPLY
-  SENT
 }
 
 model ReferralLink {
