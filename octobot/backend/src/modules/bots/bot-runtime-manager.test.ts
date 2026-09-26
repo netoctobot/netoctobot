@@ -7,6 +7,7 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 import type { Redis } from "ioredis";
+import type { Bot as TelegramBot } from "grammy";
 import type { Env } from "../../config/env.js";
 import {
   BotRuntimeManager,
@@ -82,6 +83,7 @@ function lifecycleManager() {
       prisma,
       {} as Redis,
     ),
+    record,
     botUpdates,
     linkUpdates,
     audits,
@@ -90,9 +92,16 @@ function lifecycleManager() {
 
 test("deactivates the bot runtime state and all channel links", async () => {
   const value = lifecycleManager();
+  value.manager.add({
+    bot: {
+      on: () => undefined,
+    } as unknown as TelegramBot,
+    botRecord: value.record,
+  });
 
   await value.manager.deactivateUserBot("owner-id", "bot-id");
 
+  assert.equal(value.manager.get("bot-id"), undefined);
   assert.deepEqual(value.botUpdates[0], {
     where: { id: "bot-id" },
     data: { isActive: false, deletedAt: null },
