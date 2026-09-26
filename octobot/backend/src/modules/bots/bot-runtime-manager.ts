@@ -24,6 +24,7 @@ import {
   PRIVATE_HOME_COMMAND_PATTERN,
 } from "./slash-command.js";
 import { reconcileBotLinksForActivation } from "./bot-link-activation.service.js";
+import { ContactBotRelay } from "./contact-bot.service.js";
 import {
   BotAdminRequiredError,
   deactivateBotChannelLink,
@@ -53,6 +54,8 @@ import {
   type DashboardView,
 } from "./platform-menu.js";
 import {
+  buildContactVisitorWelcome,
+  buildDisabledContactView,
   buildSubBotHome,
 } from "./sub-bot-menu.js";
 import { syncBotUser } from "../users/user.service.js";
@@ -118,6 +121,8 @@ function defaultMessages(botType: BotType): {
 
 export class BotRuntimeManager {
   readonly #runtimes = new Map<string, ManagedBotRuntime>();
+  readonly #contactRelays = new Map<string, ContactBotRelay>();
+  readonly #ownerTelegramIds = new Map<string, number>();
 
   constructor(
     private readonly env: Env,
@@ -134,6 +139,59 @@ export class BotRuntimeManager {
 
   get(botId: string): ManagedBotRuntime | undefined {
     return this.#runtimes.get(botId);
+  }
+
+  private async getOwnerTelegramId(
+    record: DatabaseBot,
+  ): Promise<number> {
+    const cached = this.#ownerTelegramIds.get(record.id);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const owner = await this.prisma.user.findUniqueOrThrow({
+      where: { id: record.ownerId },
+      select: { telegramId: true },
+    });
+    const telegramId = Number(owner.telegramId);
+    this.#ownerTelegramIds.set(record.id, telegramId);
+    return telegramId;
+  }
+
+  private async getContactRelay(
+    runtime: ManagedBotRuntime,
+  ): Promise<ContactBotRelay> {
+    const cached = this.#contactRelays.get(runtime.botRecord.id);
+    if (cached) {
+      return cached;
+    }
+    const relay = new ContactBotRelay(
+      runtime.bot,
+      await this.getOwnerTelegramId(runtime.botRecord),
+    );
+    this.#contactRelays.set(runtime.botRecord.id, relay);
+    return relay;
+  }
+
+  private getPlatformBotUsername(): string {
+    for (const runtime of this.#runtimes.values()) {
+      if (runtime.botRecord.botType === BotType.PLATFORM_BOT) {
+        return runtime.botRecord.botUsername;
+      }
+    }
+    throw new Error("Platform bot runtime is unavailable");
+  }
+
+  private async replyContactDisabled(
+    context: Context,
+  ): Promise<void> {
+    const language = normalizeTelegramLanguage(
+      context.from?.language_code,
+    );
+    const view = buildDisabledContactView(
+      language,
+      this.getPlatformBotUsername(),
+    );
+    await context.reply(view.text, { reply_markup: view.keyboard });
   }
 
   private buildHome(
@@ -156,6 +214,32 @@ export class BotRuntimeManager {
     const showHome = async (context: Context) => {
       if (!context.from || context.chat?.type !== "private") {
         return;
+      }
+
+      if (runtime.botRecord.botType === BotType.CONTACT_BOT) {
+        if (!runtime.botRecord.isActive) {
+          await this.replyContactDisabled(context);
+          return;
+        }
+        const ownerTelegramId = await this.getOwnerTelegramId(
+          runtime.botRecord,
+        );
+        if (context.from.id !== ownerTelegramId) {
+          await clearChannelLinkState(
+            this.redis,
+            runtime.botRecord.id,
+            context.from.id,
+          );
+          await context.reply(
+            buildContactVisitorWelcome(
+              runtime.botRecord,
+              normalizeTelegramLanguage(
+                context.from.language_code,
+              ),
+            ),
+          );
+          return;
+        }
       }
 
       await saveChannelLinkState(
@@ -230,12 +314,51 @@ export class BotRuntimeManager {
         return;
       }
 
+      let contactRelay: ContactBotRelay | null = null;
+      let isContactOwner = false;
+      if (runtime.botRecord.botType === BotType.CONTACT_BOT) {
+        if (!runtime.botRecord.isActive) {
+          await this.replyContactDisabled(context);
+          return;
+        }
+        const ownerTelegramId = await this.getOwnerTelegramId(
+          runtime.botRecord,
+        );
+        contactRelay = await this.getContactRelay(runtime);
+        isContactOwner = context.from.id === ownerTelegramId;
+        const language = normalizeTelegramLanguage(
+          context.from.language_code,
+        );
+        if (!isContactOwner) {
+          await contactRelay.handleVisitorMessage(
+            context,
+            language,
+          );
+          return;
+        }
+        if (
+          context.message.reply_to_message ||
+          context.message.media_group_id
+        ) {
+          await contactRelay.handleOwnerMessage(context, language);
+          return;
+        }
+      }
+
       const state = await getChannelLinkState(
         this.redis,
         runtime.botRecord.id,
         context.from.id,
       );
       if (!state) {
+        if (contactRelay && isContactOwner) {
+          await contactRelay.handleOwnerMessage(
+            context,
+            normalizeTelegramLanguage(
+              context.from.language_code,
+            ),
+          );
+        }
         return;
       }
       if (state.chatId !== context.chat.id) {
@@ -247,14 +370,21 @@ export class BotRuntimeManager {
         return;
       }
 
-      await context.deleteMessage().catch(() => undefined);
+      const chatReference = resolveChannelChatReference(
+        context.message,
+      );
+      if (chatReference === null && contactRelay && isContactOwner) {
+        await contactRelay.handleOwnerMessage(
+          context,
+          normalizeTelegramLanguage(context.from.language_code),
+        );
+        return;
+      }
+
       const { user, preference } = await syncBotUser(
         this.prisma,
         context.from,
         runtime.botRecord.id,
-      );
-      const chatReference = resolveChannelChatReference(
-        context.message,
       );
       if (chatReference === null) {
         await context.reply(
@@ -263,6 +393,7 @@ export class BotRuntimeManager {
         return;
       }
 
+      await context.deleteMessage().catch(() => undefined);
       const linked = await this.attemptChannelLink({
         runtime,
         addedByUserId: user.id,
@@ -497,6 +628,12 @@ export class BotRuntimeManager {
       if (context.chat.type !== "channel") {
         return;
       }
+      if (
+        runtime.botRecord.botType === BotType.CONTACT_BOT &&
+        !runtime.botRecord.isActive
+      ) {
+        return;
+      }
 
       const membership = context.myChatMember.new_chat_member;
       const membershipOutcome =
@@ -580,8 +717,40 @@ export class BotRuntimeManager {
     if (!record) {
       throw new ManagedResourceNotFoundError();
     }
-    if (record.isActive && this.#runtimes.has(record.id)) {
+    const existingRuntime = this.#runtimes.get(record.id);
+    if (record.isActive && existingRuntime) {
       return record;
+    }
+
+    const persistActivation = () =>
+      this.prisma.$transaction(async (transaction) => {
+        const activated = await transaction.bot.update({
+          where: { id: record.id },
+          data: { isActive: true },
+        });
+        await transaction.auditLog.create({
+          data: {
+            userId: ownerId,
+            action: "BOT_ACTIVATED",
+            entityType: "Bot",
+            entityId: record.id,
+          },
+        });
+        return activated;
+      });
+
+    if (
+      existingRuntime &&
+      record.botType === BotType.CONTACT_BOT
+    ) {
+      await reconcileBotLinksForActivation(
+        this.prisma,
+        existingRuntime.bot,
+        record.id,
+      );
+      const activeRecord = await persistActivation();
+      existingRuntime.botRecord = activeRecord;
+      return activeRecord;
     }
 
     const token = decryptToken(
@@ -600,23 +769,7 @@ export class BotRuntimeManager {
 
     let activeRecord: DatabaseBot;
     try {
-      activeRecord = await this.prisma.$transaction(
-        async (transaction) => {
-          const activated = await transaction.bot.update({
-            where: { id: record.id },
-            data: { isActive: true },
-          });
-          await transaction.auditLog.create({
-            data: {
-              userId: ownerId,
-              action: "BOT_ACTIVATED",
-              entityType: "Bot",
-              entityId: record.id,
-            },
-          });
-          return activated;
-        },
-      );
+      activeRecord = await persistActivation();
     } catch (error) {
       await this.unregisterWebhook(pendingRuntime);
       throw error;
@@ -660,56 +813,75 @@ export class BotRuntimeManager {
     }
 
     const runtime = this.#runtimes.get(record.id);
-    this.#runtimes.delete(record.id);
+    const keepDormant =
+      !deleted &&
+      record.botType === BotType.CONTACT_BOT &&
+      runtime !== undefined;
+    if (!keepDormant) {
+      this.#runtimes.delete(record.id);
+    }
     const deactivatedAt = new Date();
+    let updatedRecord: DatabaseBot;
     try {
-      await this.prisma.$transaction(async (transaction) => {
-        await transaction.bot.update({
-          where: { id: record.id },
-          data: {
-            isActive: false,
-            deletedAt: deleted ? deactivatedAt : null,
-          },
-        });
-        if (deleted) {
-          await transaction.botChannelLink.updateMany({
-            where: { botId: record.id },
+      updatedRecord = await this.prisma.$transaction(
+        async (transaction) => {
+          const updated = await transaction.bot.update({
+            where: { id: record.id },
             data: {
-              status: LinkStatus.INACTIVE,
-              deactivatedAt,
-              deactivationReason: "BOT_DELETED",
+              isActive: false,
+              deletedAt: deleted ? deactivatedAt : null,
             },
           });
-        }
-        await transaction.auditLog.create({
-          data: {
-            userId: ownerId,
-            action: deleted
-              ? "BOT_SOFT_DELETED"
-              : "BOT_DEACTIVATED",
-            entityType: "Bot",
-            entityId: record.id,
-          },
-        });
-      });
+          if (deleted) {
+            await transaction.botChannelLink.updateMany({
+              where: { botId: record.id },
+              data: {
+                status: LinkStatus.INACTIVE,
+                deactivatedAt,
+                deactivationReason: "BOT_DELETED",
+              },
+            });
+          }
+          await transaction.auditLog.create({
+            data: {
+              userId: ownerId,
+              action: deleted
+                ? "BOT_SOFT_DELETED"
+                : "BOT_DEACTIVATED",
+              entityType: "Bot",
+              entityId: record.id,
+            },
+          });
+          return updated;
+        },
+      );
     } catch (error) {
-      if (runtime) {
+      if (runtime && !keepDormant) {
         this.#runtimes.set(record.id, runtime);
       }
       throw error;
     }
 
-    if (runtime) {
+    if (keepDormant) {
+      runtime.botRecord = updatedRecord;
+    } else if (runtime) {
       await this.unregisterWebhook(runtime);
+    }
+    if (deleted) {
+      this.#contactRelays.delete(record.id);
+      this.#ownerTelegramIds.delete(record.id);
     }
   }
 
   async loadActiveUserBots(): Promise<void> {
     const records = await this.prisma.bot.findMany({
       where: {
-        isActive: true,
         deletedAt: null,
         botType: { not: BotType.PLATFORM_BOT },
+        OR: [
+          { isActive: true },
+          { botType: BotType.CONTACT_BOT },
+        ],
       },
     });
 

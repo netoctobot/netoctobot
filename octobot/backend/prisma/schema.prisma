@@ -75,7 +75,6 @@ model Bot {
   botChannelLinks      BotChannelLink[]
   adPlacements         AdPlacement[]
   forcedSubscriptions  ForcedSubscription[]
-  contactConversations ContactConversation[]
   userPreferences      UserBotPreference[]
   paymentIntents       PaymentIntent[]
   payments             Payment[]
@@ -549,48 +548,6 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@map("audit_logs")
-}
-
-model ContactConversation {
-  id             String   @id @default(cuid())
-  botId          String
-  originalUserId BigInt
-  ownerChatId    BigInt
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  bot      Bot              @relation(fields: [botId], references: [id])
-  messages ContactMessage[]
-
-  @@unique([botId, originalUserId])
-  @@index([botId])
-  @@map("contact_conversations")
-}
-
-model ContactMessage {
-  id              String                  @id @default(cuid())
-  conversationId  String
-  direction       ContactMessageDirection
-  sourceChatId    BigInt
-  sourceMessageId BigInt
-  targetChatId    BigInt?
-  targetMessageId BigInt?
-  mediaGroupId    String?
-  createdAt       DateTime                @default(now())
-
-  conversation ContactConversation @relation(fields: [conversationId], references: [id])
-
-  @@index([conversationId])
-  @@index([sourceChatId, sourceMessageId])
-  @@index([targetChatId, targetMessageId])
-  @@map("contact_messages")
-}
-
-enum ContactMessageDirection {
-  INCOMING
-  COPIED
-  REPLY
-  SENT
 }
 
 model ReferralLink {

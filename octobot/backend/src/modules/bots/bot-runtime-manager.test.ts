@@ -100,7 +100,10 @@ test("temporarily deactivates the runtime without changing channel links", async
 
   await value.manager.deactivateUserBot("owner-id", "bot-id");
 
-  assert.equal(value.manager.get("bot-id"), undefined);
+  assert.equal(
+    value.manager.get("bot-id")?.botRecord.isActive,
+    false,
+  );
   assert.deepEqual(value.botUpdates[0], {
     where: { id: "bot-id" },
     data: { isActive: false, deletedAt: null },

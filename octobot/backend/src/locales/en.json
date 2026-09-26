@@ -35,6 +35,14 @@
     "failed": "The bot could not be created now. Please try again later.",
     "cancel": "Cancel"
   },
+  "contact": {
+    "privateReplyAnchor": "Sender ID: {{id}}\nCONTACT_ID:{{id}}\nThis sender's identity is hidden in the forward. Reply to this bot message to answer them.",
+    "deliveryFailed": "Your message could not be delivered now. Please try again later.",
+    "replyRequired": "To answer a visitor, reply to their forwarded message or to the sender-ID message posted by the bot after it.",
+    "replyFailed": "Your reply could not be sent to the visitor. Delivery was not confirmed.",
+    "disabled": "The owner has temporarily stopped this bot.",
+    "createBot": "Create your bot"
+  },
   "channelLink": {
     "autoInstructions": "Forward a published channel message now, or send the channel's complete username, link, or numeric ID. You must be a channel administrator or owner, and the bot must be an administrator with post and delete permissions.\n\nIf the bot is not an administrator yet, use the button below to add it. It can also detect the addition and link the channel automatically.",
     "addBotButton": "Add bot to channel",
@@ -66,7 +74,7 @@
     "noBots": "No bots are currently added.",
     "channelsTitle": "Your linked channels:",
     "noChannels": "No channels are currently linked.",
-    "contactDeactivateWarning": "This will temporarily deactivate @{{username}}. Telegram commands, messages, and channel services will stop. Its {{count}} channel links and settings will remain saved, and their services will return on activation after Telegram permissions are verified.",
+    "contactDeactivateWarning": "This will temporarily deactivate @{{username}}. Contact delivery and channel services will stop, and visitors will be told that the owner stopped the bot. Its {{count}} channel links and settings will remain saved, and their services will return on activation after Telegram permissions are verified.",
     "contactDeleteWarning": "@{{username}} will disappear from your account and its commands, messages, and channel services will stop. History remains, and the bot will not be removed as a Telegram channel administrator. To add it again, submit its token from the beginning and re-link its channels.",
     "supportDeactivateWarning": "This will temporarily deactivate @{{username}}. Telegram commands and channel services will stop. Its {{count}} channel links and settings will remain saved, and their services will return on activation after Telegram permissions are verified. The support-list feature itself is still under development.",
     "supportDeleteWarning": "@{{username}} will disappear from your account and its commands and channel services will stop. History remains, and the bot will not be removed as a Telegram channel administrator. Adding it again requires its token and fresh channel links. The support-list feature is still under development.",

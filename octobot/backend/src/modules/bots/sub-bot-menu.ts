@@ -19,6 +19,26 @@ function localizedWelcome(
     : translate(language, "menu.comingSoon");
 }
 
+export function buildContactVisitorWelcome(
+  record: DatabaseBot,
+  language: SupportedLanguage,
+): string {
+  return localizedWelcome(record, language);
+}
+
+export function buildDisabledContactView(
+  language: SupportedLanguage,
+  platformBotUsername: string,
+): DashboardView {
+  return {
+    text: translate(language, "contact.disabled"),
+    keyboard: new InlineKeyboard().url(
+      translate(language, "contact.createBot"),
+      `https://t.me/${platformBotUsername}`,
+    ),
+  };
+}
+
 export function buildSubBotHome(
   record: DatabaseBot,
   language: SupportedLanguage,

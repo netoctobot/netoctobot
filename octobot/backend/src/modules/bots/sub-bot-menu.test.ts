@@ -5,7 +5,11 @@ import {
   SupportedLanguage,
   type Bot as DatabaseBot,
 } from "@prisma/client";
-import { buildSubBotHome } from "./sub-bot-menu.js";
+import {
+  buildContactVisitorWelcome,
+  buildDisabledContactView,
+  buildSubBotHome,
+} from "./sub-bot-menu.js";
 
 function databaseBot(): DatabaseBot {
   return {
@@ -32,4 +36,27 @@ test("sub-bot home accepts forwarding without an extra recovery button", () => {
     false,
   );
   assert.equal(keyboard.some((button) => "url" in button), true);
+});
+
+test("contact visitors see only the configured welcome", () => {
+  assert.equal(
+    buildContactVisitorWelcome(
+      databaseBot(),
+      SupportedLanguage.EN,
+    ),
+    "Welcome",
+  );
+});
+
+test("disabled contact bot links visitors to the platform bot", () => {
+  const view = buildDisabledContactView(
+    SupportedLanguage.EN,
+    "octobot",
+  );
+
+  assert.match(view.text, /temporarily stopped/);
+  assert.equal(
+    view.keyboard.inline_keyboard[0]?.[0]?.url,
+    "https://t.me/octobot",
+  );
 });

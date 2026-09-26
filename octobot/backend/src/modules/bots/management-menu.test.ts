@@ -62,7 +62,7 @@ test("uses type-specific bot confirmation warnings", () => {
     0,
   );
 
-  assert.match(contact.text, /messages/);
+  assert.match(contact.text, /Contact delivery/);
   assert.match(contact.text, /links and settings will remain saved/);
   assert.doesNotMatch(contact.text, /linked again/);
   assert.doesNotMatch(support.text, /messages/);
