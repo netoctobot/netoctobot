@@ -91,9 +91,17 @@ function lifecycleManager() {
 
 test("temporarily deactivates the runtime without changing channel links", async () => {
   const value = lifecycleManager();
+  let running = false;
   value.manager.add({
     bot: {
       on: () => undefined,
+      isRunning: () => running,
+      start: async () => {
+        running = true;
+      },
+      stop: async () => {
+        running = false;
+      },
     } as unknown as TelegramBot,
     botRecord: value.record,
   });
@@ -109,6 +117,7 @@ test("temporarily deactivates the runtime without changing channel links", async
     data: { isActive: false, deletedAt: null },
   });
   assert.equal(value.linkUpdates.length, 0);
+  assert.equal(running, true);
 });
 
 test("soft-deletes a bot without deleting its historical row", async () => {

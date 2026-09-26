@@ -149,10 +149,54 @@ export class BotRuntimeManager {
       this.registerChannelMembershipHandler(runtime);
     }
     this.#runtimes.set(runtime.botRecord.id, runtime);
+    this.startPollingIfNeeded(runtime);
   }
 
   get(botId: string): ManagedBotRuntime | undefined {
     return this.#runtimes.get(botId);
+  }
+
+  private startPollingIfNeeded(
+    runtime: ManagedBotRuntime,
+  ): void {
+    if (
+      this.env.WEBHOOK_REGISTRATION_ENABLED ||
+      runtime.bot.isRunning()
+    ) {
+      return;
+    }
+    void runtime.bot
+      .start({
+        allowed_updates: [
+          "message",
+          "callback_query",
+          "my_chat_member",
+        ],
+      })
+      .catch((error: unknown) => {
+        const reason =
+          error instanceof Error ? error.message : "Unknown error";
+        console.error(
+          `Polling stopped for bot ${runtime.botRecord.id}: ${reason}`,
+        );
+      });
+  }
+
+  private async stopPollingIfNeeded(
+    runtime: ManagedBotRuntime,
+  ): Promise<void> {
+    if (!runtime.bot.isRunning()) {
+      return;
+    }
+    await runtime.bot.stop().catch(() => undefined);
+  }
+
+  async shutdown(): Promise<void> {
+    await Promise.all(
+      [...this.#runtimes.values()].map((runtime) =>
+        this.stopPollingIfNeeded(runtime),
+      ),
+    );
   }
 
   private async getOwnerTelegramId(
@@ -1362,6 +1406,7 @@ export class BotRuntimeManager {
     if (keepDormant) {
       runtime.botRecord = updatedRecord;
     } else if (runtime) {
+      await this.stopPollingIfNeeded(runtime);
       await this.unregisterWebhook(runtime);
     }
     if (deleted) {
