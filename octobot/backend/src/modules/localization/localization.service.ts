@@ -31,6 +31,7 @@ export type TranslationKey =
   | "botCreation.cancel"
   | "channelLink.autoInstructions"
   | "channelLink.addBotButton"
+  | "channelLink.manualButton"
   | "channelLink.selectBot"
   | "channelLink.noBots"
   | "channelLink.sendReference"

@@ -35,6 +35,13 @@ export class BotPermissionsRequiredError extends Error {
   }
 }
 
+export class BotIdentityMismatchError extends Error {
+  constructor() {
+    super("The Telegram runtime does not match the database bot");
+    this.name = "BotIdentityMismatchError";
+  }
+}
+
 export function hasRequiredChannelRights(
   membership: ChatMember,
 ): boolean {
@@ -61,6 +68,13 @@ export async function verifyAndLinkChannel(input: {
   ownerTelegramId: number;
   chatReference: number | string;
 }): Promise<ChannelLinkResult> {
+  if (
+    BigInt(input.telegramBot.botInfo.id) !==
+    input.databaseBot.telegramBotId
+  ) {
+    throw new BotIdentityMismatchError();
+  }
+
   let chat;
   try {
     chat = await input.telegramBot.api.getChat(input.chatReference);
