@@ -36,12 +36,12 @@
     "cancel": "Cancel"
   },
   "channelLink": {
-    "autoInstructions": "To link a channel, add the desired bot as a channel administrator. The bot will verify automatically that you own the channel and link it without forwarded messages.",
+    "autoInstructions": "You can link a channel in either of two ways:\n1) Add the bot as a channel administrator. It will detect the addition, verify that you own the channel, and link it automatically.\n2) If the bot is already an administrator, open its private chat, select “Bot is already an administrator,” then forward a published channel message or send the channel's complete reference.",
     "addBotButton": "Add bot to channel",
     "manualButton": "Bot is already an administrator",
     "selectBot": "Choose the bot you added as a channel administrator:",
     "noBots": "You have no active bot. Create one first, then add it as a channel administrator.",
-    "sendReference": "Send only the channel username, such as @channel, or its t.me/channel link, or forward a published message from the channel. Do not include other usernames.",
+    "sendReference": "Forward a published message from the channel, or send only its username (such as @channel), t.me/channel link, or complete numeric channel ID. Do not include other usernames.",
     "notFound": "The channel could not be found. Check the username or forward a message from it.",
     "ownerRequired": "You must be the channel owner (creator), not only an administrator.",
     "botAdminRequired": "Add the selected bot as a channel administrator, then try again.",
