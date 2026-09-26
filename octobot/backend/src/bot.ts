@@ -359,6 +359,10 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery("menu:add-channel", async (context) => {
+    if (!context.chat) {
+      await context.answerCallbackQuery();
+      return;
+    }
     await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
