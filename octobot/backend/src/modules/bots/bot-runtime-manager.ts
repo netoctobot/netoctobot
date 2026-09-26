@@ -14,9 +14,14 @@ import {
   encryptToken,
 } from "../../lib/token-crypto.js";
 import {
+  normalizeTelegramLanguage,
   translate,
   type TranslationKey,
 } from "../localization/localization.service.js";
+import {
+  isPrivateSlashCommand,
+  PRIVATE_HOME_COMMAND_PATTERN,
+} from "./slash-command.js";
 import {
   BotAdminRequiredError,
   deactivateBotChannelLink,
@@ -37,6 +42,7 @@ import { resolveChannelChatReference } from "../channels/channel-reference.js";
 import { ManagedResourceNotFoundError } from "../channels/channel-management.service.js";
 import { classifyChannelMembership } from "../channels/channel-membership.js";
 import {
+  clearDashboardState,
   getDashboardState,
   saveDashboardState,
 } from "./dashboard-state.js";
@@ -174,7 +180,6 @@ export class BotRuntimeManager {
       );
 
       if (dashboard?.chatId === context.chat.id) {
-        await context.deleteMessage().catch(() => undefined);
         try {
           await context.api.editMessageText(
             dashboard.chatId,
@@ -182,10 +187,15 @@ export class BotRuntimeManager {
             view.text,
             { reply_markup: view.keyboard },
           );
+          await context.deleteMessage().catch(() => undefined);
           return;
         } catch (error) {
-          if (this.isMessageNotModified(error)) {
-            return;
+          if (!this.isMessageNotModified(error)) {
+            await clearDashboardState(
+              this.redis,
+              runtime.botRecord.id,
+              context.from.id,
+            );
           }
         }
       }
@@ -206,6 +216,7 @@ export class BotRuntimeManager {
 
     runtime.bot.command("start", showHome);
     runtime.bot.command("cancel", showHome);
+    runtime.bot.hears(PRIVATE_HOME_COMMAND_PATTERN, showHome);
 
     runtime.bot.callbackQuery(
       START_MANUAL_CHANNEL_LINK,
@@ -282,6 +293,13 @@ export class BotRuntimeManager {
         return;
       }
 
+      if (
+        isPrivateSlashCommand(context.message.text, "start") ||
+        isPrivateSlashCommand(context.message.text, "cancel")
+      ) {
+        return;
+      }
+
       const state = await getChannelLinkState(
         this.redis,
         runtime.botRecord.id,
@@ -329,6 +347,19 @@ export class BotRuntimeManager {
           context.from.id,
         );
       }
+    });
+
+    runtime.bot.catch(async (error) => {
+      const context = error.ctx;
+      if (context.chat?.type !== "private") {
+        return;
+      }
+      const language = normalizeTelegramLanguage(
+        context.from?.language_code,
+      );
+      await context
+        .reply(translate(language, "errors.generic"))
+        .catch(() => undefined);
     });
   }
 

@@ -46,6 +46,10 @@ import {
   syncBotUser,
 } from "./modules/users/user.service.js";
 import {
+  isPrivateSlashCommand,
+  PRIVATE_HOME_COMMAND_PATTERN,
+} from "./modules/bots/slash-command.js";
+import {
   getOwnedBot,
   listOwnedBots,
 } from "./modules/bots/bot-management.service.js";
@@ -152,7 +156,6 @@ function registerPlatformHandlers(
         : null);
 
     if (dashboard?.chatId === context.chat.id) {
-      await context.deleteMessage().catch(() => undefined);
       try {
         await context.api.editMessageText(
           dashboard.chatId,
@@ -166,16 +169,16 @@ function registerPlatformHandlers(
           context.from.id,
           dashboard,
         );
+        await context.deleteMessage().catch(() => undefined);
         return;
       } catch (error) {
-        if (isMessageNotModified(error)) {
-          return;
+        if (!isMessageNotModified(error)) {
+          await clearDashboardState(
+            redis,
+            platformBotId,
+            context.from.id,
+          );
         }
-        await clearDashboardState(
-          redis,
-          platformBotId,
-          context.from.id,
-        );
       }
     }
 
@@ -244,6 +247,7 @@ function registerPlatformHandlers(
 
   bot.command("start", showHomeFromCommand);
   bot.command("cancel", showHomeFromCommand);
+  bot.hears(PRIVATE_HOME_COMMAND_PATTERN, showHomeFromCommand);
 
   bot.callbackQuery("menu:home", async (context) => {
     await clearActiveFlow(redis, context.from.id);
@@ -676,6 +680,13 @@ function registerPlatformHandlers(
       return;
     }
 
+    if (
+      isPrivateSlashCommand(context.message.text, "start") ||
+      isPrivateSlashCommand(context.message.text, "cancel")
+    ) {
+      return;
+    }
+
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -749,6 +760,19 @@ function registerPlatformHandlers(
       }
       return;
     }
+  });
+
+  bot.catch(async (error) => {
+    const context = error.ctx;
+    if (context.chat?.type !== "private") {
+      return;
+    }
+    const language = normalizeTelegramLanguage(
+      context.from?.language_code,
+    );
+    await context
+      .reply(translate(language, "errors.generic"))
+      .catch(() => undefined);
   });
 }
 
