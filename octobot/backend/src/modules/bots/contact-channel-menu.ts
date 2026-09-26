@@ -8,6 +8,32 @@ import { translate } from "../localization/localization.service.js";
 import { CONTACT_OWNER_HOME } from "./sub-bot-menu.js";
 import type { DashboardView } from "./platform-menu.js";
 
+export type ManagedChannelSurface =
+  | "CONTACT"
+  | "PLATFORM";
+
+function callbacks(surface: ManagedChannelSurface) {
+  return surface === "PLATFORM"
+    ? {
+        back: "menu:home",
+        list: (page: number) => `manage:l:p:${page}`,
+        action: (
+          action: string,
+          id: string,
+          page: number,
+        ) => `manage:l:${action}:${id}:${page}`,
+      }
+    : {
+        back: CONTACT_OWNER_HOME,
+        list: (page: number) => `owner:channel:list:${page}`,
+        action: (
+          action: string,
+          id: string,
+          page: number,
+        ) => `owner:c:${action}:${id}:${page}`,
+      };
+}
+
 function channelTitle(channel: ManagedBotChannelLink): string {
   return (
     channel.title ??
@@ -19,7 +45,9 @@ function channelTitle(channel: ManagedBotChannelLink): string {
 export function buildManagedBotChannelsMenu(
   language: SupportedLanguage,
   result: ManagedBotChannelPage,
+  surface: ManagedChannelSurface = "CONTACT",
 ): DashboardView {
+  const callback = callbacks(surface);
   const keyboard = new InlineKeyboard();
   for (const link of result.items) {
     const title = channelTitle(link);
@@ -28,7 +56,7 @@ export function buildManagedBotChannelsMenu(
     } else {
       keyboard.text(
         title,
-        `owner:c:view:${link.id}:${result.page}`,
+        callback.action("view", link.id, result.page),
       );
     }
     keyboard
@@ -37,25 +65,25 @@ export function buildManagedBotChannelsMenu(
           ? translate(language, "management.deactivate")
           : translate(language, "management.activate"),
         link.status === LinkStatus.ACTIVE
-          ? `owner:c:d:${link.id}:${result.page}`
-          : `owner:c:a:${link.id}:${result.page}`,
+          ? callback.action("d", link.id, result.page)
+          : callback.action("a", link.id, result.page),
       )
       .text(
         translate(language, "management.delete"),
-        `owner:c:x:${link.id}:${result.page}`,
+        callback.action("x", link.id, result.page),
       )
       .row();
   }
   if (result.page > 0) {
     keyboard.text(
       translate(language, "management.previous"),
-      `owner:channel:list:${result.page - 1}`,
+      callback.list(result.page - 1),
     );
   }
   if (result.page + 1 < result.pageCount) {
     keyboard.text(
       translate(language, "management.next"),
-      `owner:channel:list:${result.page + 1}`,
+      callback.list(result.page + 1),
     );
   }
   if (result.page > 0 || result.page + 1 < result.pageCount) {
@@ -63,7 +91,7 @@ export function buildManagedBotChannelsMenu(
   }
   keyboard.text(
     translate(language, "menu.back"),
-    CONTACT_OWNER_HOME,
+    callback.back,
   );
   return {
     text:
@@ -79,7 +107,9 @@ export function buildManagedLinkConfirmation(
   link: ManagedBotChannelLink,
   action: "deactivate" | "remove",
   page: number,
+  surface: ManagedChannelSurface = "CONTACT",
 ): DashboardView {
+  const callback = callbacks(surface);
   return {
     text: translate(
       language,
@@ -91,11 +121,15 @@ export function buildManagedLinkConfirmation(
     keyboard: new InlineKeyboard()
       .text(
         translate(language, "management.confirm"),
-        `owner:c:${action === "deactivate" ? "dc" : "xc"}:${link.id}:${page}`,
+        callback.action(
+          action === "deactivate" ? "dc" : "xc",
+          link.id,
+          page,
+        ),
       )
       .text(
         translate(language, "management.cancel"),
-        `owner:channel:list:${page}`,
+        callback.list(page),
       ),
   };
 }
@@ -104,7 +138,9 @@ export function buildManagedLinkDetails(
   language: SupportedLanguage,
   link: ManagedBotChannelLink,
   page: number,
+  surface: ManagedChannelSurface = "CONTACT",
 ): DashboardView {
+  const callback = callbacks(surface);
   return {
     text: translate(language, "contactOwner.privateChannelLink", {
       title: channelTitle(link),
@@ -118,7 +154,7 @@ export function buildManagedLinkDetails(
     }),
     keyboard: new InlineKeyboard().text(
       translate(language, "menu.back"),
-      `owner:channel:list:${page}`,
+      callback.list(page),
     ),
   };
 }

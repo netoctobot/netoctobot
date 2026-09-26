@@ -31,6 +31,22 @@ export interface ManagedBotChannelPage {
   total: number;
 }
 
+export type ManagedChannelScope =
+  | "BOT_OWNER"
+  | "CHANNEL_OWNER";
+
+function ownershipWhere(
+  ownerId: string,
+  scope: ManagedChannelScope,
+): Prisma.BotChannelLinkWhereInput {
+  return scope === "BOT_OWNER"
+    ? {
+        bot: { ownerId, deletedAt: null },
+        channel: { deletedAt: null },
+      }
+    : { channel: { ownerId, deletedAt: null } };
+}
+
 const visibleLinkWhere: Prisma.BotChannelLinkWhereInput = {
   OR: [
     { deactivationReason: null },
@@ -65,11 +81,11 @@ export async function listManagedBotChannels(
   botId: string,
   ownerId: string,
   requestedPage: number,
+  scope: ManagedChannelScope = "BOT_OWNER",
 ): Promise<ManagedBotChannelPage> {
   const where: Prisma.BotChannelLinkWhereInput = {
     botId,
-    bot: { ownerId, deletedAt: null },
-    channel: { deletedAt: null },
+    ...ownershipWhere(ownerId, scope),
     ...visibleLinkWhere,
   };
   const total = await prisma.botChannelLink.count({ where });
@@ -113,13 +129,13 @@ export async function getManagedBotChannel(
   botId: string,
   ownerId: string,
   linkId: string,
+  scope: ManagedChannelScope = "BOT_OWNER",
 ) {
   const link = await prisma.botChannelLink.findFirst({
     where: {
       id: linkId,
       botId,
-      bot: { ownerId, deletedAt: null },
-      channel: { deletedAt: null },
+      ...ownershipWhere(ownerId, scope),
       ...visibleLinkWhere,
     },
     include: { channel: true },
@@ -135,8 +151,15 @@ export async function deactivateManagedBotChannel(
   botId: string,
   ownerId: string,
   linkId: string,
+  scope: ManagedChannelScope = "BOT_OWNER",
 ): Promise<void> {
-  await getManagedBotChannel(prisma, botId, ownerId, linkId);
+  await getManagedBotChannel(
+    prisma,
+    botId,
+    ownerId,
+    linkId,
+    scope,
+  );
   await prisma.botChannelLink.update({
     where: { id: linkId },
     data: {
@@ -152,8 +175,15 @@ export async function removeManagedBotChannel(
   botId: string,
   ownerId: string,
   linkId: string,
+  scope: ManagedChannelScope = "BOT_OWNER",
 ): Promise<void> {
-  await getManagedBotChannel(prisma, botId, ownerId, linkId);
+  await getManagedBotChannel(
+    prisma,
+    botId,
+    ownerId,
+    linkId,
+    scope,
+  );
   await prisma.botChannelLink.update({
     where: { id: linkId },
     data: {
@@ -170,12 +200,14 @@ export async function activateManagedBotChannel(
   botId: string,
   ownerId: string,
   linkId: string,
+  scope: ManagedChannelScope = "BOT_OWNER",
 ): Promise<void> {
   const link = await getManagedBotChannel(
     prisma,
     botId,
     ownerId,
     linkId,
+    scope,
   );
   let membership;
   try {

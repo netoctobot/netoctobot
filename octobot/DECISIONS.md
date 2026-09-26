@@ -56,6 +56,7 @@ These decisions are the source of truth for implementation. They supersede confl
 - Linking requires the adding user to be a Telegram administrator or creator. The platform records that user as the channel adder and separately snapshots the Telegram ID of the current `creator`; future earnings policy will decide how those identities affect permissions and revenue.
 - A `my_chat_member` update immediately inactivates only that bot/channel link when the bot is removed or loses post/delete rights. The verified linker is notified when Telegram permits a private message. Restored rights never reactivate an inactive link; the creator must explicitly run the bot-scoped link flow again.
 - Channel-link feedback uses the user’s `UserBotPreference` for that specific bot. Success is a separate message deleted after five seconds, then the same dashboard message returns to that bot’s home view.
+- “My channels” is always scoped to the bot where the button was pressed. The platform bot shows only that user’s links to the platform bot; each sub-bot shows only links to itself. Both surfaces use the same list and link-level actions.
 - `Channel.ownerId` identifies the platform user who added the channel for account management. `Channel.telegramOwnerId` stores the current Telegram creator and is refreshed on verified links.
 - Historical ad placements keep their snapshotted `channelOwnerId` and revenue policy.
 - The first successfully linked channel lazily creates the owner’s single wallet.

@@ -60,6 +60,49 @@ test("lists channels through the current bot and owner only", async () => {
   );
 });
 
+test("platform list scopes links by current bot and channel owner", async () => {
+  let receivedWhere: unknown;
+  const prisma = {
+    botChannelLink: {
+      count: async (input: { where: unknown }) => {
+        receivedWhere = input.where;
+        return 0;
+      },
+      findMany: async () => [],
+    },
+  } as unknown as PrismaClient;
+
+  await listManagedBotChannels(
+    prisma,
+    "platform-bot",
+    "channel-owner",
+    0,
+    "CHANNEL_OWNER",
+  );
+
+  assert.deepEqual(
+    receivedWhere as {
+      botId: string;
+      channel: unknown;
+    },
+    {
+      botId: "platform-bot",
+      channel: {
+        ownerId: "channel-owner",
+        deletedAt: null,
+      },
+      OR: [
+        { deactivationReason: null },
+        {
+          deactivationReason: {
+            not: "OWNER_UNLINKED",
+          },
+        },
+      ],
+    },
+  );
+});
+
 test("deactivate and remove change only the selected bot link", async () => {
   const updates: unknown[] = [];
   const prisma = {
