@@ -1,5 +1,6 @@
 import {
   LinkStatus,
+  type Prisma,
   type PrismaClient,
 } from "@prisma/client";
 import type { Bot as TelegramBot } from "grammy";
@@ -30,12 +31,12 @@ export interface ManagedBotChannelPage {
   total: number;
 }
 
-const visibleLinkWhere = {
+const visibleLinkWhere: Prisma.BotChannelLinkWhereInput = {
   OR: [
     { deactivationReason: null },
     { deactivationReason: { not: "OWNER_UNLINKED" } },
   ],
-} as const;
+};
 
 function toSummary(link: {
   id: string;
@@ -65,12 +66,12 @@ export async function listManagedBotChannels(
   ownerId: string,
   requestedPage: number,
 ): Promise<ManagedBotChannelPage> {
-  const where = {
+  const where: Prisma.BotChannelLinkWhereInput = {
     botId,
     bot: { ownerId, deletedAt: null },
     channel: { deletedAt: null },
     ...visibleLinkWhere,
-  } as const;
+  };
   const total = await prisma.botChannelLink.count({ where });
   const pageCount = Math.max(
     1,
