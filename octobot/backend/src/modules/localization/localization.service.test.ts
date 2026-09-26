@@ -29,10 +29,10 @@ test("offers immediate forwarding and automatic channel detection", () => {
     "channelLink.autoInstructions",
   );
 
-  assert.match(arabicInstructions, /^حوّل الآن رسالة منشورة/);
-  assert.match(arabicInstructions, /سيستشعر الإضافة/);
-  assert.match(arabicInstructions, /مشرفاً أو مالكاً/);
-  assert.doesNotMatch(arabicInstructions, /البوت مضاف مشرفاً مسبقاً/);
+  assert.equal(
+    arabicInstructions,
+    "أضف البوت مشرفًا في القناة. إذا لم يتعرّف عليها تلقائيًا، فحوّل منشورًا منها أو أرسل معرّفها.",
+  );
 
   assert.match(englishInstructions, /^Forward a published channel message now/);
   assert.match(englishInstructions, /detect the addition/i);
