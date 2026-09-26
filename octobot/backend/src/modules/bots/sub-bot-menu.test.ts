@@ -9,7 +9,9 @@ import {
   buildContactVisitorWelcome,
   buildDisabledContactView,
   buildSubBotHome,
+  buildWelcomeLanguageMenu,
 } from "./sub-bot-menu.js";
+import { SUPPORTED_LANGUAGES } from "../localization/supported-languages.js";
 
 function databaseBot(): DatabaseBot {
   return {
@@ -22,20 +24,39 @@ function databaseBot(): DatabaseBot {
   } as DatabaseBot;
 }
 
-test("sub-bot home accepts forwarding without an extra recovery button", () => {
+test("contact owner home contains welcome and channel controls", () => {
   const view = buildSubBotHome(databaseBot(), SupportedLanguage.AR);
   const keyboard = view.keyboard.inline_keyboard.flat();
-
-  assert.match(view.text, /حوّل مباشرة رسالة منشورة من القناة/);
-  assert.equal(
-    keyboard.some(
-      (button) =>
-        "callback_data" in button &&
-        button.callback_data === "channel-link:start-manual",
-    ),
-    false,
+  const callbacks = keyboard.flatMap((button) =>
+    "callback_data" in button ? [button.callback_data] : [],
   );
-  assert.equal(keyboard.some((button) => "url" in button), true);
+
+  assert.match(view.text, /لوحة إدارة/);
+  assert.ok(callbacks.includes("owner:welcome:edit"));
+  assert.ok(callbacks.includes("owner:welcome:view"));
+  assert.ok(callbacks.includes("owner:welcome:reset"));
+  assert.ok(callbacks.includes("owner:channel:add"));
+  assert.ok(callbacks.includes("owner:channel:list:0"));
+});
+
+test("welcome language menu is generated from the registry", () => {
+  const view = buildWelcomeLanguageMenu(
+    SupportedLanguage.EN,
+    "edit",
+  );
+  const languageCallbacks = view.keyboard.inline_keyboard
+    .flat()
+    .flatMap((button) =>
+      "callback_data" in button &&
+      button.callback_data.startsWith("owner:w:e:")
+        ? [button.callback_data]
+        : [],
+    );
+
+  assert.equal(
+    languageCallbacks.length,
+    SUPPORTED_LANGUAGES.length,
+  );
 });
 
 test("contact visitors see only the configured welcome", () => {

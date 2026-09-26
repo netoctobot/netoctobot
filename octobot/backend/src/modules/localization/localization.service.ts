@@ -1,6 +1,7 @@
 import { SupportedLanguage } from "@prisma/client";
 import ar from "../../locales/ar.json" with { type: "json" };
 import en from "../../locales/en.json" with { type: "json" };
+import { languageFromTelegram } from "./supported-languages.js";
 
 export type TranslationKey =
   | "app.name"
@@ -19,6 +20,9 @@ export type TranslationKey =
   | "language.select"
   | "language.arabic"
   | "language.english"
+  | "defaults.contactWelcome"
+  | "defaults.supportWelcome"
+  | "defaults.footer"
   | "botCreation.selectType"
   | "botCreation.contactBot"
   | "botCreation.supportListBot"
@@ -35,6 +39,19 @@ export type TranslationKey =
   | "contact.replyFailed"
   | "contact.disabled"
   | "contact.createBot"
+  | "contactOwner.title"
+  | "contactOwner.editWelcome"
+  | "contactOwner.viewWelcome"
+  | "contactOwner.resetWelcome"
+  | "contactOwner.selectWelcomeLanguage"
+  | "contactOwner.welcomeView"
+  | "contactOwner.sendWelcome"
+  | "contactOwner.invalidWelcome"
+  | "contactOwner.linkedChannelsTitle"
+  | "contactOwner.noLinkedChannels"
+  | "contactOwner.deactivateLinkWarning"
+  | "contactOwner.removeLinkWarning"
+  | "contactOwner.privateChannelLink"
   | "channelLink.autoInstructions"
   | "channelLink.addBotButton"
   | "channelLink.selectBot"
@@ -90,11 +107,7 @@ const catalogs: Record<SupportedLanguage, unknown> = {
 export function normalizeTelegramLanguage(
   languageCode?: string,
 ): SupportedLanguage {
-  const normalized = languageCode?.toLowerCase();
-  if (normalized?.startsWith("ar")) {
-    return SupportedLanguage.AR;
-  }
-  return SupportedLanguage.EN;
+  return languageFromTelegram(languageCode);
 }
 
 export function translate(

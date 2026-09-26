@@ -23,6 +23,11 @@
     "arabic": "العربية",
     "english": "English"
   },
+  "defaults": {
+    "contactWelcome": "Send your message and it will be delivered to the bot owner.",
+    "supportWelcome": "The support-list bot is under construction.",
+    "footer": "Created with Octobot"
+  },
   "botCreation": {
     "selectType": "Choose the type of bot to create:",
     "contactBot": "Contact bot",
@@ -42,6 +47,21 @@
     "replyFailed": "Your reply could not be sent to the visitor. Delivery was not confirmed.",
     "disabled": "The owner has temporarily stopped this bot.",
     "createBot": "Create your bot"
+  },
+  "contactOwner": {
+    "title": "Manage @{{username}}",
+    "editWelcome": "Edit welcome message",
+    "viewWelcome": "View welcome message",
+    "resetWelcome": "Remove customization and restore default",
+    "selectWelcomeLanguage": "Choose the welcome-message language:",
+    "welcomeView": "Welcome message — {{language}}:\n\n{{text}}",
+    "sendWelcome": "Send the new {{language}} welcome message. It must be text no longer than 3500 characters.",
+    "invalidWelcome": "Send valid text no longer than 3500 characters.",
+    "linkedChannelsTitle": "Channels linked to this bot:",
+    "noLinkedChannels": "No channels are currently linked to this bot.",
+    "deactivateLinkWarning": "This will stop this bot's services in “{{title}}” only. The channel and other bots are unaffected.",
+    "removeLinkWarning": "“{{title}}” will be removed from this bot's list and only this bot's services will stop there. It can be linked again later.",
+    "privateChannelLink": "Channel: {{title}}\nID: {{id}}\nStatus: {{status}}"
   },
   "channelLink": {
     "autoInstructions": "Forward a published channel message now, or send the channel's complete username, link, or numeric ID. You must be a channel administrator or owner, and the bot must be an administrator with post and delete permissions.\n\nIf the bot is not an administrator yet, use the button below to add it. It can also detect the addition and link the channel automatically.",

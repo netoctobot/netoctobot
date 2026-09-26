@@ -22,6 +22,8 @@ These decisions are the source of truth for implementation. They supersede confl
 - Contact-bot visitors do not get a SaaS `User` or wallet. Contact messages, conversations, and reply mappings are never stored in PostgreSQL or Redis.
 - Visitor messages are forwarded natively to the owner. Owner replies are copied back to hide the owner’s identity. Replies route from Telegram’s forward origin; privacy-hidden visitors receive a bot-authored anchor containing their Telegram ID.
 - Media albums may be buffered in process memory for about one second only, then forwarded as one Telegram album. Successful deliveries receive a best-effort 👍 reaction; failures receive an explicit error and no success signal.
+- A contact-bot owner sees an owner-only `/start` panel for welcome messages and that bot’s channel links. Visitors see only the localized welcome and never receive owner callbacks.
+- Welcome content is stored per supported language. View/edit/reset language choices are generated from the central language registry; reset restores the default for only the selected language. Interface and visitor welcome language default from each Telegram user’s current `language_code`.
 - A `User` is created when someone uses the platform bot (`/start`). No wallet at that point.
 - The platform bot keeps one dashboard message and one active flow per user in Redis.
 - `/start`, `/cancel`, Home, or entering another section cancels stale flow state and edits the existing dashboard instead of leaving old prompts behind.
@@ -65,6 +67,7 @@ These decisions are the source of truth for implementation. They supersede confl
 - Deleting a channel inactivates all of its bot links. Re-adding the channel reuses its row but activates only links that are explicitly verified again.
 - Deactivating a user bot preserves every channel-link status and setting. An inactive contact bot retains a dormant runtime/webhook solely to tell visitors that the owner stopped it and link them to the platform bot; it must not relay messages or perform management work. Other bot types unload their runtime and webhook. Deletion remains destructive to current service eligibility and inactivates links. Neither action changes Telegram administrator membership.
 - Reactivating a bot verifies its saved active links against current Telegram membership and post/delete permissions before restoring runtime services. Valid links resume without relinking; links that actually lost Telegram membership or permissions become inactive. Legacy links marked `BOT_DEACTIVATED` are restored when verification succeeds.
+- Channel management inside a contact bot is scoped to that bot’s `BotChannelLink`. Deactivate/remove actions must not alter the channel row or another bot’s link; activation verifies the contact bot’s current Telegram permissions.
 - The platform bot cannot be managed through the user “My bots” lifecycle.
 
 ## Schema

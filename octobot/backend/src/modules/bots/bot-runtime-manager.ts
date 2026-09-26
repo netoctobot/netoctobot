@@ -26,6 +26,10 @@ import {
 import { reconcileBotLinksForActivation } from "./bot-link-activation.service.js";
 import { ContactBotRelay } from "./contact-bot.service.js";
 import {
+  defaultFooterTexts,
+  defaultWelcomeMessages,
+} from "./bot-welcome.service.js";
+import {
   BotAdminRequiredError,
   deactivateBotChannelLink,
   ExplicitRelinkRequiredError,
@@ -54,11 +58,40 @@ import {
   type DashboardView,
 } from "./platform-menu.js";
 import {
+  buildContactAddChannelView,
   buildContactVisitorWelcome,
   buildDisabledContactView,
   buildSubBotHome,
+  buildWelcomeEditPrompt,
+  buildWelcomeLanguageMenu,
+  buildWelcomeView,
+  CONTACT_OWNER_ADD_CHANNEL,
+  CONTACT_OWNER_HOME,
+  type WelcomeAction,
 } from "./sub-bot-menu.js";
 import { syncBotUser } from "../users/user.service.js";
+import {
+  clearWelcomeEditState,
+  getWelcomeEditState,
+  saveWelcomeEditState,
+} from "./welcome-edit-state.js";
+import {
+  resetWelcomeMessage,
+  setWelcomeMessage,
+} from "./bot-welcome.service.js";
+import { parseSupportedLanguage } from "../localization/supported-languages.js";
+import {
+  activateManagedBotChannel,
+  deactivateManagedBotChannel,
+  getManagedBotChannel,
+  listManagedBotChannels,
+  removeManagedBotChannel,
+} from "../channels/bot-channel-management.service.js";
+import {
+  buildManagedBotChannelsMenu,
+  buildManagedLinkConfirmation,
+  buildManagedLinkDetails,
+} from "./contact-channel-menu.js";
 
 export interface ManagedBotRuntime {
   bot: TelegramBot;
@@ -91,31 +124,12 @@ export function deriveWebhookSecret(
 }
 
 function defaultMessages(botType: BotType): {
-  welcomeMessages: { ar: string; en: string };
-  footerTexts: { ar: string; en: string };
+  welcomeMessages: Record<string, string>;
+  footerTexts: Record<string, string>;
 } {
-  if (botType === BotType.SUPPORT_LIST_BOT) {
-    return {
-      welcomeMessages: {
-        ar: "بوت قائمة الدعم قيد التجهيز.",
-        en: "The support-list bot is under construction.",
-      },
-      footerTexts: {
-        ar: "تم الإنشاء بواسطة أوكتوبوت",
-        en: "Created with Octobot",
-      },
-    };
-  }
-
   return {
-    welcomeMessages: {
-      ar: "أرسل رسالتك وسيتم إيصالها إلى مالك البوت.",
-      en: "Send your message and it will be delivered to the bot owner.",
-    },
-    footerTexts: {
-      ar: "تم الإنشاء بواسطة أوكتوبوت",
-      en: "Created with Octobot",
-    },
+    welcomeMessages: defaultWelcomeMessages(botType),
+    footerTexts: defaultFooterTexts(),
   };
 }
 
@@ -194,6 +208,94 @@ export class BotRuntimeManager {
     await context.reply(view.text, { reply_markup: view.keyboard });
   }
 
+  private async showRuntimeDashboard(
+    context: Context,
+    runtime: ManagedBotRuntime,
+    view: DashboardView,
+  ): Promise<void> {
+    if (!context.from || !context.chat) {
+      return;
+    }
+    const dashboard = await getDashboardState(
+      this.redis,
+      runtime.botRecord.id,
+      context.from.id,
+    );
+    if (dashboard?.chatId === context.chat.id) {
+      try {
+        await context.api.editMessageText(
+          dashboard.chatId,
+          dashboard.messageId,
+          view.text,
+          { reply_markup: view.keyboard },
+        );
+        await context.deleteMessage().catch(() => undefined);
+        return;
+      } catch (error) {
+        if (!this.isMessageNotModified(error)) {
+          await clearDashboardState(
+            this.redis,
+            runtime.botRecord.id,
+            context.from.id,
+          );
+        } else {
+          return;
+        }
+      }
+    }
+    const message = await context.reply(view.text, {
+      reply_markup: view.keyboard,
+    });
+    await saveDashboardState(
+      this.redis,
+      runtime.botRecord.id,
+      context.from.id,
+      {
+        chatId: context.chat.id,
+        messageId: message.message_id,
+      },
+    );
+  }
+
+  private async editRuntimeDashboard(
+    context: Context,
+    runtime: ManagedBotRuntime,
+    view: DashboardView,
+  ): Promise<void> {
+    try {
+      await context.editMessageText(view.text, {
+        reply_markup: view.keyboard,
+      });
+    } catch (error) {
+      if (!this.isMessageNotModified(error)) {
+        throw error;
+      }
+    }
+    const message = context.callbackQuery?.message;
+    if (context.from && context.chat && message) {
+      await saveDashboardState(
+        this.redis,
+        runtime.botRecord.id,
+        context.from.id,
+        {
+          chatId: context.chat.id,
+          messageId: message.message_id,
+        },
+      );
+    }
+  }
+
+  private async isContactOwner(
+    context: Context,
+    runtime: ManagedBotRuntime,
+  ): Promise<boolean> {
+    return (
+      runtime.botRecord.botType === BotType.CONTACT_BOT &&
+      context.from?.id ===
+        (await this.getOwnerTelegramId(runtime.botRecord))
+    );
+  }
+
   private buildHome(
     record: DatabaseBot,
     language: SupportedLanguage,
@@ -240,6 +342,29 @@ export class BotRuntimeManager {
           );
           return;
         }
+        await Promise.all([
+          clearChannelLinkState(
+            this.redis,
+            runtime.botRecord.id,
+            context.from.id,
+          ),
+          clearWelcomeEditState(
+            this.redis,
+            runtime.botRecord.id,
+            context.from.id,
+          ),
+        ]);
+        await this.showRuntimeDashboard(
+          context,
+          runtime,
+          buildSubBotHome(
+            runtime.botRecord,
+            normalizeTelegramLanguage(
+              context.from.language_code,
+            ),
+          ),
+        );
+        return;
       }
 
       await saveChannelLinkState(
@@ -302,6 +427,329 @@ export class BotRuntimeManager {
     runtime.bot.command("cancel", showHome);
     runtime.bot.hears(PRIVATE_HOME_COMMAND_PATTERN, showHome);
 
+    const authorizeOwnerCallback = async (
+      context: Context,
+    ): Promise<boolean> => {
+      if (
+        !runtime.botRecord.isActive ||
+        !(await this.isContactOwner(context, runtime))
+      ) {
+        if (context.callbackQuery) {
+          await context.answerCallbackQuery().catch(() => undefined);
+        }
+        return false;
+      }
+      return true;
+    };
+
+    const interfaceLanguage = (context: Context) =>
+      normalizeTelegramLanguage(context.from?.language_code);
+
+    const clearOwnerFlows = (telegramUserId: number) =>
+      Promise.all([
+        clearChannelLinkState(
+          this.redis,
+          runtime.botRecord.id,
+          telegramUserId,
+        ),
+        clearWelcomeEditState(
+          this.redis,
+          runtime.botRecord.id,
+          telegramUserId,
+        ),
+      ]);
+
+    const showLinkedChannels = async (
+      context: Context,
+      page: number,
+    ) => {
+      const result = await listManagedBotChannels(
+        this.prisma,
+        runtime.botRecord.id,
+        runtime.botRecord.ownerId,
+        page,
+      );
+      await this.editRuntimeDashboard(
+        context,
+        runtime,
+        buildManagedBotChannelsMenu(
+          interfaceLanguage(context),
+          result,
+        ),
+      );
+    };
+
+    runtime.bot.callbackQuery(
+      CONTACT_OWNER_HOME,
+      async (context) => {
+        if (!(await authorizeOwnerCallback(context))) {
+          return;
+        }
+        await clearOwnerFlows(context.from.id);
+        await this.editRuntimeDashboard(
+          context,
+          runtime,
+          buildSubBotHome(
+            runtime.botRecord,
+            interfaceLanguage(context),
+          ),
+        );
+        await context.answerCallbackQuery();
+      },
+    );
+
+    runtime.bot.callbackQuery(
+      /^owner:welcome:(edit|view|reset)$/,
+      async (context) => {
+        if (!(await authorizeOwnerCallback(context))) {
+          return;
+        }
+        await clearOwnerFlows(context.from.id);
+        const action = context.match[1] as WelcomeAction;
+        await this.editRuntimeDashboard(
+          context,
+          runtime,
+          buildWelcomeLanguageMenu(
+            interfaceLanguage(context),
+            action,
+          ),
+        );
+        await context.answerCallbackQuery();
+      },
+    );
+
+    runtime.bot.callbackQuery(
+      /^owner:w:(e|v|r):([A-Z_]+)$/,
+      async (context) => {
+        if (!(await authorizeOwnerCallback(context))) {
+          return;
+        }
+        const contentLanguage = parseSupportedLanguage(
+          context.match[2],
+        );
+        if (!contentLanguage) {
+          await context.answerCallbackQuery();
+          return;
+        }
+        const language = interfaceLanguage(context);
+        const action = context.match[1];
+        if (action === "v") {
+          await clearOwnerFlows(context.from.id);
+          await this.editRuntimeDashboard(
+            context,
+            runtime,
+            buildWelcomeView(
+              runtime.botRecord,
+              language,
+              contentLanguage,
+            ),
+          );
+        } else if (action === "r") {
+          await clearOwnerFlows(context.from.id);
+          runtime.botRecord = await resetWelcomeMessage(
+            this.prisma,
+            runtime.botRecord.id,
+            contentLanguage,
+          );
+          await this.editRuntimeDashboard(
+            context,
+            runtime,
+            buildWelcomeView(
+              runtime.botRecord,
+              language,
+              contentLanguage,
+            ),
+          );
+        } else {
+          await clearChannelLinkState(
+            this.redis,
+            runtime.botRecord.id,
+            context.from.id,
+          );
+          const message = context.callbackQuery.message;
+          if (!message) {
+            await context.answerCallbackQuery();
+            return;
+          }
+          await saveWelcomeEditState(
+            this.redis,
+            runtime.botRecord.id,
+            context.from.id,
+            {
+              chatId: message.chat.id,
+              dashboardMessageId: message.message_id,
+              language: contentLanguage,
+            },
+          );
+          await this.editRuntimeDashboard(
+            context,
+            runtime,
+            buildWelcomeEditPrompt(language, contentLanguage),
+          );
+        }
+        await context.answerCallbackQuery();
+      },
+    );
+
+    runtime.bot.callbackQuery(
+      CONTACT_OWNER_ADD_CHANNEL,
+      async (context) => {
+        if (!(await authorizeOwnerCallback(context))) {
+          return;
+        }
+        await clearOwnerFlows(context.from.id);
+        if (!context.chat) {
+          await context.answerCallbackQuery();
+          return;
+        }
+        await saveChannelLinkState(
+          this.redis,
+          runtime.botRecord.id,
+          context.from.id,
+          { chatId: context.chat.id },
+        );
+        await this.editRuntimeDashboard(
+          context,
+          runtime,
+          buildContactAddChannelView(
+            interfaceLanguage(context),
+            runtime.botRecord.botUsername,
+          ),
+        );
+        await context.answerCallbackQuery();
+      },
+    );
+
+    runtime.bot.callbackQuery(
+      /^owner:channel:list:(\d+)$/,
+      async (context) => {
+        if (!(await authorizeOwnerCallback(context))) {
+          return;
+        }
+        await clearOwnerFlows(context.from.id);
+        await showLinkedChannels(context, Number(context.match[1]));
+        await context.answerCallbackQuery();
+      },
+    );
+
+    runtime.bot.callbackQuery(
+      /^owner:c:(d|x):([A-Za-z0-9_-]+):(\d+)$/,
+      async (context) => {
+        if (!(await authorizeOwnerCallback(context))) {
+          return;
+        }
+        const link = await getManagedBotChannel(
+          this.prisma,
+          runtime.botRecord.id,
+          runtime.botRecord.ownerId,
+          context.match[2],
+        );
+        await this.editRuntimeDashboard(
+          context,
+          runtime,
+          buildManagedLinkConfirmation(
+            interfaceLanguage(context),
+            {
+              id: link.id,
+              status: link.status,
+              channelId: link.channel.id,
+              title: link.channel.title,
+              username: link.channel.username,
+              channelTelegramId:
+                link.channel.channelTelegramId,
+              channelIsActive: link.channel.isActive,
+            },
+            context.match[1] === "d"
+              ? "deactivate"
+              : "remove",
+            Number(context.match[3]),
+          ),
+        );
+        await context.answerCallbackQuery();
+      },
+    );
+
+    runtime.bot.callbackQuery(
+      /^owner:c:(a|dc|xc):([A-Za-z0-9_-]+):(\d+)$/,
+      async (context) => {
+        if (!(await authorizeOwnerCallback(context))) {
+          return;
+        }
+        try {
+          if (context.match[1] === "a") {
+            await activateManagedBotChannel(
+              this.prisma,
+              runtime.bot,
+              runtime.botRecord.id,
+              runtime.botRecord.ownerId,
+              context.match[2],
+            );
+          } else if (context.match[1] === "dc") {
+            await deactivateManagedBotChannel(
+              this.prisma,
+              runtime.botRecord.id,
+              runtime.botRecord.ownerId,
+              context.match[2],
+            );
+          } else {
+            await removeManagedBotChannel(
+              this.prisma,
+              runtime.botRecord.id,
+              runtime.botRecord.ownerId,
+              context.match[2],
+            );
+          }
+          await showLinkedChannels(
+            context,
+            Number(context.match[3]),
+          );
+          await context.answerCallbackQuery();
+        } catch {
+          await context.answerCallbackQuery({
+            text: translate(
+              interfaceLanguage(context),
+              "management.actionFailed",
+            ),
+            show_alert: true,
+          });
+        }
+      },
+    );
+
+    runtime.bot.callbackQuery(
+      /^owner:c:view:([A-Za-z0-9_-]+):(\d+)$/,
+      async (context) => {
+        if (!(await authorizeOwnerCallback(context))) {
+          return;
+        }
+        const link = await getManagedBotChannel(
+          this.prisma,
+          runtime.botRecord.id,
+          runtime.botRecord.ownerId,
+          context.match[1],
+        );
+        await this.editRuntimeDashboard(
+          context,
+          runtime,
+          buildManagedLinkDetails(
+            interfaceLanguage(context),
+            {
+              id: link.id,
+              status: link.status,
+              channelId: link.channel.id,
+              title: link.channel.title,
+              username: link.channel.username,
+              channelTelegramId:
+                link.channel.channelTelegramId,
+              channelIsActive: link.channel.isActive,
+            },
+            Number(context.match[2]),
+          ),
+        );
+        await context.answerCallbackQuery();
+      },
+    );
+
     runtime.bot.on("message", async (context) => {
       if (!context.from || context.chat.type !== "private") {
         return;
@@ -333,6 +781,49 @@ export class BotRuntimeManager {
           await contactRelay.handleVisitorMessage(
             context,
             language,
+          );
+          return;
+        }
+        const welcomeEditState = await getWelcomeEditState(
+          this.redis,
+          runtime.botRecord.id,
+          context.from.id,
+        );
+        if (
+          welcomeEditState?.chatId === context.chat.id
+        ) {
+          const text = context.message.text?.trim();
+          if (!text || text.length > 3_500) {
+            await context.reply(
+              translate(
+                language,
+                "contactOwner.invalidWelcome",
+              ),
+            );
+            return;
+          }
+          runtime.botRecord = await setWelcomeMessage(
+            this.prisma,
+            runtime.botRecord.id,
+            welcomeEditState.language,
+            text,
+          );
+          await clearWelcomeEditState(
+            this.redis,
+            runtime.botRecord.id,
+            context.from.id,
+          );
+          await context.deleteMessage().catch(() => undefined);
+          const view = buildWelcomeView(
+            runtime.botRecord,
+            language,
+            welcomeEditState.language,
+          );
+          await context.api.editMessageText(
+            welcomeEditState.chatId,
+            welcomeEditState.dashboardMessageId,
+            view.text,
+            { reply_markup: view.keyboard },
           );
           return;
         }
@@ -386,9 +877,15 @@ export class BotRuntimeManager {
         context.from,
         runtime.botRecord.id,
       );
+      const flowLanguage =
+        runtime.botRecord.botType === BotType.CONTACT_BOT
+          ? normalizeTelegramLanguage(
+              context.from.language_code,
+            )
+          : preference.language;
       if (chatReference === null) {
         await context.reply(
-          translate(preference.language, "channelLink.notFound"),
+          translate(flowLanguage, "channelLink.notFound"),
         );
         return;
       }
@@ -398,7 +895,7 @@ export class BotRuntimeManager {
         runtime,
         addedByUserId: user.id,
         addedByTelegramId: context.from.id,
-        language: preference.language,
+        language: flowLanguage,
         chatReference,
         source: "MANUAL",
       });
@@ -956,8 +1453,6 @@ export class BotRuntimeManager {
             encryptionKeyVersion: 1,
             botUsername: bot.botInfo.username,
             botType: input.botType,
-            welcomeMessages: messages.welcomeMessages,
-            footerTexts: messages.footerTexts,
             isActive: false,
             deletedAt: null,
           },
