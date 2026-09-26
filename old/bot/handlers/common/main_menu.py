@@ -1,0 +1,47 @@
+from aiogram import Router, F, types, Bot
+from aiogram_i18n import I18nContext
+from ...db.db_operations import get_user_and_subscription
+# استيراد الأزرار من المجلد الجديد
+from ...keyboards.main_menu import get_main_keyboard
+from ...keyboards.inline.settings import get_language_keyboard
+from bot.config import ADMIN_IDS
+from aiogram.filters import CommandStart
+from aiogram_i18n import I18nContext
+from bot.utils.interface import update_main_interface
+from .navigation import perform_navigation
+
+router = Router()
+
+@router.message(CommandStart())
+async def cmd_start(message: types.Message, i18n: I18nContext, bot: Bot):
+    _ = i18n.get
+    # جلب بيانات المستخدم والاشتراك
+    user, subscription, is_new_user = await get_user_and_subscription(
+        tg_user=message.from_user,
+        bot_token=bot.token  
+    )
+    
+    if not subscription:
+        return # أو إرسال رسالة تخبره أن البوت غير مسجل
+    
+    # توجيه الطلب للدالة الموحدة
+    await perform_navigation(bot, i18n, user, subscription, message)
+
+
+@router.callback_query(F.data == "back_to_main")
+async def back_to_main_menu(callback: types.CallbackQuery, i18n: I18nContext, bot: types.Bot):
+    # جلب بيانات الاشتراك لضمان ظهور الأزرار الصحيحة (Partner/Admin)
+    user, subscription, is_new_user = await get_user_and_subscription(
+        tg_user=callback.from_user,
+        bot_token=bot.token
+    )
+    
+    await callback.message.edit_text(
+        text=i18n.get("welcome-back", full_name=user.full_name),
+        reply_markup=get_main_keyboard(
+            i18n, 
+            is_admin=(callback.from_user.id in ADMIN_IDS), # أو حسب منطق الـ config
+            is_partner=user.is_partner
+        )
+    )
+    await callback.answer()

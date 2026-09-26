@@ -1,0 +1,11 @@
+{
+  "name": "octobot",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "postinstall": "pnpm --filter backend generate",
+    "dev": "pnpm --filter backend dev",
+    "build": "pnpm --filter backend build",
+    "test": "pnpm --filter backend test"
+  }
+}
