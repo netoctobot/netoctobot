@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   BotType,
-  LinkStatus,
   type Bot,
   type PrismaClient,
 } from "@prisma/client";
@@ -90,7 +89,7 @@ function lifecycleManager() {
   };
 }
 
-test("deactivates the bot runtime state and all channel links", async () => {
+test("temporarily deactivates the runtime without changing channel links", async () => {
   const value = lifecycleManager();
   value.manager.add({
     bot: {
@@ -106,17 +105,7 @@ test("deactivates the bot runtime state and all channel links", async () => {
     where: { id: "bot-id" },
     data: { isActive: false, deletedAt: null },
   });
-  const linkUpdate = value.linkUpdates[0] as {
-    data: {
-      status: LinkStatus;
-      deactivationReason: string;
-    };
-  };
-  assert.equal(linkUpdate.data.status, LinkStatus.INACTIVE);
-  assert.equal(
-    linkUpdate.data.deactivationReason,
-    "BOT_DEACTIVATED",
-  );
+  assert.equal(value.linkUpdates.length, 0);
 });
 
 test("soft-deletes a bot without deleting its historical row", async () => {

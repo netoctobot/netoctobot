@@ -23,6 +23,7 @@ import {
   isPrivateSlashCommand,
   PRIVATE_HOME_COMMAND_PATTERN,
 } from "./slash-command.js";
+import { reconcileBotLinksForActivation } from "./bot-link-activation.service.js";
 import {
   BotAdminRequiredError,
   deactivateBotChannelLink,
@@ -590,6 +591,11 @@ export class BotRuntimeManager {
     const bot = new TelegramBot(token);
     await bot.init();
     const pendingRuntime = { bot, botRecord: record };
+    await reconcileBotLinksForActivation(
+      this.prisma,
+      bot,
+      record.id,
+    );
     await this.registerWebhook(pendingRuntime);
 
     let activeRecord: DatabaseBot;
@@ -665,16 +671,16 @@ export class BotRuntimeManager {
             deletedAt: deleted ? deactivatedAt : null,
           },
         });
-        await transaction.botChannelLink.updateMany({
-          where: { botId: record.id },
-          data: {
-            status: LinkStatus.INACTIVE,
-            deactivatedAt,
-            deactivationReason: deleted
-              ? "BOT_DELETED"
-              : "BOT_DEACTIVATED",
-          },
-        });
+        if (deleted) {
+          await transaction.botChannelLink.updateMany({
+            where: { botId: record.id },
+            data: {
+              status: LinkStatus.INACTIVE,
+              deactivatedAt,
+              deactivationReason: "BOT_DELETED",
+            },
+          });
+        }
         await transaction.auditLog.create({
           data: {
             userId: ownerId,

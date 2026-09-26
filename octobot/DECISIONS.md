@@ -61,8 +61,8 @@ These decisions are the source of truth for implementation. They supersede confl
 - Bot, channel, and bot-channel-link status are separate. New service work is eligible only when the bot and channel are active and not deleted and the link is `ACTIVE`.
 - User deletion is always a soft delete: rows and historical relations remain, but deleted resources are hidden from user lists and excluded from new services.
 - Deleting a channel inactivates all of its bot links. Re-adding the channel reuses its row but activates only links that are explicitly verified again.
-- Deactivating or deleting a user bot unloads its runtime, removes its webhook when possible, and inactivates its channel links. Telegram channel administrator membership is not changed.
-- Reactivating a bot restores its runtime and webhook but does not reactivate channel links; each channel must be linked and verified again.
+- Deactivating a user bot unloads its runtime and removes its webhook when possible, but preserves every channel-link status and setting. Deletion remains destructive to current service eligibility and inactivates the bot’s links. Neither action changes Telegram administrator membership.
+- Reactivating a bot verifies its saved active links against current Telegram membership and post/delete permissions before restoring runtime services. Valid links resume without relinking; links that actually lost Telegram membership or permissions become inactive. Legacy links marked `BOT_DEACTIVATED` are restored when verification succeeds.
 - The platform bot cannot be managed through the user “My bots” lifecycle.
 
 ## Schema
