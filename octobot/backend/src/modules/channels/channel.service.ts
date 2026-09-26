@@ -14,10 +14,10 @@ export class ChannelNotFoundError extends Error {
   }
 }
 
-export class ChannelOwnerRequiredError extends Error {
+export class ChannelAdministratorRequiredError extends Error {
   constructor() {
-    super("The user is not the channel creator");
-    this.name = "ChannelOwnerRequiredError";
+    super("The user is not a channel administrator");
+    this.name = "ChannelAdministratorRequiredError";
   }
 }
 
@@ -88,8 +88,8 @@ export async function verifyAndLinkChannel(input: {
   prisma: PrismaClient;
   telegramBot: TelegramBot;
   databaseBot: DatabaseBot;
-  ownerId: string;
-  ownerTelegramId: number;
+  addedByUserId: string;
+  addedByTelegramId: number;
   chatReference: number | string;
   source?: ChannelLinkSource;
 }): Promise<ChannelLinkResult> {
@@ -111,14 +111,6 @@ export async function verifyAndLinkChannel(input: {
     throw new ChannelNotFoundError();
   }
 
-  const ownerMembership = await input.telegramBot.api.getChatMember(
-    chat.id,
-    input.ownerTelegramId,
-  );
-  if (ownerMembership.status !== "creator") {
-    throw new ChannelOwnerRequiredError();
-  }
-
   const botMembership = await input.telegramBot.api.getChatMember(
     chat.id,
     input.telegramBot.botInfo.id,
@@ -131,6 +123,26 @@ export async function verifyAndLinkChannel(input: {
   }
   if (!hasRequiredChannelRights(botMembership)) {
     throw new BotPermissionsRequiredError();
+  }
+
+  const actorMembership = await input.telegramBot.api.getChatMember(
+    chat.id,
+    input.addedByTelegramId,
+  );
+  if (
+    actorMembership.status !== "creator" &&
+    actorMembership.status !== "administrator"
+  ) {
+    throw new ChannelAdministratorRequiredError();
+  }
+
+  const administrators =
+    await input.telegramBot.api.getChatAdministrators(chat.id);
+  const telegramOwner = administrators.find(
+    (administrator) => administrator.status === "creator",
+  );
+  if (!telegramOwner) {
+    throw new ChannelNotFoundError();
   }
 
   const isCreator = botMembership.status === "creator";
@@ -178,14 +190,15 @@ export async function verifyAndLinkChannel(input: {
     const channel = await transaction.channel.upsert({
       where: { channelTelegramId: BigInt(chat.id) },
       create: {
-        ownerId: input.ownerId,
+        ownerId: input.addedByUserId,
+        telegramOwnerId: BigInt(telegramOwner.user.id),
         channelTelegramId: BigInt(chat.id),
         title: chat.title,
         username: chat.username ?? null,
         memberCount,
       },
       update: {
-        ownerId: input.ownerId,
+        telegramOwnerId: BigInt(telegramOwner.user.id),
         title: chat.title,
         username: chat.username ?? null,
         memberCount,
@@ -207,20 +220,20 @@ export async function verifyAndLinkChannel(input: {
         channelId: channel.id,
         permissions,
         status: LinkStatus.ACTIVE,
-        linkedByTelegramId: BigInt(input.ownerTelegramId),
+        linkedByTelegramId: BigInt(input.addedByTelegramId),
       },
       update: {
         permissions,
         status: LinkStatus.ACTIVE,
-        linkedByTelegramId: BigInt(input.ownerTelegramId),
+        linkedByTelegramId: BigInt(input.addedByTelegramId),
         deactivatedAt: null,
         deactivationReason: null,
       },
     });
 
     await transaction.wallet.upsert({
-      where: { userId: input.ownerId },
-      create: { userId: input.ownerId },
+      where: { userId: input.addedByUserId },
+      create: { userId: input.addedByUserId },
       update: {},
     });
 

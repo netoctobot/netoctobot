@@ -38,6 +38,12 @@ import {
   saveDashboardState,
 } from "./modules/bots/dashboard-state.js";
 import {
+  clearChannelLinkState,
+  getChannelLinkState,
+  saveChannelLinkState,
+} from "./modules/channels/channel-link-state.js";
+import { resolveChannelChatReference } from "./modules/channels/channel-reference.js";
+import {
   normalizeTelegramLanguage,
   translate,
 } from "./modules/localization/localization.service.js";
@@ -105,8 +111,12 @@ function isMessageNotModified(error: unknown): boolean {
 async function clearActiveFlow(
   redis: Redis,
   telegramUserId: number,
+  botId: string,
 ): Promise<void> {
-  await clearBotCreationState(redis, telegramUserId);
+  await Promise.all([
+    clearBotCreationState(redis, telegramUserId),
+    clearChannelLinkState(redis, botId, telegramUserId),
+  ]);
 }
 
 function registerPlatformHandlers(
@@ -135,7 +145,7 @@ function registerPlatformHandlers(
       redis,
       context.from.id,
     );
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -250,7 +260,7 @@ function registerPlatformHandlers(
   bot.hears(PRIVATE_HOME_COMMAND_PATTERN, showHomeFromCommand);
 
   bot.callbackQuery("menu:home", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -266,7 +276,7 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery("language:select", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -282,7 +292,7 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery("menu:create-bot", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -315,7 +325,7 @@ function registerPlatformHandlers(
         BotType,
         "CONTACT_BOT" | "SUPPORT_LIST_BOT"
       >;
-      await clearActiveFlow(redis, context.from.id);
+      await clearActiveFlow(redis, context.from.id, platformBotId);
       await saveBotCreationState(redis, context.from.id, {
         ownerId: user.id,
         botType,
@@ -333,7 +343,7 @@ function registerPlatformHandlers(
   );
 
   bot.callbackQuery("bot:create:cancel", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
@@ -349,11 +359,17 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery("menu:add-channel", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { preference } = await syncBotUser(
       prisma,
       context.from,
       platformBotId,
+    );
+    await saveChannelLinkState(
+      redis,
+      platformBotId,
+      context.from.id,
+      { chatId: context.chat.id },
     );
     await editDashboard(
       context,
@@ -368,7 +384,7 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery(/^language:set:(AR|EN)$/, async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     const { user } = await syncBotUser(
       prisma,
       context.from,
@@ -386,13 +402,13 @@ function registerPlatformHandlers(
   });
 
   bot.callbackQuery("menu:my-bots", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     await showOwnedBots(context, 0);
     await context.answerCallbackQuery();
   });
 
   bot.callbackQuery("menu:my-channels", async (context) => {
-    await clearActiveFlow(redis, context.from.id);
+    await clearActiveFlow(redis, context.from.id, platformBotId);
     await showOwnedChannels(context, 0);
     await context.answerCallbackQuery();
   });
@@ -659,7 +675,7 @@ function registerPlatformHandlers(
   bot.callbackQuery(
     /^menu:(ads|wallet|help)$/,
     async (context) => {
-      await clearActiveFlow(redis, context.from.id);
+      await clearActiveFlow(redis, context.from.id, platformBotId);
       const { preference } = await syncBotUser(
         prisma,
         context.from,
@@ -692,6 +708,44 @@ function registerPlatformHandlers(
       context.from,
       platformBotId,
     );
+
+    const channelLinkState = await getChannelLinkState(
+      redis,
+      platformBotId,
+      context.from.id,
+    );
+    if (channelLinkState?.chatId === context.chat.id) {
+      await context.deleteMessage().catch(() => undefined);
+      const chatReference = resolveChannelChatReference(
+        context.message,
+      );
+      if (chatReference === null) {
+        await context.reply(
+          translate(preference.language, "channelLink.notFound"),
+        );
+        return;
+      }
+      const linked = await runtimeManager.linkChannelForUser({
+        botId: platformBotId,
+        actor: context.from,
+        chatReference,
+      });
+      if (linked) {
+        await clearChannelLinkState(
+          redis,
+          platformBotId,
+          context.from.id,
+        );
+      }
+      return;
+    }
+    if (channelLinkState) {
+      await clearChannelLinkState(
+        redis,
+        platformBotId,
+        context.from.id,
+      );
+    }
 
     const creationState = await getBotCreationState(
       redis,
@@ -740,7 +794,7 @@ function registerPlatformHandlers(
           token,
           botType: creationState.botType,
         });
-        await clearActiveFlow(redis, context.from.id);
+        await clearActiveFlow(redis, context.from.id, platformBotId);
         await updateCreationMessage(
           buildBotCreationSuccess(
             preference.language,

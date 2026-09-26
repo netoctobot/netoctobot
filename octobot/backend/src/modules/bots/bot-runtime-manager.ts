@@ -7,6 +7,7 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 import { Bot as TelegramBot, type Context } from "grammy";
+import type { User as TelegramUser } from "grammy/types";
 import type { Redis } from "ioredis";
 import type { Env } from "../../config/env.js";
 import {
@@ -29,7 +30,7 @@ import {
   getBotChannelLinkSnapshot,
   type LinkDeactivationReason,
   ChannelNotFoundError,
-  ChannelOwnerRequiredError,
+  ChannelAdministratorRequiredError,
   BotPermissionsRequiredError,
   verifyAndLinkChannel,
 } from "../channels/channel.service.js";
@@ -51,10 +52,7 @@ import {
   type DashboardView,
 } from "./platform-menu.js";
 import {
-  buildManualChannelLinkPrompt,
   buildSubBotHome,
-  CANCEL_MANUAL_CHANNEL_LINK,
-  START_MANUAL_CHANNEL_LINK,
 } from "./sub-bot-menu.js";
 import { syncBotUser } from "../users/user.service.js";
 
@@ -159,10 +157,11 @@ export class BotRuntimeManager {
         return;
       }
 
-      await clearChannelLinkState(
+      await saveChannelLinkState(
         this.redis,
         runtime.botRecord.id,
         context.from.id,
+        { chatId: context.chat.id },
       );
       const { preference } = await syncBotUser(
         this.prisma,
@@ -218,76 +217,6 @@ export class BotRuntimeManager {
     runtime.bot.command("cancel", showHome);
     runtime.bot.hears(PRIVATE_HOME_COMMAND_PATTERN, showHome);
 
-    runtime.bot.callbackQuery(
-      START_MANUAL_CHANNEL_LINK,
-      async (context) => {
-        if (!context.from || context.chat?.type !== "private") {
-          return;
-        }
-
-        const { preference } = await syncBotUser(
-          this.prisma,
-          context.from,
-          runtime.botRecord.id,
-        );
-        await saveChannelLinkState(
-          this.redis,
-          runtime.botRecord.id,
-          context.from.id,
-          { chatId: context.chat.id },
-        );
-        await context.answerCallbackQuery();
-
-        const view = buildManualChannelLinkPrompt(
-          preference.language,
-        );
-        try {
-          await context.editMessageText(view.text, {
-            reply_markup: view.keyboard,
-          });
-        } catch (error) {
-          if (!this.isMessageNotModified(error)) {
-            throw error;
-          }
-        }
-      },
-    );
-
-    runtime.bot.callbackQuery(
-      CANCEL_MANUAL_CHANNEL_LINK,
-      async (context) => {
-        if (!context.from || context.chat?.type !== "private") {
-          return;
-        }
-
-        await clearChannelLinkState(
-          this.redis,
-          runtime.botRecord.id,
-          context.from.id,
-        );
-        const { preference } = await syncBotUser(
-          this.prisma,
-          context.from,
-          runtime.botRecord.id,
-        );
-        await context.answerCallbackQuery();
-
-        const view = this.buildHome(
-          runtime.botRecord,
-          preference.language,
-        );
-        try {
-          await context.editMessageText(view.text, {
-            reply_markup: view.keyboard,
-          });
-        } catch (error) {
-          if (!this.isMessageNotModified(error)) {
-            throw error;
-          }
-        }
-      },
-    );
-
     runtime.bot.on("message", async (context) => {
       if (!context.from || context.chat.type !== "private") {
         return;
@@ -317,6 +246,7 @@ export class BotRuntimeManager {
         return;
       }
 
+      await context.deleteMessage().catch(() => undefined);
       const { user, preference } = await syncBotUser(
         this.prisma,
         context.from,
@@ -334,8 +264,8 @@ export class BotRuntimeManager {
 
       const linked = await this.attemptChannelLink({
         runtime,
-        ownerId: user.id,
-        ownerTelegramId: context.from.id,
+        addedByUserId: user.id,
+        addedByTelegramId: context.from.id,
         language: preference.language,
         chatReference,
         source: "MANUAL",
@@ -400,8 +330,8 @@ export class BotRuntimeManager {
   }
 
   private channelLinkErrorKey(error: unknown): TranslationKey {
-    return error instanceof ChannelOwnerRequiredError
-      ? "channelLink.ownerRequired"
+    return error instanceof ChannelAdministratorRequiredError
+      ? "channelLink.administratorRequired"
       : error instanceof BotAdminRequiredError
         ? "channelLink.botAdminRequired"
         : error instanceof BotPermissionsRequiredError
@@ -415,8 +345,8 @@ export class BotRuntimeManager {
 
   private async attemptChannelLink(input: {
     runtime: ManagedBotRuntime;
-    ownerId: string;
-    ownerTelegramId: number;
+    addedByUserId: string;
+    addedByTelegramId: number;
     language: SupportedLanguage;
     chatReference: number | string;
     deactivateChannelId?: number;
@@ -427,14 +357,14 @@ export class BotRuntimeManager {
         prisma: this.prisma,
         telegramBot: input.runtime.bot,
         databaseBot: input.runtime.botRecord,
-        ownerId: input.ownerId,
-        ownerTelegramId: input.ownerTelegramId,
+        addedByUserId: input.addedByUserId,
+        addedByTelegramId: input.addedByTelegramId,
         chatReference: input.chatReference,
         source: input.source,
       });
       await this.showTemporarySuccess({
         runtime: input.runtime,
-        telegramUserId: input.ownerTelegramId,
+        telegramUserId: input.addedByTelegramId,
         language: input.language,
         text: translate(input.language, "channelLink.success", {
           title:
@@ -460,7 +390,7 @@ export class BotRuntimeManager {
         });
       }
       if (
-        !(error instanceof ChannelOwnerRequiredError) &&
+        !(error instanceof ChannelAdministratorRequiredError) &&
         !(error instanceof BotAdminRequiredError) &&
         !(error instanceof BotPermissionsRequiredError) &&
         !(error instanceof ChannelNotFoundError) &&
@@ -472,7 +402,7 @@ export class BotRuntimeManager {
       }
       await input.runtime.bot.api
         .sendMessage(
-          input.ownerTelegramId,
+          input.addedByTelegramId,
           translate(
             input.language,
             this.channelLinkErrorKey(error),
@@ -481,6 +411,30 @@ export class BotRuntimeManager {
         .catch(() => undefined);
       return false;
     }
+  }
+
+  async linkChannelForUser(input: {
+    botId: string;
+    actor: TelegramUser;
+    chatReference: number | string;
+  }): Promise<boolean> {
+    const runtime = this.#runtimes.get(input.botId);
+    if (!runtime) {
+      throw new ManagedResourceNotFoundError();
+    }
+    const { user, preference } = await syncBotUser(
+      this.prisma,
+      input.actor,
+      input.botId,
+    );
+    return this.attemptChannelLink({
+      runtime,
+      addedByUserId: user.id,
+      addedByTelegramId: input.actor.id,
+      language: preference.language,
+      chatReference: input.chatReference,
+      source: "MANUAL",
+    });
   }
 
   private async showTemporarySuccess(input: {
@@ -600,8 +554,8 @@ export class BotRuntimeManager {
       );
       await this.attemptChannelLink({
         runtime,
-        ownerId: user.id,
-        ownerTelegramId: actor.id,
+        addedByUserId: user.id,
+        addedByTelegramId: actor.id,
         language: preference.language,
         chatReference: context.chat.id,
         deactivateChannelId: context.chat.id,

@@ -12,7 +12,7 @@ import {
   BotIdentityMismatchError,
   BotPermissionsRequiredError,
   ChannelNotFoundError,
-  ChannelOwnerRequiredError,
+  ChannelAdministratorRequiredError,
   deactivateBotChannelLink,
   ExplicitRelinkRequiredError,
   hasRequiredChannelRights,
@@ -59,7 +59,7 @@ function databaseBot(
 
 function telegramBot(input: {
   chat?: Chat;
-  ownerMembership?: ChatMember;
+  actorMembership?: ChatMember;
   botMembership?: ChatMember;
   botId?: number;
 } = {}): {
@@ -85,7 +85,7 @@ function telegramBot(input: {
         getChatMember: async (_chatId: number, userId: number) => {
           membershipUserIds.push(userId);
           return userId === 123
-            ? (input.ownerMembership ??
+            ? (input.actorMembership ??
                 membership({ status: "creator" }))
             : (input.botMembership ??
                 membership({
@@ -94,6 +94,16 @@ function telegramBot(input: {
                   can_delete_messages: true,
                 }));
         },
+        getChatAdministrators: async () => [
+          membership({
+            status: "creator",
+            user: {
+              id: 321,
+              is_bot: false,
+              first_name: "Actual owner",
+            },
+          }),
+        ],
         getChatMemberCount: async () => 42,
       },
     } as unknown as TelegramBot,
@@ -104,16 +114,23 @@ function telegramBot(input: {
 function prisma(): {
   client: PrismaClient;
   linkedBotIds: string[];
+  telegramOwnerIds: bigint[];
 } {
   const linkedBotIds: string[] = [];
+  const telegramOwnerIds: bigint[] = [];
   const transaction = {
     channel: {
-      upsert: async () => ({
+      upsert: async (input: {
+        create: { telegramOwnerId: bigint };
+      }) => {
+        telegramOwnerIds.push(input.create.telegramOwnerId);
+        return {
         id: "channel-id",
         channelTelegramId: -1001234567890n,
         title: "Channel",
         username: "channel_name",
-      }),
+        };
+      },
     },
     botChannelLink: {
       upsert: async (input: {
@@ -135,6 +152,7 @@ function prisma(): {
       ) => callback(transaction),
     } as unknown as PrismaClient,
     linkedBotIds,
+    telegramOwnerIds,
   };
 }
 
@@ -148,15 +166,17 @@ function verifyInput(input: {
     prisma: input.prisma,
     telegramBot: input.telegramBot,
     databaseBot: input.databaseBot ?? databaseBot(),
-    ownerId: "owner-id",
-    ownerTelegramId: 123,
+    addedByUserId: "owner-id",
+    addedByTelegramId: 123,
     chatReference: "@channel_name",
     source: input.source,
   });
 }
 
-test("checks the exact runtime bot and links that database bot", async () => {
-  const runtime = telegramBot();
+test("allows an administrator and records the actual Telegram owner", async () => {
+  const runtime = telegramBot({
+    actorMembership: membership({ status: "administrator" }),
+  });
   const database = prisma();
 
   const result = await verifyInput({
@@ -165,8 +185,9 @@ test("checks the exact runtime bot and links that database bot", async () => {
   });
 
   assert.equal(result.linkId, "link-id");
-  assert.deepEqual(runtime.membershipUserIds, [123, 999]);
+  assert.deepEqual(runtime.membershipUserIds, [999, 123]);
   assert.deepEqual(database.linkedBotIds, ["database-bot"]);
+  assert.deepEqual(database.telegramOwnerIds, [321n]);
 });
 
 test("rejects a runtime whose Telegram identity differs from the database bot", async () => {
@@ -183,7 +204,7 @@ test("rejects a runtime whose Telegram identity differs from the database bot", 
   assert.deepEqual(runtime.membershipUserIds, []);
 });
 
-test("rejects non-channels, non-owners, and invalid bot membership", async () => {
+test("rejects non-channels, non-admin users, and invalid bot membership", async () => {
   const cases: Array<{
     runtime: ReturnType<typeof telegramBot>;
     error: new () => Error;
@@ -200,11 +221,9 @@ test("rejects non-channels, non-owners, and invalid bot membership", async () =>
     },
     {
       runtime: telegramBot({
-        ownerMembership: membership({
-          status: "administrator",
-        }),
+        actorMembership: membership({ status: "member" }),
       }),
-      error: ChannelOwnerRequiredError,
+      error: ChannelAdministratorRequiredError,
     },
     {
       runtime: telegramBot({

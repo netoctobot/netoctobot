@@ -3,5 +3,6 @@ dist
 .env
 .env.local
 *.log
+*.rdb
 .DS_Store
 backend/prisma/*.db

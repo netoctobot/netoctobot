@@ -19,7 +19,7 @@ test("loads menu translations for both supported languages", () => {
   assert.equal(translate(SupportedLanguage.EN, "menu.wallet"), "Wallet");
 });
 
-test("offers automatic detection and forwarded-message channel linking", () => {
+test("offers immediate forwarding and automatic channel detection", () => {
   const arabicInstructions = translate(
     SupportedLanguage.AR,
     "channelLink.autoInstructions",
@@ -29,23 +29,27 @@ test("offers automatic detection and forwarded-message channel linking", () => {
     "channelLink.autoInstructions",
   );
 
-  assert.match(arabicInstructions, /طريقتان/);
+  assert.match(arabicInstructions, /^حوّل الآن رسالة منشورة/);
   assert.match(arabicInstructions, /سيستشعر الإضافة/);
-  assert.match(arabicInstructions, /حوّل رسالة منشورة/);
-  assert.doesNotMatch(arabicInstructions, /دون تحويل رسائل/);
+  assert.match(arabicInstructions, /مشرفاً أو مالكاً/);
+  assert.doesNotMatch(arabicInstructions, /البوت مضاف مشرفاً مسبقاً/);
 
-  assert.match(englishInstructions, /two ways/i);
+  assert.match(englishInstructions, /^Forward a published channel message now/);
   assert.match(englishInstructions, /detect the addition/i);
-  assert.match(englishInstructions, /forward a published channel message/i);
+  assert.match(englishInstructions, /administrator or owner/i);
+  assert.doesNotMatch(
+    englishInstructions,
+    /Bot is already an administrator/,
+  );
 });
 
 test("manual channel-link prompt leads with the forwarding option", () => {
   assert.match(
     translate(SupportedLanguage.AR, "channelLink.sendReference"),
-    /^حوّل رسالة منشورة من القناة/,
+    /^حوّل مباشرة رسالة منشورة من القناة/,
   );
   assert.match(
     translate(SupportedLanguage.EN, "channelLink.sendReference"),
-    /^Forward a published message from the channel/,
+    /^Directly forward a published message from the channel/,
   );
 });
