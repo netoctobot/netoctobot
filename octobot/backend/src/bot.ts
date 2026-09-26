@@ -45,6 +45,24 @@ import {
   setExplicitLanguage,
   syncBotUser,
 } from "./modules/users/user.service.js";
+import {
+  getOwnedBot,
+  listOwnedBots,
+} from "./modules/bots/bot-management.service.js";
+import {
+  getOwnedChannel,
+  listOwnedChannels,
+  ManagedResourceNotFoundError,
+  setOwnedChannelActive,
+  softDeleteOwnedChannel,
+} from "./modules/channels/channel-management.service.js";
+import {
+  buildBotConfirmation,
+  buildChannelConfirmation,
+  buildOwnedBotsMenu,
+  buildOwnedChannelsMenu,
+  buildPrivateChannelView,
+} from "./modules/bots/management-menu.js";
 
 export type PlatformBotRuntime = ManagedBotRuntime;
 
@@ -167,6 +185,60 @@ function registerPlatformHandlers(
     await saveDashboardState(redis, platformBotId, context.from.id, {
       chatId: context.chat.id,
       messageId: message.message_id,
+    });
+  };
+
+  const showOwnedBots = async (
+    context: Context,
+    page: number,
+  ) => {
+    const { user, preference } = await syncBotUser(
+      prisma,
+      context.from!,
+      platformBotId,
+    );
+    const result = await listOwnedBots(prisma, user.id, page);
+    await editDashboard(
+      context,
+      redis,
+      platformBotId,
+      buildOwnedBotsMenu(preference.language, result),
+    );
+    return { user, preference };
+  };
+
+  const showOwnedChannels = async (
+    context: Context,
+    page: number,
+  ) => {
+    const { user, preference } = await syncBotUser(
+      prisma,
+      context.from!,
+      platformBotId,
+    );
+    const result = await listOwnedChannels(prisma, user.id, page);
+    await editDashboard(
+      context,
+      redis,
+      platformBotId,
+      buildOwnedChannelsMenu(preference.language, result),
+    );
+    return { user, preference };
+  };
+
+  const answerManagementError = async (
+    context: Context,
+    language: SupportedLanguage,
+    error: unknown,
+  ) => {
+    await context.answerCallbackQuery({
+      text: translate(
+        language,
+        error instanceof ManagedResourceNotFoundError
+          ? "management.notFound"
+          : "management.actionFailed",
+      ),
+      show_alert: true,
     });
   };
 
@@ -309,8 +381,279 @@ function registerPlatformHandlers(
     await context.answerCallbackQuery();
   });
 
+  bot.callbackQuery("menu:my-bots", async (context) => {
+    await clearActiveFlow(redis, context.from.id);
+    await showOwnedBots(context, 0);
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("menu:my-channels", async (context) => {
+    await clearActiveFlow(redis, context.from.id);
+    await showOwnedChannels(context, 0);
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^manage:b:p:(\d+)$/, async (context) => {
+    await showOwnedBots(context, Number(context.match[1]));
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^manage:c:p:(\d+)$/, async (context) => {
+    await showOwnedChannels(context, Number(context.match[1]));
+    await context.answerCallbackQuery();
+  });
+
   bot.callbackQuery(
-    /^menu:(my-bots|my-channels|ads|wallet|help)$/,
+    /^manage:b:(d|x):([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        const managedBot = await getOwnedBot(
+          prisma,
+          user.id,
+          context.match[2],
+        );
+        await editDashboard(
+          context,
+          redis,
+          platformBotId,
+          buildBotConfirmation(
+            preference.language,
+            managedBot,
+            context.match[1] === "d" ? "deactivate" : "delete",
+            Number(context.match[3]),
+          ),
+        );
+        await context.answerCallbackQuery();
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:b:a:([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        await runtimeManager.activateUserBot(
+          user.id,
+          context.match[1],
+        );
+        await showOwnedBots(context, Number(context.match[2]));
+        await context.answerCallbackQuery({
+          text: translate(
+            preference.language,
+            "management.botActivated",
+          ),
+        });
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:b:(dc|xc):([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        const deleted = context.match[1] === "xc";
+        if (deleted) {
+          await runtimeManager.softDeleteUserBot(
+            user.id,
+            context.match[2],
+          );
+        } else {
+          await runtimeManager.deactivateUserBot(
+            user.id,
+            context.match[2],
+          );
+        }
+        await showOwnedBots(context, Number(context.match[3]));
+        await context.answerCallbackQuery({
+          text: translate(
+            preference.language,
+            deleted
+              ? "management.botDeleted"
+              : "management.botDeactivated",
+          ),
+        });
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:c:(d|x):([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        const channel = await getOwnedChannel(
+          prisma,
+          user.id,
+          context.match[2],
+        );
+        await editDashboard(
+          context,
+          redis,
+          platformBotId,
+          buildChannelConfirmation(
+            preference.language,
+            channel,
+            context.match[1] === "d" ? "deactivate" : "delete",
+            Number(context.match[3]),
+          ),
+        );
+        await context.answerCallbackQuery();
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:c:a:([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        await setOwnedChannelActive(prisma, {
+          ownerId: user.id,
+          channelId: context.match[1],
+          isActive: true,
+        });
+        await showOwnedChannels(context, Number(context.match[2]));
+        await context.answerCallbackQuery({
+          text: translate(
+            preference.language,
+            "management.channelActivated",
+          ),
+        });
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:c:(dc|xc):([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        const deleted = context.match[1] === "xc";
+        if (deleted) {
+          await softDeleteOwnedChannel(prisma, {
+            ownerId: user.id,
+            channelId: context.match[2],
+          });
+        } else {
+          await setOwnedChannelActive(prisma, {
+            ownerId: user.id,
+            channelId: context.match[2],
+            isActive: false,
+          });
+        }
+        await showOwnedChannels(context, Number(context.match[3]));
+        await context.answerCallbackQuery({
+          text: translate(
+            preference.language,
+            deleted
+              ? "management.channelDeleted"
+              : "management.channelDeactivated",
+          ),
+        });
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^manage:c:v:([A-Za-z0-9_-]+):(\d+)$/,
+    async (context) => {
+      const { user, preference } = await syncBotUser(
+        prisma,
+        context.from,
+        platformBotId,
+      );
+      try {
+        const channel = await getOwnedChannel(
+          prisma,
+          user.id,
+          context.match[1],
+        );
+        await editDashboard(
+          context,
+          redis,
+          platformBotId,
+          buildPrivateChannelView(
+            preference.language,
+            channel,
+            Number(context.match[2]),
+          ),
+        );
+        await context.answerCallbackQuery();
+      } catch (error) {
+        await answerManagementError(
+          context,
+          preference.language,
+          error,
+        );
+      }
+    },
+  );
+
+  bot.callbackQuery(
+    /^menu:(ads|wallet|help)$/,
     async (context) => {
       await clearActiveFlow(redis, context.from.id);
       const { preference } = await syncBotUser(

@@ -81,6 +81,7 @@ model Bot {
   payments             Payment[]
 
   @@index([ownerId])
+  @@index([ownerId, deletedAt])
   @@index([botType])
   @@map("bots")
 }
@@ -135,6 +136,7 @@ model Channel {
   platformForcedCatalog PlatformForcedChannel?
 
   @@index([ownerId])
+  @@index([ownerId, deletedAt])
   @@index([isPlatformCatalog])
   @@map("channels")
 }
@@ -154,13 +156,16 @@ model PlatformForcedChannel {
 }
 
 model BotChannelLink {
-  id          String     @id @default(cuid())
-  botId       String
-  channelId   String
-  permissions Json
-  status      LinkStatus @default(ACTIVE)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id                 String     @id @default(cuid())
+  botId              String
+  channelId          String
+  permissions        Json
+  status             LinkStatus @default(ACTIVE)
+  linkedByTelegramId BigInt?
+  deactivatedAt      DateTime?
+  deactivationReason String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   bot     Bot     @relation(fields: [botId], references: [id])
   channel Channel @relation(fields: [channelId], references: [id])

@@ -50,10 +50,20 @@ These decisions are the source of truth for implementation. They supersede confl
 - Manual channel references are accepted only while that bot-scoped flow is active. A forward must have a Telegram-attested channel origin, and text must consist solely of one channel reference; mentions embedded in arbitrary text are never used as channel identity.
 - The add-to-channel link suggests post, edit, delete, and invite rights. Linking requires only administrator status plus post and delete rights; edit and invite remain optional.
 - Linking requires Telegram `creator` status; administrator status alone is insufficient.
+- A `my_chat_member` update immediately inactivates only that bot/channel link when the bot is removed or loses post/delete rights. The verified linker is notified when Telegram permits a private message. Restored rights never reactivate an inactive link; the creator must explicitly run the bot-scoped link flow again.
 - Channel-link feedback uses the user’s `UserBotPreference` for that specific bot. Success is a separate message deleted after five seconds, then the same dashboard message returns to that bot’s home view.
 - The currently verified Telegram creator becomes `Channel.ownerId`. A later verified ownership transfer updates the channel owner for future activity only.
 - Historical ad placements keep their snapshotted `channelOwnerId` and revenue policy.
 - The first successfully linked channel lazily creates the owner’s single wallet.
+
+## User-managed lifecycle
+
+- Bot, channel, and bot-channel-link status are separate. New service work is eligible only when the bot and channel are active and not deleted and the link is `ACTIVE`.
+- User deletion is always a soft delete: rows and historical relations remain, but deleted resources are hidden from user lists and excluded from new services.
+- Deleting a channel inactivates all of its bot links. Re-adding the channel reuses its row but activates only links that are explicitly verified again.
+- Deactivating or deleting a user bot unloads its runtime, removes its webhook when possible, and inactivates its channel links. Telegram channel administrator membership is not changed.
+- Reactivating a bot restores its runtime and webhook but does not reactivate channel links; each channel must be linked and verified again.
+- The platform bot cannot be managed through the user “My bots” lifecycle.
 
 ## Schema
 

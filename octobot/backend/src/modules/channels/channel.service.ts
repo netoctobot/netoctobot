@@ -42,6 +42,30 @@ export class BotIdentityMismatchError extends Error {
   }
 }
 
+export class ExplicitRelinkRequiredError extends Error {
+  constructor() {
+    super("An inactive channel link requires explicit re-linking");
+    this.name = "ExplicitRelinkRequiredError";
+  }
+}
+
+export type ChannelLinkSource = "AUTO" | "MANUAL";
+
+export type LinkDeactivationReason =
+  | "BOT_REMOVED"
+  | "PERMISSIONS_LOST"
+  | "BOT_DEACTIVATED"
+  | "BOT_DELETED"
+  | "CHANNEL_DELETED";
+
+export interface BotChannelLinkSnapshot {
+  channelId: string;
+  linkId: string;
+  status: LinkStatus;
+  ownerUserId: string;
+  notificationTelegramId: number;
+}
+
 export function hasRequiredChannelRights(
   membership: ChatMember,
 ): boolean {
@@ -67,6 +91,7 @@ export async function verifyAndLinkChannel(input: {
   ownerId: string;
   ownerTelegramId: number;
   chatReference: number | string;
+  source?: ChannelLinkSource;
 }): Promise<ChannelLinkResult> {
   if (
     BigInt(input.telegramBot.botInfo.id) !==
@@ -128,6 +153,28 @@ export async function verifyAndLinkChannel(input: {
     .catch(() => 0);
 
   return input.prisma.$transaction(async (transaction) => {
+    if (input.source === "AUTO") {
+      const existingChannel = await transaction.channel.findUnique({
+        where: { channelTelegramId: BigInt(chat.id) },
+        select: { id: true },
+      });
+      if (existingChannel) {
+        const existingLink =
+          await transaction.botChannelLink.findUnique({
+            where: {
+              botId_channelId: {
+                botId: input.databaseBot.id,
+                channelId: existingChannel.id,
+              },
+            },
+            select: { status: true },
+          });
+        if (existingLink?.status === LinkStatus.INACTIVE) {
+          throw new ExplicitRelinkRequiredError();
+        }
+      }
+    }
+
     const channel = await transaction.channel.upsert({
       where: { channelTelegramId: BigInt(chat.id) },
       create: {
@@ -160,10 +207,14 @@ export async function verifyAndLinkChannel(input: {
         channelId: channel.id,
         permissions,
         status: LinkStatus.ACTIVE,
+        linkedByTelegramId: BigInt(input.ownerTelegramId),
       },
       update: {
         permissions,
         status: LinkStatus.ACTIVE,
+        linkedByTelegramId: BigInt(input.ownerTelegramId),
+        deactivatedAt: null,
+        deactivationReason: null,
       },
     });
 
@@ -175,4 +226,70 @@ export async function verifyAndLinkChannel(input: {
 
     return { channel, linkId: link.id };
   });
+}
+
+export async function getBotChannelLinkSnapshot(
+  prisma: PrismaClient,
+  input: {
+    botId: string;
+    channelTelegramId: number;
+  },
+): Promise<BotChannelLinkSnapshot | null> {
+  const channel = await prisma.channel.findUnique({
+    where: {
+      channelTelegramId: BigInt(input.channelTelegramId),
+    },
+    select: {
+      id: true,
+      ownerId: true,
+      owner: { select: { telegramId: true } },
+      botChannelLinks: {
+        where: { botId: input.botId },
+        take: 1,
+        select: {
+          id: true,
+          status: true,
+          linkedByTelegramId: true,
+        },
+      },
+    },
+  });
+  const link = channel?.botChannelLinks[0];
+  if (!channel || !link) {
+    return null;
+  }
+
+  return {
+    channelId: channel.id,
+    linkId: link.id,
+    status: link.status,
+    ownerUserId: channel.ownerId,
+    notificationTelegramId: Number(
+      link.linkedByTelegramId ?? channel.owner.telegramId,
+    ),
+  };
+}
+
+export async function deactivateBotChannelLink(
+  prisma: PrismaClient,
+  input: {
+    botId: string;
+    channelTelegramId: number;
+    reason: LinkDeactivationReason;
+  },
+): Promise<BotChannelLinkSnapshot | null> {
+  const snapshot = await getBotChannelLinkSnapshot(prisma, input);
+  if (!snapshot || snapshot.status === LinkStatus.INACTIVE) {
+    return null;
+  }
+
+  await prisma.botChannelLink.update({
+    where: { id: snapshot.linkId },
+    data: {
+      status: LinkStatus.INACTIVE,
+      deactivatedAt: new Date(),
+      deactivationReason: input.reason,
+    },
+  });
+  return snapshot;
 }

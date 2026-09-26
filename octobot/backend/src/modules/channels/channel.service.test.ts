@@ -4,6 +4,7 @@ import type {
   Bot as DatabaseBot,
   PrismaClient,
 } from "@prisma/client";
+import { LinkStatus } from "@prisma/client";
 import type { Bot as TelegramBot } from "grammy";
 import type { Chat, ChatMember } from "grammy/types";
 import {
@@ -12,6 +13,8 @@ import {
   BotPermissionsRequiredError,
   ChannelNotFoundError,
   ChannelOwnerRequiredError,
+  deactivateBotChannelLink,
+  ExplicitRelinkRequiredError,
   hasRequiredChannelRights,
   verifyAndLinkChannel,
 } from "./channel.service.js";
@@ -139,6 +142,7 @@ function verifyInput(input: {
   telegramBot: TelegramBot;
   prisma: PrismaClient;
   databaseBot?: DatabaseBot;
+  source?: "AUTO" | "MANUAL";
 }) {
   return verifyAndLinkChannel({
     prisma: input.prisma,
@@ -147,6 +151,7 @@ function verifyInput(input: {
     ownerId: "owner-id",
     ownerTelegramId: 123,
     chatReference: "@channel_name",
+    source: input.source,
   });
 }
 
@@ -228,4 +233,79 @@ test("rejects non-channels, non-owners, and invalid bot membership", async () =>
       value.error,
     );
   }
+});
+
+test("does not automatically reactivate an inactive existing link", async () => {
+  const runtime = telegramBot();
+  const transaction = {
+    channel: {
+      findUnique: async () => ({ id: "channel-id" }),
+    },
+    botChannelLink: {
+      findUnique: async () => ({ status: LinkStatus.INACTIVE }),
+    },
+  };
+  const client = {
+    $transaction: async (
+      callback: (value: typeof transaction) => unknown,
+    ) => callback(transaction),
+  } as unknown as PrismaClient;
+
+  await assert.rejects(
+    verifyInput({
+      telegramBot: runtime.bot,
+      prisma: client,
+      source: "AUTO",
+    }),
+    ExplicitRelinkRequiredError,
+  );
+});
+
+test("records scoped link deactivation and its reason", async () => {
+  const updates: unknown[] = [];
+  const client = {
+    channel: {
+      findUnique: async () => ({
+        id: "channel-id",
+        ownerId: "owner-id",
+        owner: { telegramId: 123n },
+        botChannelLinks: [
+          {
+            id: "link-id",
+            status: LinkStatus.ACTIVE,
+            linkedByTelegramId: 456n,
+          },
+        ],
+      }),
+    },
+    botChannelLink: {
+      update: async (value: unknown) => {
+        updates.push(value);
+        return {};
+      },
+    },
+  } as unknown as PrismaClient;
+
+  const result = await deactivateBotChannelLink(client, {
+    botId: "database-bot",
+    channelTelegramId: -1001234567890,
+    reason: "PERMISSIONS_LOST",
+  });
+
+  assert.equal(result?.notificationTelegramId, 456);
+  const update = updates[0] as {
+    where: { id: string };
+    data: {
+      status: LinkStatus;
+      deactivatedAt: Date;
+      deactivationReason: string;
+    };
+  };
+  assert.equal(update.where.id, "link-id");
+  assert.equal(update.data.status, LinkStatus.INACTIVE);
+  assert.ok(update.data.deactivatedAt instanceof Date);
+  assert.equal(
+    update.data.deactivationReason,
+    "PERMISSIONS_LOST",
+  );
 });

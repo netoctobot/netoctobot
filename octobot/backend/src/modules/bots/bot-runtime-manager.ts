@@ -2,9 +2,9 @@ import { createHmac } from "node:crypto";
 import {
   BotType,
   LinkStatus,
+  SupportedLanguage,
   type Bot as DatabaseBot,
   type PrismaClient,
-  type SupportedLanguage,
 } from "@prisma/client";
 import { Bot as TelegramBot, type Context } from "grammy";
 import type { Redis } from "ioredis";
@@ -19,6 +19,10 @@ import {
 } from "../localization/localization.service.js";
 import {
   BotAdminRequiredError,
+  deactivateBotChannelLink,
+  ExplicitRelinkRequiredError,
+  getBotChannelLinkSnapshot,
+  type LinkDeactivationReason,
   ChannelNotFoundError,
   ChannelOwnerRequiredError,
   BotPermissionsRequiredError,
@@ -30,6 +34,8 @@ import {
   saveChannelLinkState,
 } from "../channels/channel-link-state.js";
 import { resolveChannelChatReference } from "../channels/channel-reference.js";
+import { ManagedResourceNotFoundError } from "../channels/channel-management.service.js";
+import { classifyChannelMembership } from "../channels/channel-membership.js";
 import {
   getDashboardState,
   saveDashboardState,
@@ -314,6 +320,7 @@ export class BotRuntimeManager {
         ownerTelegramId: context.from.id,
         language: preference.language,
         chatReference,
+        source: "MANUAL",
       });
       if (linked) {
         await clearChannelLinkState(
@@ -326,20 +333,39 @@ export class BotRuntimeManager {
   }
 
   private async deactivateChannelLink(
-    botId: string,
+    runtime: ManagedBotRuntime,
     channelTelegramId: number,
+    reason: LinkDeactivationReason,
+    notificationKey:
+      | "channelLink.removed"
+      | "channelLink.permissionsLost",
   ): Promise<void> {
-    const channel = await this.prisma.channel.findUnique({
-      where: { channelTelegramId: BigInt(channelTelegramId) },
-      select: { id: true },
+    const link = await deactivateBotChannelLink(this.prisma, {
+      botId: runtime.botRecord.id,
+      channelTelegramId,
+      reason,
     });
-    if (!channel) {
+    if (!link) {
       return;
     }
-    await this.prisma.botChannelLink.updateMany({
-      where: { botId, channelId: channel.id },
-      data: { status: LinkStatus.INACTIVE },
+    const preference = await this.prisma.userBotPreference.findUnique({
+      where: {
+        userId_botId: {
+          userId: link.ownerUserId,
+          botId: runtime.botRecord.id,
+        },
+      },
+      select: { language: true },
     });
+    await runtime.bot.api
+      .sendMessage(
+        link.notificationTelegramId,
+        translate(
+          preference?.language ?? SupportedLanguage.EN,
+          notificationKey,
+        ),
+      )
+      .catch(() => undefined);
   }
 
   private channelLinkErrorKey(error: unknown): TranslationKey {
@@ -351,7 +377,9 @@ export class BotRuntimeManager {
           ? "channelLink.requiredPermissions"
           : error instanceof ChannelNotFoundError
             ? "channelLink.notFound"
-            : "channelLink.failed";
+            : error instanceof ExplicitRelinkRequiredError
+              ? "channelLink.relinkRequired"
+              : "channelLink.failed";
   }
 
   private async attemptChannelLink(input: {
@@ -361,6 +389,7 @@ export class BotRuntimeManager {
     language: SupportedLanguage;
     chatReference: number | string;
     deactivateChannelId?: number;
+    source: "AUTO" | "MANUAL";
   }): Promise<boolean> {
     try {
       const result = await verifyAndLinkChannel({
@@ -370,6 +399,7 @@ export class BotRuntimeManager {
         ownerId: input.ownerId,
         ownerTelegramId: input.ownerTelegramId,
         chatReference: input.chatReference,
+        source: input.source,
       });
       await this.showTemporarySuccess({
         runtime: input.runtime,
@@ -389,16 +419,21 @@ export class BotRuntimeManager {
         (error instanceof BotAdminRequiredError ||
           error instanceof BotPermissionsRequiredError)
       ) {
-        await this.deactivateChannelLink(
-          input.runtime.botRecord.id,
-          input.deactivateChannelId,
-        );
+        await deactivateBotChannelLink(this.prisma, {
+          botId: input.runtime.botRecord.id,
+          channelTelegramId: input.deactivateChannelId,
+          reason:
+            error instanceof BotPermissionsRequiredError
+              ? "PERMISSIONS_LOST"
+              : "BOT_REMOVED",
+        });
       }
       if (
         !(error instanceof ChannelOwnerRequiredError) &&
         !(error instanceof BotAdminRequiredError) &&
         !(error instanceof BotPermissionsRequiredError) &&
-        !(error instanceof ChannelNotFoundError)
+        !(error instanceof ChannelNotFoundError) &&
+        !(error instanceof ExplicitRelinkRequiredError)
       ) {
         console.error(
           `Failed to link a channel to bot ${input.runtime.botRecord.id}`,
@@ -477,19 +512,51 @@ export class BotRuntimeManager {
         return;
       }
 
-      const newStatus = context.myChatMember.new_chat_member.status;
-      const wasLinked =
-        context.myChatMember.old_chat_member.status === "administrator" ||
-        context.myChatMember.old_chat_member.status === "creator";
-      const isNowAdmin =
-        newStatus === "administrator" || newStatus === "creator";
+      const membership = context.myChatMember.new_chat_member;
+      const membershipOutcome =
+        classifyChannelMembership(membership);
+      if (membershipOutcome !== "VALID") {
+        const permissionsLost =
+          membershipOutcome === "PERMISSIONS_LOST";
+        await this.deactivateChannelLink(
+          runtime,
+          context.chat.id,
+          membershipOutcome,
+          permissionsLost
+            ? "channelLink.permissionsLost"
+            : "channelLink.removed",
+        );
+        return;
+      }
 
-      if (!isNowAdmin) {
-        if (wasLinked) {
-          await this.deactivateChannelLink(
-            runtime.botRecord.id,
-            context.chat.id,
-          );
+      const existingLink = await getBotChannelLinkSnapshot(
+        this.prisma,
+        {
+          botId: runtime.botRecord.id,
+          channelTelegramId: context.chat.id,
+        },
+      );
+      if (existingLink) {
+        if (existingLink.status === LinkStatus.INACTIVE) {
+          const preference =
+            await this.prisma.userBotPreference.findUnique({
+              where: {
+                userId_botId: {
+                  userId: existingLink.ownerUserId,
+                  botId: runtime.botRecord.id,
+                },
+              },
+              select: { language: true },
+            });
+          await runtime.bot.api
+            .sendMessage(
+              existingLink.notificationTelegramId,
+              translate(
+                preference?.language ?? SupportedLanguage.EN,
+                "channelLink.relinkRequired",
+              ),
+            )
+            .catch(() => undefined);
         }
         return;
       }
@@ -507,8 +574,143 @@ export class BotRuntimeManager {
         language: preference.language,
         chatReference: context.chat.id,
         deactivateChannelId: context.chat.id,
+        source: "AUTO",
       });
     });
+  }
+
+  async activateUserBot(
+    ownerId: string,
+    botId: string,
+  ): Promise<DatabaseBot> {
+    const record = await this.prisma.bot.findFirst({
+      where: {
+        id: botId,
+        ownerId,
+        deletedAt: null,
+        botType: { not: BotType.PLATFORM_BOT },
+      },
+    });
+    if (!record) {
+      throw new ManagedResourceNotFoundError();
+    }
+    if (record.isActive && this.#runtimes.has(record.id)) {
+      return record;
+    }
+
+    const token = decryptToken(
+      record.tokenEncrypted,
+      this.env.ENCRYPTION_KEY,
+    );
+    const bot = new TelegramBot(token);
+    await bot.init();
+    const pendingRuntime = { bot, botRecord: record };
+    await this.registerWebhook(pendingRuntime);
+
+    let activeRecord: DatabaseBot;
+    try {
+      activeRecord = await this.prisma.$transaction(
+        async (transaction) => {
+          const activated = await transaction.bot.update({
+            where: { id: record.id },
+            data: { isActive: true },
+          });
+          await transaction.auditLog.create({
+            data: {
+              userId: ownerId,
+              action: "BOT_ACTIVATED",
+              entityType: "Bot",
+              entityId: record.id,
+            },
+          });
+          return activated;
+        },
+      );
+    } catch (error) {
+      await this.unregisterWebhook(pendingRuntime);
+      throw error;
+    }
+
+    const runtime = { bot, botRecord: activeRecord };
+    this.registerUserBotHandlers(runtime);
+    this.add(runtime);
+    return activeRecord;
+  }
+
+  async deactivateUserBot(
+    ownerId: string,
+    botId: string,
+  ): Promise<void> {
+    await this.stopUserBot(ownerId, botId, false);
+  }
+
+  async softDeleteUserBot(
+    ownerId: string,
+    botId: string,
+  ): Promise<void> {
+    await this.stopUserBot(ownerId, botId, true);
+  }
+
+  private async stopUserBot(
+    ownerId: string,
+    botId: string,
+    deleted: boolean,
+  ): Promise<void> {
+    const record = await this.prisma.bot.findFirst({
+      where: {
+        id: botId,
+        ownerId,
+        deletedAt: null,
+        botType: { not: BotType.PLATFORM_BOT },
+      },
+    });
+    if (!record) {
+      throw new ManagedResourceNotFoundError();
+    }
+
+    const runtime = this.#runtimes.get(record.id);
+    this.#runtimes.delete(record.id);
+    const deactivatedAt = new Date();
+    try {
+      await this.prisma.$transaction(async (transaction) => {
+        await transaction.bot.update({
+          where: { id: record.id },
+          data: {
+            isActive: false,
+            deletedAt: deleted ? deactivatedAt : null,
+          },
+        });
+        await transaction.botChannelLink.updateMany({
+          where: { botId: record.id },
+          data: {
+            status: LinkStatus.INACTIVE,
+            deactivatedAt,
+            deactivationReason: deleted
+              ? "BOT_DELETED"
+              : "BOT_DEACTIVATED",
+          },
+        });
+        await transaction.auditLog.create({
+          data: {
+            userId: ownerId,
+            action: deleted
+              ? "BOT_SOFT_DELETED"
+              : "BOT_DEACTIVATED",
+            entityType: "Bot",
+            entityId: record.id,
+          },
+        });
+      });
+    } catch (error) {
+      if (runtime) {
+        this.#runtimes.set(record.id, runtime);
+      }
+      throw error;
+    }
+
+    if (runtime) {
+      await this.unregisterWebhook(runtime);
+    }
   }
 
   async loadActiveUserBots(): Promise<void> {
@@ -666,5 +868,22 @@ export class BotRuntimeManager {
         "my_chat_member",
       ],
     });
+  }
+
+  private async unregisterWebhook(
+    runtime: ManagedBotRuntime,
+  ): Promise<void> {
+    if (!this.env.WEBHOOK_REGISTRATION_ENABLED) {
+      return;
+    }
+    await runtime.bot.api
+      .deleteWebhook({ drop_pending_updates: false })
+      .catch((error: unknown) => {
+        const reason =
+          error instanceof Error ? error.message : "Unknown error";
+        console.error(
+          `Failed to delete webhook for bot ${runtime.botRecord.id}: ${reason}`,
+        );
+      });
   }
 }
