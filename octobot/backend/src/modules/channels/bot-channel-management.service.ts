@@ -318,6 +318,15 @@ export async function openManagedBotChannel(
     throw new BotAdminRequiredError();
   }
   if (chat.username) {
+    const outcome = await reconcilePrivateInvitePermission(prisma, {
+      botId,
+      channelTelegramId: chat.id,
+      isPrivate: false,
+      hasInvitePermission: false,
+    });
+    if (outcome === "REACTIVATED") {
+      link.status = LinkStatus.ACTIVE;
+    }
     return {
       link,
       url: `https://t.me/${chat.username}`,
@@ -332,8 +341,7 @@ export async function openManagedBotChannel(
     );
   } catch (error) {
     if (isConfirmedTelegramRejection(error)) {
-      await deactivateForInvitePermission(prisma, link.id);
-      throw new InviteLinkPermissionRequiredError();
+      throw new BotAdminRequiredError();
     }
     throw new TelegramApiUnavailableError();
   }
@@ -346,6 +354,15 @@ export async function openManagedBotChannel(
     const invite = await telegramBot.api.createChatInviteLink(chat.id, {
       name: "Octobot channel access",
     });
+    const outcome = await reconcilePrivateInvitePermission(prisma, {
+      botId,
+      channelTelegramId: chat.id,
+      isPrivate: true,
+      hasInvitePermission: true,
+    });
+    if (outcome === "REACTIVATED") {
+      link.status = LinkStatus.ACTIVE;
+    }
     return { link, url: invite.invite_link };
   } catch (error) {
     if (isConfirmedTelegramRejection(error)) {
@@ -397,10 +414,10 @@ export async function reconcilePrivateInvitePermission(
       channel: { select: { isActive: true, deletedAt: true } },
     },
   });
-  if (!link || !input.isPrivate) {
+  if (!link) {
     return "UNCHANGED";
   }
-  if (!input.hasInvitePermission) {
+  if (input.isPrivate && !input.hasInvitePermission) {
     if (link.status !== LinkStatus.ACTIVE) {
       return "UNCHANGED";
     }

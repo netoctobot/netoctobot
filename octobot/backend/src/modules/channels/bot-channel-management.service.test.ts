@@ -5,6 +5,7 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 import type { Bot as TelegramBot } from "grammy";
+import { BotAdminRequiredError } from "./channel.service.js";
 import {
   activateManagedBotChannel,
   deactivateManagedBotChannel,
@@ -343,6 +344,47 @@ test("a temporary Telegram failure never disables the channel link", async () =>
   assert.equal(updateCalls, 0);
 });
 
+test("confirmed loss of bot membership is not mislabeled as invite permission loss", async () => {
+  let updateCalls = 0;
+  const prisma = {
+    botChannelLink: {
+      findFirst: async () => ({
+        ...linkedChannel(),
+        channel: { ...linkedChannel().channel, username: null },
+      }),
+      updateMany: async () => {
+        updateCalls += 1;
+        return { count: 1 };
+      },
+    },
+  } as unknown as PrismaClient;
+  const telegramBot = {
+    botInfo: { id: 999 },
+    api: {
+      getChat: async () => ({
+        id: -1001234567890,
+        type: "channel",
+        title: "Private",
+      }),
+      getChatMember: async () => {
+        throw { error_code: 400 };
+      },
+    },
+  } as unknown as TelegramBot;
+
+  await assert.rejects(
+    openManagedBotChannel(
+      prisma,
+      telegramBot,
+      "bot-id",
+      "owner-id",
+      "link-id",
+    ),
+    BotAdminRequiredError,
+  );
+  assert.equal(updateCalls, 0);
+});
+
 test("activation rejects a private channel until invite permission is restored", async () => {
   let updateCalls = 0;
   const prisma = {
@@ -494,4 +536,34 @@ test("permission updates record invite loss without replacing manual deactivatio
     "UNCHANGED",
   );
   assert.equal(updates.length, 1);
+});
+
+test("making an invite-disabled channel public restores its link", async () => {
+  let updateCalls = 0;
+  const prisma = {
+    botChannelLink: {
+      findFirst: async () => ({
+        id: "link-id",
+        status: LinkStatus.INACTIVE,
+        deactivationReason: INVITE_LINK_PERMISSION_LOST,
+        bot: { isActive: true, deletedAt: null },
+        channel: { isActive: true, deletedAt: null },
+      }),
+      update: async () => {
+        updateCalls += 1;
+        return {};
+      },
+    },
+  } as unknown as PrismaClient;
+
+  assert.equal(
+    await reconcilePrivateInvitePermission(prisma, {
+      botId: "bot-id",
+      channelTelegramId: -1001234567890,
+      isPrivate: false,
+      hasInvitePermission: false,
+    }),
+    "REACTIVATED",
+  );
+  assert.equal(updateCalls, 1);
 });
