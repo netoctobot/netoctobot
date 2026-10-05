@@ -443,3 +443,55 @@ test("permission updates auto-restore only invite-permission deactivations", asy
   );
   assert.equal(updates.length, 1);
 });
+
+test("permission updates record invite loss without replacing manual deactivation", async () => {
+  const updates: Array<{
+    data: { deactivationReason: string };
+  }> = [];
+  let status = LinkStatus.ACTIVE;
+  let reason: string | null = null;
+  const prisma = {
+    botChannelLink: {
+      findFirst: async () => ({
+        id: "link-id",
+        status,
+        deactivationReason: reason,
+        bot: { isActive: true, deletedAt: null },
+        channel: { isActive: true, deletedAt: null },
+      }),
+      updateMany: async (input: {
+        data: { deactivationReason: string };
+      }) => {
+        updates.push(input);
+        return { count: 1 };
+      },
+    },
+  } as unknown as PrismaClient;
+
+  assert.equal(
+    await reconcilePrivateInvitePermission(prisma, {
+      botId: "bot-id",
+      channelTelegramId: -1001234567890,
+      isPrivate: true,
+      hasInvitePermission: false,
+    }),
+    "DEACTIVATED",
+  );
+  assert.equal(
+    updates[0]?.data.deactivationReason,
+    INVITE_LINK_PERMISSION_LOST,
+  );
+
+  status = LinkStatus.INACTIVE;
+  reason = "OWNER_DEACTIVATED";
+  assert.equal(
+    await reconcilePrivateInvitePermission(prisma, {
+      botId: "bot-id",
+      channelTelegramId: -1001234567890,
+      isPrivate: true,
+      hasInvitePermission: false,
+    }),
+    "UNCHANGED",
+  );
+  assert.equal(updates.length, 1);
+});
