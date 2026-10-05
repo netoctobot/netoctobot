@@ -70,8 +70,11 @@ import {
   activateManagedBotChannel,
   deactivateManagedBotChannel,
   getManagedBotChannel,
+  InviteLinkPermissionRequiredError,
   listManagedBotChannels,
+  openManagedBotChannel,
   removeManagedBotChannel,
+  TelegramApiUnavailableError,
 } from "./modules/channels/bot-channel-management.service.js";
 import {
   buildManagedBotChannelsMenu,
@@ -264,6 +267,10 @@ function registerPlatformHandlers(
         language,
         error instanceof ManagedResourceNotFoundError
           ? "management.notFound"
+          : error instanceof InviteLinkPermissionRequiredError
+            ? "management.invitePermissionRequired"
+            : error instanceof TelegramApiUnavailableError
+              ? "management.telegramUnavailable"
           : "management.actionFailed",
       ),
       show_alert: true,
@@ -657,8 +664,9 @@ function registerPlatformHandlers(
         platformBotId,
       );
       try {
-        const link = await getManagedBotChannel(
+        const { link, url } = await openManagedBotChannel(
           prisma,
+          bot,
           platformBotId,
           user.id,
           context.match[1],
@@ -680,12 +688,24 @@ function registerPlatformHandlers(
                 link.channel.channelTelegramId,
               channelIsActive: link.channel.isActive,
             },
+            url,
             Number(context.match[2]),
             "PLATFORM",
           ),
         );
         await context.answerCallbackQuery();
       } catch (error) {
+        if (error instanceof InviteLinkPermissionRequiredError) {
+          await showOwnedChannels(context, Number(context.match[2]));
+          await context.answerCallbackQuery({
+            text: translate(
+              preference.language,
+              "channelLink.invitePermissionDisabled",
+            ),
+            show_alert: true,
+          });
+          return;
+        }
         await answerManagementError(
           context,
           preference.language,

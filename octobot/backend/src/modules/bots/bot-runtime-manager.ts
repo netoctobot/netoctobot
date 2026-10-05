@@ -84,8 +84,12 @@ import {
   activateManagedBotChannel,
   deactivateManagedBotChannel,
   getManagedBotChannel,
+  InviteLinkPermissionRequiredError,
   listManagedBotChannels,
+  openManagedBotChannel,
+  reconcilePrivateInvitePermission,
   removeManagedBotChannel,
+  TelegramApiUnavailableError,
 } from "../channels/bot-channel-management.service.js";
 import {
   buildManagedBotChannelsMenu,
@@ -753,11 +757,15 @@ export class BotRuntimeManager {
             Number(context.match[3]),
           );
           await context.answerCallbackQuery();
-        } catch {
+        } catch (error) {
           await context.answerCallbackQuery({
             text: translate(
               interfaceLanguage(context),
-              "management.actionFailed",
+              error instanceof InviteLinkPermissionRequiredError
+                ? "management.invitePermissionRequired"
+                : error instanceof TelegramApiUnavailableError
+                  ? "management.telegramUnavailable"
+                  : "management.actionFailed",
             ),
             show_alert: true,
           });
@@ -771,31 +779,60 @@ export class BotRuntimeManager {
         if (!(await authorizeOwnerCallback(context))) {
           return;
         }
-        const link = await getManagedBotChannel(
-          this.prisma,
-          runtime.botRecord.id,
-          runtime.botRecord.ownerId,
-          context.match[1],
-        );
-        await this.editRuntimeDashboard(
-          context,
-          runtime,
-          buildManagedLinkDetails(
-            interfaceLanguage(context),
-            {
-              id: link.id,
-              status: link.status,
-              channelId: link.channel.id,
-              title: link.channel.title,
-              username: link.channel.username,
-              channelTelegramId:
-                link.channel.channelTelegramId,
-              channelIsActive: link.channel.isActive,
-            },
-            Number(context.match[2]),
-          ),
-        );
-        await context.answerCallbackQuery();
+        try {
+          const { link, url } = await openManagedBotChannel(
+            this.prisma,
+            runtime.bot,
+            runtime.botRecord.id,
+            runtime.botRecord.ownerId,
+            context.match[1],
+          );
+          await this.editRuntimeDashboard(
+            context,
+            runtime,
+            buildManagedLinkDetails(
+              interfaceLanguage(context),
+              {
+                id: link.id,
+                status: link.status,
+                channelId: link.channel.id,
+                title: link.channel.title,
+                username: link.channel.username,
+                channelTelegramId:
+                  link.channel.channelTelegramId,
+                channelIsActive: link.channel.isActive,
+              },
+              url,
+              Number(context.match[2]),
+            ),
+          );
+          await context.answerCallbackQuery();
+        } catch (error) {
+          const language = interfaceLanguage(context);
+          if (error instanceof InviteLinkPermissionRequiredError) {
+            await showLinkedChannels(
+              context,
+              Number(context.match[2]),
+            );
+            await context.answerCallbackQuery({
+              text: translate(
+                language,
+                "channelLink.invitePermissionDisabled",
+              ),
+              show_alert: true,
+            });
+            return;
+          }
+          await context.answerCallbackQuery({
+            text: translate(
+              language,
+              error instanceof TelegramApiUnavailableError
+                ? "management.telegramUnavailable"
+                : "management.actionFailed",
+            ),
+            show_alert: true,
+          });
+        }
       },
     );
 
@@ -1198,6 +1235,16 @@ export class BotRuntimeManager {
         return;
       }
 
+      const invitePermissionOutcome =
+        await reconcilePrivateInvitePermission(this.prisma, {
+          botId: runtime.botRecord.id,
+          channelTelegramId: context.chat.id,
+          isPrivate: !context.chat.username,
+          hasInvitePermission:
+            membership.status === "creator" ||
+            (membership.status === "administrator" &&
+              Boolean(membership.can_invite_users)),
+        });
       const existingLink = await getBotChannelLinkSnapshot(
         this.prisma,
         {
@@ -1206,6 +1253,30 @@ export class BotRuntimeManager {
         },
       );
       if (existingLink) {
+        if (invitePermissionOutcome !== "UNCHANGED") {
+          const preference =
+            await this.prisma.userBotPreference.findUnique({
+              where: {
+                userId_botId: {
+                  userId: existingLink.ownerUserId,
+                  botId: runtime.botRecord.id,
+                },
+              },
+              select: { language: true },
+            });
+          await runtime.bot.api
+            .sendMessage(
+              existingLink.notificationTelegramId,
+              translate(
+                preference?.language ?? SupportedLanguage.EN,
+                invitePermissionOutcome === "DEACTIVATED"
+                  ? "channelLink.invitePermissionDisabled"
+                  : "channelLink.invitePermissionRestored",
+              ),
+            )
+            .catch(() => undefined);
+          return;
+        }
         if (existingLink.status === LinkStatus.INACTIVE) {
           const preference =
             await this.prisma.userBotPreference.findUnique({

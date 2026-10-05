@@ -51,14 +51,10 @@ export function buildManagedBotChannelsMenu(
   const keyboard = new InlineKeyboard();
   for (const link of result.items) {
     const title = channelTitle(link);
-    if (link.username) {
-      keyboard.url(title, `https://t.me/${link.username}`);
-    } else {
-      keyboard.text(
-        title,
-        callback.action("view", link.id, result.page),
-      );
-    }
+    keyboard.text(
+      title,
+      callback.action("view", link.id, result.page),
+    );
     keyboard
       .text(
         link.status === LinkStatus.ACTIVE
@@ -137,6 +133,7 @@ export function buildManagedLinkConfirmation(
 export function buildManagedLinkDetails(
   language: SupportedLanguage,
   link: ManagedBotChannelLink,
+  url: string,
   page: number,
   surface: ManagedChannelSurface = "CONTACT",
 ): DashboardView {
@@ -152,9 +149,12 @@ export function buildManagedLinkDetails(
           : "management.inactive",
       ),
     }),
-    keyboard: new InlineKeyboard().text(
-      translate(language, "menu.back"),
-      callback.list(page),
-    ),
+    keyboard: new InlineKeyboard()
+      .url(translate(language, "management.openChannel"), url)
+      .row()
+      .text(
+        translate(language, "menu.back"),
+        callback.list(page),
+      ),
   };
 }
