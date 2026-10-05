@@ -46,6 +46,7 @@ model User {
   referralRelationsAsReferred ReferralRelation[]   @relation("Referred")
   adPlacementsAsBotCreator    AdPlacement[]        @relation("AdPlacementBotCreator")
   adPlacementsAsChannelOwner  AdPlacement[]        @relation("AdPlacementChannelOwner")
+  supportListMemberships      SupportListMembership[]
 
   @@map("users")
 }
@@ -78,6 +79,7 @@ model Bot {
   userPreferences      UserBotPreference[]
   paymentIntents       PaymentIntent[]
   payments             Payment[]
+  supportListSettings  SupportListSettings?
 
   @@index([ownerId])
   @@index([ownerId, deletedAt])
@@ -134,6 +136,7 @@ model Channel {
   adPlacements          AdPlacement[]
   forcedSubscriptions   ForcedSubscription[]
   platformForcedCatalog PlatformForcedChannel?
+  supportListMemberships SupportListMembership[]
 
   @@index([ownerId])
   @@index([telegramOwnerId])
@@ -180,6 +183,137 @@ model BotChannelLink {
 enum LinkStatus {
   ACTIVE
   INACTIVE
+}
+
+enum SupportListAcceptanceMode {
+  MANUAL
+  AUTO
+}
+
+enum SupportListFormat {
+  TEXT
+  BUTTONS
+}
+
+enum SupportListScheduleMode {
+  DEFAULT
+  CUSTOM
+}
+
+enum SupportListAcceptanceStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum SupportListCycleStatus {
+  PENDING
+  PUBLISHING
+  PUBLISHED
+  SKIPPED
+  FAILED
+}
+
+enum SupportListPublicationStatus {
+  PENDING
+  SENT
+  SKIPPED
+  FAILED
+  DELETED
+  DELETE_FAILED
+}
+
+model SupportListSettings {
+  id                String                    @id @default(cuid())
+  botId             String                    @unique
+  listName          String                    @default("Support list")
+  acceptanceMode    SupportListAcceptanceMode @default(MANUAL)
+  format            SupportListFormat         @default(TEXT)
+  timeZone          String                    @default("UTC")
+  publishingEnabled Boolean                   @default(true)
+  scheduleMode      SupportListScheduleMode   @default(DEFAULT)
+  retentionMinutes  Int                       @default(180)
+  customTimes       Json                      @default("[]")
+  rotationOffset    Int                       @default(0)
+  contactUrl        String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  bot          Bot                     @relation(fields: [botId], references: [id])
+  memberships  SupportListMembership[]
+  cycles       SupportListCycle[]
+
+  @@map("support_list_settings")
+}
+
+model SupportListMembership {
+  id                   String                       @id @default(cuid())
+  settingsId           String
+  botId                String
+  channelId            String
+  channelTelegramId    BigInt
+  addedByUserId        String
+  acceptanceStatus     SupportListAcceptanceStatus
+  participantDisabled  Boolean                      @default(false)
+  adminDisabled        Boolean                      @default(false)
+  adminDisableReason   String?
+  permissionsLost      Boolean                      @default(false)
+  inviteUnavailable    Boolean                      @default(false)
+  deletedAt            DateTime?
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+
+  settings      SupportListSettings       @relation(fields: [settingsId], references: [id])
+  channel       Channel                   @relation(fields: [channelId], references: [id])
+  addedBy       User                      @relation(fields: [addedByUserId], references: [id])
+  publications  SupportListPublication[]
+
+  @@index([botId, acceptanceStatus, deletedAt])
+  @@index([settingsId])
+  @@index([addedByUserId])
+  @@index([channelTelegramId])
+  @@map("support_list_memberships")
+}
+
+model SupportListCycle {
+  id              String                 @id @default(cuid())
+  settingsId      String
+  botId           String
+  scheduledAt     DateTime
+  deleteAt        DateTime
+  rotationOffset  Int
+  snapshot        Json?
+  status          SupportListCycleStatus @default(PENDING)
+  sealedAt        DateTime?
+  ownerNotified   Boolean                @default(false)
+  createdAt       DateTime               @default(now())
+
+  settings      SupportListSettings      @relation(fields: [settingsId], references: [id])
+  publications  SupportListPublication[]
+
+  @@unique([botId, scheduledAt])
+  @@index([status, scheduledAt])
+  @@index([settingsId])
+  @@map("support_list_cycles")
+}
+
+model SupportListPublication {
+  id                  String                       @id @default(cuid())
+  cycleId             String
+  membershipId        String
+  channelTelegramId   BigInt
+  messageId           BigInt?
+  status              SupportListPublicationStatus @default(PENDING)
+  deleteAt            DateTime
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+
+  cycle       SupportListCycle       @relation(fields: [cycleId], references: [id])
+  membership  SupportListMembership  @relation(fields: [membershipId], references: [id])
+
+  @@unique([cycleId, membershipId])
+  @@index([status, deleteAt])
+  @@map("support_list_publications")
 }
 
 model RevenueSharePolicy {

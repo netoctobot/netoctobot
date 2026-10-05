@@ -66,7 +66,8 @@ test("uses type-specific bot confirmation warnings", () => {
   assert.match(contact.text, /links and settings will remain saved/);
   assert.doesNotMatch(contact.text, /linked again/);
   assert.doesNotMatch(support.text, /messages/);
-  assert.match(support.text, /still under development/);
+  assert.match(support.text, /new publishing stop/);
+  assert.match(support.text, /schedule stay saved/);
 });
 
 test("does not claim active channel services when no link is active", () => {

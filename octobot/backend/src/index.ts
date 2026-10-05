@@ -4,11 +4,13 @@ import { loadEnv } from "./config/env.js";
 import { createPrismaClient } from "./lib/prisma.js";
 import { createRedisClient } from "./lib/redis.js";
 import { BotRuntimeManager } from "./modules/bots/bot-runtime-manager.js";
+import { SupportListScheduler } from "./modules/support-list/scheduler.js";
 
 const env = loadEnv();
 const prisma = createPrismaClient();
 const redis = createRedisClient(env.REDIS_URL);
 const runtimeManager = new BotRuntimeManager(env, prisma, redis);
+const supportListScheduler = new SupportListScheduler(env, prisma);
 
 let app: ReturnType<typeof buildApp> | undefined;
 
@@ -26,6 +28,7 @@ try {
   app = buildApp(env, prisma, redis, runtimeManager);
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
   await runtimeManager.registerAllWebhooks();
+  await supportListScheduler.start();
 
   app.log.info(
     {
@@ -36,6 +39,7 @@ try {
     "Platform bot is ready",
   );
 } catch (error) {
+  await supportListScheduler.stop().catch(() => undefined);
   await runtimeManager.shutdown();
   if (app) {
     await app.close();
@@ -48,6 +52,7 @@ try {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {
+    await supportListScheduler.stop().catch(() => undefined);
     await runtimeManager.shutdown();
     await app?.close();
     process.exit(0);

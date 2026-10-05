@@ -6,7 +6,7 @@ These decisions are the source of truth for implementation. They supersede confl
 
 - Ads, Telegram Stars, earnings settlement, and withdrawals are deferred past the first build slices.
 - User-facing bot types from day one: `CONTACT_BOT` and `SUPPORT_LIST_BOT`, plus the central platform bot.
-- Support-list runtime logic is deferred. The type must exist in the schema and create flow; the handler stays a stub.
+- `SUPPORT_LIST_BOT` runs one exchange list per bot. Membership, acceptance, disable reasons, list shape, and schedule are stored apart from `BotChannelLink`. Contact-bot linking and messaging stay unchanged. Publishing uses PostgreSQL cycles as the source of truth and BullMQ only to deliver and delete posts. Pause stops new publishes and keeps delete jobs. A deactivated or deleted support-list bot unloads its chat runtime as before; delete jobs can still use the saved token.
 
 ## Platform bot
 

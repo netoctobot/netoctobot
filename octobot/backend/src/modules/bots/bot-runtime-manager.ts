@@ -96,6 +96,14 @@ import {
   buildManagedLinkConfirmation,
   buildManagedLinkDetails,
 } from "./contact-channel-menu.js";
+import {
+  bindSupportListBot,
+  handleSupportListMyChatMember,
+  handleSupportListPrivateMessage,
+  presentSupportListHome,
+  registerSupportListHandlers,
+  type SupportListRuntime,
+} from "../support-list/handlers.js";
 
 export interface ManagedBotRuntime {
   bot: TelegramBot;
@@ -358,6 +366,21 @@ export class BotRuntimeManager {
       : buildSubBotHome(record, language);
   }
 
+  private supportListRuntime(
+    runtime: ManagedBotRuntime,
+  ): SupportListRuntime {
+    return {
+      prisma: this.prisma,
+      redis: this.redis,
+      getRecord: () => runtime.botRecord,
+      getOwnerTelegramId: () => this.getOwnerTelegramId(runtime.botRecord),
+      showDashboard: (context, view) =>
+        this.showRuntimeDashboard(context, runtime, view),
+      editDashboard: (context, view) =>
+        this.editRuntimeDashboard(context, runtime, view),
+    };
+  }
+
   private isMessageNotModified(error: unknown): boolean {
     return (
       error instanceof Error &&
@@ -366,6 +389,17 @@ export class BotRuntimeManager {
   }
 
   private registerUserBotHandlers(runtime: ManagedBotRuntime): void {
+    const supportList =
+      runtime.botRecord.botType === BotType.SUPPORT_LIST_BOT
+        ? bindSupportListBot(
+            this.supportListRuntime(runtime),
+            runtime.bot,
+          )
+        : null;
+    if (supportList) {
+      registerSupportListHandlers(runtime.bot, supportList);
+    }
+
     const showHome = async (context: Context) => {
       if (!context.from || context.chat?.type !== "private") {
         return;
@@ -417,6 +451,11 @@ export class BotRuntimeManager {
             ),
           ),
         );
+        return;
+      }
+
+      if (supportList) {
+        await presentSupportListHome(context, supportList);
         return;
       }
 
@@ -852,6 +891,11 @@ export class BotRuntimeManager {
         return;
       }
 
+      if (supportList) {
+        await handleSupportListPrivateMessage(context, supportList);
+        return;
+      }
+
       let contactRelay: ContactBotRelay | null = null;
       let isContactOwner = false;
       if (runtime.botRecord.botType === BotType.CONTACT_BOT) {
@@ -1213,6 +1257,16 @@ export class BotRuntimeManager {
   ): void {
     runtime.bot.on("my_chat_member", async (context) => {
       if (context.chat.type !== "channel") {
+        return;
+      }
+      if (runtime.botRecord.botType === BotType.SUPPORT_LIST_BOT) {
+        await handleSupportListMyChatMember(
+          context,
+          bindSupportListBot(
+            this.supportListRuntime(runtime),
+            runtime.bot,
+          ),
+        );
         return;
       }
       if (
@@ -1610,6 +1664,13 @@ export class BotRuntimeManager {
             create: { userId: input.ownerId },
             update: {},
           });
+          if (input.botType === BotType.SUPPORT_LIST_BOT) {
+            await transaction.supportListSettings.upsert({
+              where: { botId: pendingRecord.id },
+              create: { botId: pendingRecord.id },
+              update: {},
+            });
+          }
           return activated;
         },
       );
