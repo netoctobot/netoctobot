@@ -8,8 +8,13 @@ import type { Bot as TelegramBot } from "grammy";
 import {
   activateManagedBotChannel,
   deactivateManagedBotChannel,
+  INVITE_LINK_PERMISSION_LOST,
+  InviteLinkPermissionRequiredError,
   listManagedBotChannels,
+  openManagedBotChannel,
+  reconcilePrivateInvitePermission,
   removeManagedBotChannel,
+  TelegramApiUnavailableError,
 } from "./bot-channel-management.service.js";
 
 function linkedChannel() {
@@ -157,6 +162,12 @@ test("activation verifies Telegram permissions before restoring the link", async
   const telegramBot = {
     botInfo: { id: 999 },
     api: {
+      getChat: async () => ({
+        id: -1001234567890,
+        type: "channel",
+        title: "Channel",
+        username: "channel_name",
+      }),
       getChatMember: async () => ({
         status: "administrator",
         can_post_messages: true,
@@ -177,4 +188,258 @@ test("activation verifies Telegram permissions before restoring the link", async
     (updates[0] as { data: { status: LinkStatus } }).data.status,
     LinkStatus.ACTIVE,
   );
+});
+
+test("opens a public channel through its current public URL", async () => {
+  let inviteCalls = 0;
+  const prisma = {
+    botChannelLink: {
+      findFirst: async () => linkedChannel(),
+    },
+  } as unknown as PrismaClient;
+  const telegramBot = {
+    botInfo: { id: 999 },
+    api: {
+      getChat: async () => ({
+        id: -1001234567890,
+        type: "channel",
+        title: "Public",
+        username: "current_public_name",
+      }),
+      createChatInviteLink: async () => {
+        inviteCalls += 1;
+        return { invite_link: "unused" };
+      },
+    },
+  } as unknown as TelegramBot;
+
+  const result = await openManagedBotChannel(
+    prisma,
+    telegramBot,
+    "bot-id",
+    "owner-id",
+    "link-id",
+  );
+
+  assert.equal(result.url, "https://t.me/current_public_name");
+  assert.equal(inviteCalls, 0);
+});
+
+test("creates a valid invite link before opening a private channel", async () => {
+  const prisma = {
+    botChannelLink: {
+      findFirst: async () => ({
+        ...linkedChannel(),
+        channel: { ...linkedChannel().channel, username: null },
+      }),
+    },
+  } as unknown as PrismaClient;
+  const telegramBot = {
+    botInfo: { id: 999 },
+    api: {
+      getChat: async () => ({
+        id: -1001234567890,
+        type: "channel",
+        title: "Private",
+      }),
+      getChatMember: async () => ({
+        status: "administrator",
+        can_invite_users: true,
+      }),
+      createChatInviteLink: async () => ({
+        invite_link: "https://t.me/+valid",
+      }),
+    },
+  } as unknown as TelegramBot;
+
+  const result = await openManagedBotChannel(
+    prisma,
+    telegramBot,
+    "bot-id",
+    "owner-id",
+    "link-id",
+  );
+
+  assert.equal(result.url, "https://t.me/+valid");
+});
+
+test("confirmed missing private invite permission disables only the link", async () => {
+  const updates: Array<{ data: { deactivationReason: string } }> = [];
+  const prisma = {
+    botChannelLink: {
+      findFirst: async () => ({
+        ...linkedChannel(),
+        channel: { ...linkedChannel().channel, username: null },
+      }),
+      updateMany: async (input: {
+        data: { deactivationReason: string };
+      }) => {
+        updates.push(input);
+        return { count: 1 };
+      },
+    },
+  } as unknown as PrismaClient;
+  const telegramBot = {
+    botInfo: { id: 999 },
+    api: {
+      getChat: async () => ({
+        id: -1001234567890,
+        type: "channel",
+        title: "Private",
+      }),
+      getChatMember: async () => ({
+        status: "administrator",
+        can_invite_users: false,
+      }),
+    },
+  } as unknown as TelegramBot;
+
+  await assert.rejects(
+    openManagedBotChannel(
+      prisma,
+      telegramBot,
+      "bot-id",
+      "owner-id",
+      "link-id",
+    ),
+    InviteLinkPermissionRequiredError,
+  );
+  assert.equal(
+    updates[0]?.data.deactivationReason,
+    INVITE_LINK_PERMISSION_LOST,
+  );
+});
+
+test("a temporary Telegram failure never disables the channel link", async () => {
+  let updateCalls = 0;
+  const prisma = {
+    botChannelLink: {
+      findFirst: async () => linkedChannel(),
+      updateMany: async () => {
+        updateCalls += 1;
+        return { count: 1 };
+      },
+    },
+  } as unknown as PrismaClient;
+  const telegramBot = {
+    botInfo: { id: 999 },
+    api: {
+      getChat: async () => {
+        throw new Error("ECONNRESET");
+      },
+    },
+  } as unknown as TelegramBot;
+
+  await assert.rejects(
+    openManagedBotChannel(
+      prisma,
+      telegramBot,
+      "bot-id",
+      "owner-id",
+      "link-id",
+    ),
+    TelegramApiUnavailableError,
+  );
+  assert.equal(updateCalls, 0);
+});
+
+test("activation rejects a private channel until invite permission is restored", async () => {
+  let updateCalls = 0;
+  const prisma = {
+    botChannelLink: {
+      findFirst: async () => ({
+        ...linkedChannel(),
+        status: LinkStatus.INACTIVE,
+        channel: { ...linkedChannel().channel, username: null },
+      }),
+      update: async () => {
+        updateCalls += 1;
+        return {};
+      },
+    },
+  } as unknown as PrismaClient;
+  const telegramBot = {
+    botInfo: { id: 999 },
+    api: {
+      getChat: async () => ({
+        id: -1001234567890,
+        type: "channel",
+        title: "Private",
+      }),
+      getChatMember: async () => ({
+        status: "administrator",
+        can_post_messages: true,
+        can_delete_messages: true,
+        can_invite_users: false,
+      }),
+    },
+  } as unknown as TelegramBot;
+
+  await assert.rejects(
+    activateManagedBotChannel(
+      prisma,
+      telegramBot,
+      "bot-id",
+      "owner-id",
+      "link-id",
+    ),
+    InviteLinkPermissionRequiredError,
+  );
+  assert.equal(updateCalls, 0);
+});
+
+test("permission updates auto-restore only invite-permission deactivations", async () => {
+  const updates: unknown[] = [];
+  let reason: string | null = INVITE_LINK_PERMISSION_LOST;
+  let botIsActive = true;
+  const prisma = {
+    botChannelLink: {
+      findFirst: async () => ({
+        id: "link-id",
+        status: LinkStatus.INACTIVE,
+        deactivationReason: reason,
+        bot: { isActive: botIsActive, deletedAt: null },
+        channel: { isActive: true, deletedAt: null },
+      }),
+      update: async (input: unknown) => {
+        updates.push(input);
+        return {};
+      },
+    },
+  } as unknown as PrismaClient;
+
+  assert.equal(
+    await reconcilePrivateInvitePermission(prisma, {
+      botId: "bot-id",
+      channelTelegramId: -1001234567890,
+      isPrivate: true,
+      hasInvitePermission: true,
+    }),
+    "REACTIVATED",
+  );
+  assert.equal(updates.length, 1);
+
+  reason = "OWNER_DEACTIVATED";
+  assert.equal(
+    await reconcilePrivateInvitePermission(prisma, {
+      botId: "bot-id",
+      channelTelegramId: -1001234567890,
+      isPrivate: true,
+      hasInvitePermission: true,
+    }),
+    "UNCHANGED",
+  );
+
+  reason = INVITE_LINK_PERMISSION_LOST;
+  botIsActive = false;
+  assert.equal(
+    await reconcilePrivateInvitePermission(prisma, {
+      botId: "bot-id",
+      channelTelegramId: -1001234567890,
+      isPrivate: true,
+      hasInvitePermission: true,
+    }),
+    "UNCHANGED",
+  );
+  assert.equal(updates.length, 1);
 });

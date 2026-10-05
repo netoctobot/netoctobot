@@ -765,7 +765,11 @@ export class BotRuntimeManager {
                 ? "management.invitePermissionRequired"
                 : error instanceof TelegramApiUnavailableError
                   ? "management.telegramUnavailable"
-                  : "management.actionFailed",
+                  : error instanceof BotAdminRequiredError
+                    ? "channelLink.botAdminRequired"
+                    : error instanceof BotPermissionsRequiredError
+                      ? "channelLink.requiredPermissions"
+                      : "management.actionFailed",
             ),
             show_alert: true,
           });

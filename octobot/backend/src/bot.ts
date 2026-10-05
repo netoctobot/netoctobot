@@ -44,6 +44,10 @@ import {
 } from "./modules/channels/channel-link-state.js";
 import { resolveChannelChatReference } from "./modules/channels/channel-reference.js";
 import {
+  BotAdminRequiredError,
+  BotPermissionsRequiredError,
+} from "./modules/channels/channel.service.js";
+import {
   normalizeTelegramLanguage,
   translate,
 } from "./modules/localization/localization.service.js";
@@ -271,7 +275,11 @@ function registerPlatformHandlers(
             ? "management.invitePermissionRequired"
             : error instanceof TelegramApiUnavailableError
               ? "management.telegramUnavailable"
-          : "management.actionFailed",
+              : error instanceof BotAdminRequiredError
+                ? "channelLink.botAdminRequired"
+                : error instanceof BotPermissionsRequiredError
+                  ? "channelLink.requiredPermissions"
+                  : "management.actionFailed",
       ),
       show_alert: true,
     });
