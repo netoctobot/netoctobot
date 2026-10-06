@@ -5,7 +5,11 @@ import { GrammyError, HttpError } from "grammy";
 import ar from "../../locales/ar.json" with { type: "json" };
 import en from "../../locales/en.json" with { type: "json" };
 import { translate } from "../localization/localization.service.js";
-import { userCanPromote } from "./access.js";
+import {
+  classifyInviteFailure,
+  selectChannelUrl,
+  userCanPromote,
+} from "./access.js";
 import {
   DEFAULT_LIST_NAME,
   MAX_ACCEPTED_CHANNELS,
@@ -33,6 +37,8 @@ import {
 } from "./render.js";
 import {
   buildListNamePrompt,
+  buildListPreview,
+  buildNotice,
   buildSlotsMenu,
   buildSupportListHome,
 } from "./menu.js";
@@ -401,8 +407,10 @@ test("text lists keep every url and refuse a message that cannot fit", () => {
   });
   assert.equal(fitted.ok, true);
   if (fitted.ok) {
-    assert.match(fitted.rendered.text, /https:\/\/t\.me\/one/);
-    assert.match(fitted.rendered.text, /https:\/\/t\.me\/two/);
+    assert.equal(fitted.rendered.parseMode, "HTML");
+    assert.match(fitted.rendered.text, /<a href="https:\/\/t\.me\/one">One<\/a>/);
+    assert.match(fitted.rendered.text, /<a href="https:\/\/t\.me\/two">Two<\/a>/);
+    assert.equal(fitted.rendered.text.includes("One — "), false);
     assert.deepEqual(fitted.rendered.memberIds, ["1", "2"]);
   }
   const tooLong = renderSupportList({
@@ -417,6 +425,104 @@ test("text lists keep every url and refuse a message that cannot fit", () => {
   assert.deepEqual(tooLong, { ok: false, reason: "unfit" });
 });
 
+test("text lists escape markup and keep the visible channel name", () => {
+  const rendered = renderSupportList({
+    listName: "A <B> & C",
+    format: "TEXT",
+    entries: [
+      {
+        id: "1",
+        title: "A <B> & C_D *E*",
+        url: "https://t.me/one",
+      },
+    ],
+  });
+  assert.equal(rendered.ok, true);
+  if (rendered.ok) {
+    assert.equal(
+      rendered.rendered.text,
+      "A &lt;B&gt; &amp; C\n\n<a href=\"https://t.me/one\">A &lt;B&gt; &amp; C_D *E*</a>",
+    );
+    const preview = buildListPreview(SupportedLanguage.AR, rendered.rendered);
+    const callbacks = preview.keyboard.inline_keyboard
+      .flat()
+      .map((button) => ("callback_data" in button ? button.callback_data : ""));
+    assert.deepEqual(callbacks, ["sl:admin"]);
+    assert.equal(preview.parseMode, "HTML");
+  }
+  assert.equal(
+    renderSupportList({
+      listName: "List",
+      format: "TEXT",
+      entries: [{ id: "1", title: "One", url: "javascript:alert(1)" }],
+    }).ok,
+    false,
+  );
+});
+
+test("a stored private invite is reused until one must be created", () => {
+  assert.deepEqual(
+    selectChannelUrl({
+      username: null,
+      storedInviteUrl: "https://t.me/+saved",
+    }),
+    { kind: "reuse", url: "https://t.me/+saved" },
+  );
+  assert.deepEqual(selectChannelUrl({ username: "news", storedInviteUrl: null }), {
+    kind: "public",
+    url: "https://t.me/news",
+  });
+  assert.deepEqual(
+    selectChannelUrl({ username: null, storedInviteUrl: "not a link" }),
+    { kind: "create" },
+  );
+  const network = new HttpError("timeout", new Error("socket hang up"));
+  assert.equal(classifyInviteFailure(network), "unavailable");
+  assert.equal(
+    classifyInviteFailure(
+      new GrammyError(
+        "telegram",
+        {
+          ok: false,
+          error_code: 400,
+          description: "Bad Request: not enough rights to manage chat invite link",
+        },
+        "createChatInviteLink",
+        {},
+      ),
+    ),
+    "invite",
+  );
+  assert.equal(
+    classifyInviteFailure(
+      new GrammyError(
+        "telegram",
+        {
+          ok: false,
+          error_code: 403,
+          description: "Forbidden: bot was kicked from the channel chat",
+        },
+        "createChatInviteLink",
+        {},
+      ),
+    ),
+    "permissions",
+  );
+  const notice = buildNotice(SupportedLanguage.AR, "تعذّر فتح القناة، حاول مجددًا", {
+    ok: false,
+    callback: "sl:list:m:0",
+  });
+  assert.equal(notice.text, "تعذّر فتح القناة، حاول مجددًا");
+  const button = notice.keyboard.inline_keyboard[0]?.[0];
+  assert.equal(button && "text" in button ? button.text : "", "رجوع");
+  const saved = buildNotice(SupportedLanguage.AR, "تم الحفظ.", {
+    ok: true,
+    callback: "sl:admin",
+  });
+  const savedButton = saved.keyboard.inline_keyboard[0]?.[0];
+  assert.equal(savedButton && "text" in savedButton ? savedButton.text : "", "حسنًا");
+});
+
 test("button lists truncate labels without dropping urls", () => {
   const title = "م".repeat(80);
   const rendered = renderSupportList({
@@ -429,6 +535,10 @@ test("button lists truncate labels without dropping urls", () => {
     assert.equal(rendered.rendered.buttons?.[0]?.url, "https://t.me/joinchat/abc");
     assert.equal(Array.from(rendered.rendered.buttons?.[0]?.label ?? "").length, 64);
     assert.equal(buttonLabel(title).endsWith("…"), true);
+    const preview = buildListPreview(SupportedLanguage.EN, rendered.rendered);
+    const row = preview.keyboard.inline_keyboard;
+    assert.equal(row.at(-1)?.[0] && "callback_data" in row.at(-1)![0] ? row.at(-1)![0].callback_data : "", "sl:admin");
+    assert.equal(row[0]?.[0] && "url" in row[0][0] ? row[0][0].url : "", "https://t.me/joinchat/abc");
   }
 });
 

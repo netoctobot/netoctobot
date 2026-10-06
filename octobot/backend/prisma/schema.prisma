@@ -261,6 +261,7 @@ model SupportListMembership {
   adminDisableReason   String?
   permissionsLost      Boolean                      @default(false)
   inviteUnavailable    Boolean                      @default(false)
+  inviteUrl            String?
   deletedAt            DateTime?
   createdAt            DateTime                     @default(now())
   updatedAt            DateTime                     @updatedAt

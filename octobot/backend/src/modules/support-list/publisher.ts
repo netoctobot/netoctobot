@@ -25,6 +25,7 @@ import {
   MIN_RETENTION_MINUTES,
 } from "./constants.js";
 import { translate } from "../localization/localization.service.js";
+import { persistChannelOpen } from "./membership.service.js";
 
 export interface PublishDeps {
   prisma: PrismaClient;
@@ -60,15 +61,23 @@ async function buildCurrentList(
     const opened = await resolveChannelOpenUrl(telegram, {
       channelTelegramId: membership.channelTelegramId,
       username: membership.channel.username,
+      storedInviteUrl: membership.inviteUrl,
     });
     if (opened.kind === "unavailable") {
       return { kind: "unavailable" };
     }
-    if (opened.kind === "invite_disabled") {
-      await prisma.supportListMembership.update({
-        where: { id: membership.id },
-        data: { inviteUnavailable: true },
-      });
+    if (opened.kind !== "url" || opened.created) {
+      await persistChannelOpen(
+        prisma,
+        {
+          id: membership.id,
+          inviteUnavailable: membership.inviteUnavailable,
+          username: membership.channel.username,
+        },
+        opened,
+      );
+    }
+    if (opened.kind !== "url") {
       continue;
     }
     entries.push({
@@ -493,9 +502,12 @@ export async function publishCycle(
       const message = await telegram.api.sendMessage(
         Number(membership.channelTelegramId),
         rendered.text,
-        markup
-          ? { reply_markup: markup }
-          : { link_preview_options: { is_disabled: true } },
+        {
+          ...(rendered.parseMode ? { parse_mode: rendered.parseMode } : {}),
+          ...(markup
+            ? { reply_markup: markup }
+            : { link_preview_options: { is_disabled: true } }),
+        },
       );
       messageId = message.message_id;
     } catch (error) {

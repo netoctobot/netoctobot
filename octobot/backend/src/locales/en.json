@@ -145,6 +145,8 @@
     "sendListName": "Send the list name, for example Education. Up to 64 characters.",
     "invalidListName": "Send a name of 1 to 64 characters.",
     "saved": "Saved.",
+    "ok": "OK",
+    "viewRetry": "The channel could not be opened. Try again.",
     "sendContact": "Send a contact link: t.me, tg://, or @username.",
     "invalidContact": "That link is not usable. Use t.me, tg://, or @username.",
     "empty": "Nothing is here.",

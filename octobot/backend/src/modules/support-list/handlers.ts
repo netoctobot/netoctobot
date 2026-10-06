@@ -28,7 +28,10 @@ import {
   type TranslationKey,
 } from "../localization/localization.service.js";
 import { parseSupportedLanguage } from "../localization/supported-languages.js";
-import type { DashboardView } from "../bots/platform-menu.js";
+import {
+  dashboardMessageOptions,
+  type DashboardView,
+} from "../bots/platform-menu.js";
 import { setExplicitLanguage, syncBotUser } from "../users/user.service.js";
 import {
   PromoterRequiredError,
@@ -51,6 +54,7 @@ import {
   clearSupportListDraft,
   getSupportListDraft,
   saveSupportListDraft,
+  type SupportListDraft,
 } from "./input-state.js";
 import {
   acceptMembership,
@@ -73,6 +77,8 @@ import {
   buildDeleteConfirm,
   buildFormatMenu,
   buildListNamePrompt,
+  buildListPreview,
+  buildNotice,
   buildMembershipDetail,
   buildMembershipList,
   buildPrompt,
@@ -107,6 +113,24 @@ import {
 
 const INPUT_DISMISS_MS = 5000;
 
+async function showNotice(
+  context: Context,
+  deps: SupportListRuntime,
+  language: SupportedLanguage,
+  text: string,
+  callback: string,
+  ok: boolean,
+): Promise<void> {
+  try {
+    await deps.editDashboard(
+      context,
+      buildNotice(language, text, { ok, callback }),
+    );
+  } finally {
+    await context.answerCallbackQuery().catch(() => undefined);
+  }
+}
+
 function dismissLater(
   bot: TelegramBot,
   chatId: number,
@@ -127,9 +151,7 @@ async function editStoredPanel(
   view: DashboardView,
 ): Promise<void> {
   await deps.bot.api
-    .editMessageText(chatId, messageId, view.text, {
-      reply_markup: view.keyboard,
-    })
+    .editMessageText(chatId, messageId, view.text, dashboardMessageOptions(view))
     .catch(() => undefined);
 }
 
@@ -434,10 +456,14 @@ async function showScopedList(
   const language = await languageOf(deps, context.from.id);
   const owner = await isOwner(deps, context.from.id);
   if ((scope === "a" || scope === "r") && !owner) {
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.notAllowed"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      deps,
+      language,
+      translate(language, "supportList.notAllowed"),
+      "sl:home",
+      false,
+    );
     return;
   }
   const user = await deps.prisma.user.findUnique({
@@ -584,6 +610,26 @@ export function registerSupportListHandlers(
 ): void {
   const bound = bindSupportListBot(deps, bot);
 
+  bot.callbackQuery("sl:draft", async (context) => {
+    if (!context.from || !context.chat) return;
+    const language = await languageOf(bound, context.from.id);
+    const draft = await getSupportListDraft(
+      bound.redis,
+      bound.getRecord().id,
+      context.from.id,
+    );
+    if (!draft || draft.chatId !== context.chat.id) {
+      await showHome(context, bound, context.from.id);
+      await context.answerCallbackQuery();
+      return;
+    }
+    await bound.editDashboard(
+      context,
+      await draftPromptView(bound, language, draft),
+    );
+    await context.answerCallbackQuery();
+  });
+
   bot.callbackQuery("sl:home", async (context) => {
     if (!context.from) return;
     await Promise.all([
@@ -631,10 +677,14 @@ export function registerSupportListHandlers(
   bot.callbackQuery("sl:contact", async (context) => {
     if (!context.from) return;
     const language = await languageOf(bound, context.from.id);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.contactMissing"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.contactMissing"),
+      "sl:home",
+      false,
+    );
   });
 
   bot.callbackQuery(/^sl:(mine|pend|reqs|all):(\d+)$/, async (context) => {
@@ -658,19 +708,29 @@ export function registerSupportListHandlers(
     await showScopedList(context, bound, scope, Number(context.match[2]));
   });
 
-  bot.callbackQuery(/^sl:item:([^:]+):(\d+):([mapr])$/, async (context) => {
+  const presentMembership = async (
+    context: Context,
+    membershipId: string,
+    page: number,
+    scope: ListScope,
+  ): Promise<void> => {
     if (!context.from) return;
     const language = await languageOf(bound, context.from.id);
+    const backToList = `sl:list:${scope}:${page}`;
     const membership = await getMembershipForBot(
       bound.prisma,
       bound.getRecord().id,
-      context.match[1] ?? "",
+      membershipId,
     );
     if (!membership) {
-      await context.answerCallbackQuery({
-        text: translate(language, "management.notFound"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        backToList,
+        false,
+      );
       return;
     }
     const owner = await isOwner(bound, context.from.id);
@@ -678,10 +738,39 @@ export function registerSupportListHandlers(
       where: { telegramId: BigInt(context.from.id) },
     });
     if (!owner && actor?.id !== membership.addedByUserId) {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.notAllowed"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.notAllowed"),
+        backToList,
+        false,
+      );
+      return;
+    }
+    const opened = await openMembership({
+      prisma: bound.prisma,
+      telegramBot: bot,
+      botId: bound.getRecord().id,
+      membershipId,
+    });
+    if (opened.kind !== "url") {
+      const key: TranslationKey =
+        opened.kind === "unavailable"
+          ? "supportList.viewRetry"
+          : opened.kind === "invite_disabled"
+            ? "supportList.inviteShort"
+            : opened.kind === "permissions_lost"
+              ? "supportList.permissionsShort"
+              : "management.notFound";
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, key),
+        backToList,
+        false,
+      );
       return;
     }
     const item: MembershipPageItem = {
@@ -703,44 +792,32 @@ export function registerSupportListHandlers(
         title: item.title,
         status: itemStatus(language, item),
         membershipId: membership.id,
-        page: Number(context.match[2]),
-        scope: context.match[3] as ListScope,
+        page,
+        scope,
         flags: item.flags,
+        viewUrl: opened.url,
         pendingReview: owner && membership.acceptanceStatus === "PENDING",
       }),
     );
     await context.answerCallbackQuery();
+  };
+
+  bot.callbackQuery(/^sl:item:([^:]+):(\d+):([mapr])$/, async (context) => {
+    await presentMembership(
+      context,
+      context.match[1] ?? "",
+      Number(context.match[2]),
+      context.match[3] as ListScope,
+    );
   });
 
   bot.callbackQuery(/^sl:view:([^:]+):(\d+):([mapr])$/, async (context) => {
-    if (!context.from) return;
-    const language = await languageOf(bound, context.from.id);
-    const opened = await openMembership({
-      prisma: bound.prisma,
-      telegramBot: bot,
-      botId: bound.getRecord().id,
-      membershipId: context.match[1] ?? "",
-    });
-    if (opened.kind === "url") {
-      await context.answerCallbackQuery();
-      await bound.bot.api
-        .sendMessage(context.from.id, opened.title, {
-          reply_markup: { inline_keyboard: [[{ text: translate(language, "supportList.view"), url: opened.url }]] },
-        })
-        .catch(() => undefined);
-      return;
-    }
-    await context.answerCallbackQuery({
-      text: translate(
-        language,
-        opened.kind === "invite_disabled"
-          ? "supportList.inviteShort"
-          : opened.kind === "unavailable"
-            ? "supportList.unavailable"
-            : "management.notFound",
-      ),
-      show_alert: true,
-    });
+    await presentMembership(
+      context,
+      context.match[1] ?? "",
+      Number(context.match[2]),
+      context.match[3] as ListScope,
+    );
   });
 
   bot.callbackQuery(/^sl:on:([^:]+):(\d+):([mapr])$/, async (context) => {
@@ -774,11 +851,14 @@ export function registerSupportListHandlers(
               : result.kind === "still_blocked"
                 ? "supportList.stillBlocked"
                 : "management.notFound";
-    await context.answerCallbackQuery({
-      text: translate(language, key),
-      show_alert: true,
-    });
-    await showScopedList(context, bound, scope, Number(context.match[2]));
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, key),
+      `sl:list:${scope}:${Number(context.match[2])}`,
+      result.kind === "resumed",
+    );
   });
 
   bot.callbackQuery(/^sl:off:([^:]+):(\d+):([mapr])$/, async (context) => {
@@ -821,14 +901,17 @@ export function registerSupportListHandlers(
       context.match[1] ?? "",
       actor.id,
     );
-    await context.answerCallbackQuery({
-      text: translate(
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(
         language,
         updated ? "supportList.disabledByYou" : "management.notFound",
       ),
-      show_alert: true,
-    });
-    await showScopedList(context, bound, scope, Number(context.match[2]));
+      `sl:list:${scope}:${Number(context.match[2])}`,
+      Boolean(updated),
+    );
   });
 
   bot.callbackQuery(/^sl:del:([^:]+):(\d+):([mapr])$/, async (context) => {
@@ -840,10 +923,14 @@ export function registerSupportListHandlers(
       context.match[1] ?? "",
     );
     if (!membership) {
-      await context.answerCallbackQuery({
-        text: translate(language, "management.notFound"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        `sl:list:${context.match[3]}:${Number(context.match[2])}`,
+        false,
+      );
       return;
     }
     await bound.editDashboard(
@@ -888,11 +975,14 @@ export function registerSupportListHandlers(
         { title: existing.channel.title ?? existing.id },
       );
     }
-    await context.answerCallbackQuery({
-      text: translate(language, removed ? "supportList.deleted" : "management.notFound"),
-      show_alert: true,
-    });
-    await showScopedList(context, bound, scope, Number(context.match[2]));
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, removed ? "supportList.deleted" : "management.notFound"),
+      `sl:list:${scope}:${Number(context.match[2])}`,
+      Boolean(removed),
+    );
   });
 
   bot.callbackQuery(/^sl:why:([^:]+):(\d+):([mapr])$/, async (context) => {
@@ -931,10 +1021,14 @@ export function registerSupportListHandlers(
     if (!context.from) return;
     const language = await languageOf(bound, context.from.id);
     if (!(await isOwner(bound, context.from.id))) {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.notAllowed"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.notAllowed"),
+        "sl:home",
+        false,
+      );
       return;
     }
     const before = await getMembershipForBot(
@@ -956,8 +1050,11 @@ export function registerSupportListHandlers(
         { title: before.channel.title ?? before.id },
       );
     }
-    await context.answerCallbackQuery({
-      text: translate(
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(
         language,
         result === "accepted"
           ? "supportList.submittedAccepted"
@@ -966,18 +1063,23 @@ export function registerSupportListHandlers(
             : "management.notFound",
         { title: before?.channel.title ?? "" },
       ),
-      show_alert: true,
-    });
+      "sl:reqs:0",
+      result === "accepted",
+    );
   });
 
   bot.callbackQuery(/^sl:rej:([^:]+)$/, async (context) => {
     if (!context.from) return;
     const language = await languageOf(bound, context.from.id);
     if (!(await isOwner(bound, context.from.id))) {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.notAllowed"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.notAllowed"),
+        "sl:home",
+        false,
+      );
       return;
     }
     const before = await getMembershipForBot(
@@ -999,22 +1101,30 @@ export function registerSupportListHandlers(
         { title: before.channel.title ?? before.id },
       );
     }
-    await context.answerCallbackQuery({
-      text: translate(language, rejected ? "supportList.rejectedNotice" : "management.notFound", {
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, rejected ? "supportList.rejectedNotice" : "management.notFound", {
         title: before?.channel.title ?? "",
       }),
-      show_alert: true,
-    });
+      "sl:reqs:0",
+      Boolean(rejected),
+    );
   });
 
   const ownerOnly = async (context: Context): Promise<boolean> => {
     if (!context.from) return false;
     if (await isOwner(bound, context.from.id)) return true;
     const language = await languageOf(bound, context.from.id);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.notAllowed"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.notAllowed"),
+      "sl:home",
+      false,
+    );
     return false;
   };
 
@@ -1075,19 +1185,13 @@ export function registerSupportListHandlers(
       data: { acceptanceMode: mode },
     });
     const language = await languageOf(bound, context.from.id);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
-    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
-    await bound.editDashboard(
+    await showNotice(
       context,
-      buildAdminHome(
-        language,
-        settings,
-        await acceptedCount(bound),
-        await countUnconfirmedPublications(bound.prisma, bound.getRecord().id),
-      ),
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:admin",
+      true,
     );
   });
 
@@ -1110,19 +1214,13 @@ export function registerSupportListHandlers(
       },
     });
     const language = await languageOf(bound, context.from.id);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
-    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
-    await bound.editDashboard(
+    await showNotice(
       context,
-      buildAdminHome(
-        language,
-        settings,
-        await acceptedCount(bound),
-        await countUnconfirmedPublications(bound.prisma, bound.getRecord().id),
-      ),
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:admin",
+      true,
     );
   });
 
@@ -1130,41 +1228,28 @@ export function registerSupportListHandlers(
     if (!(await ownerOnly(context)) || !context.from) return;
     const language = await languageOf(bound, context.from.id);
     const built = await previewSupportList(bound.prisma, bot, bound.getRecord().id);
-    if (built.kind === "empty") {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.previewEmpty"),
-        show_alert: true,
-      });
+    if (built.kind !== "ready") {
+      const key: TranslationKey =
+        built.kind === "empty"
+          ? "supportList.previewEmpty"
+          : built.kind === "unfit"
+            ? "supportList.previewUnfit"
+            : "supportList.unavailable";
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, key),
+        "sl:admin",
+        false,
+      );
       return;
     }
-    if (built.kind === "unfit") {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.previewUnfit"),
-        show_alert: true,
-      });
-      return;
-    }
-    if (built.kind === "unavailable") {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.unavailable"),
-        show_alert: true,
-      });
-      return;
-    }
-    const keyboard = built.rendered.buttons
-      ? {
-          inline_keyboard: built.rendered.buttons.map((button) => [
-            { text: button.label, url: button.url },
-          ]),
-        }
-      : undefined;
+    await bound.editDashboard(
+      context,
+      buildListPreview(language, built.rendered),
+    );
     await context.answerCallbackQuery();
-    await bot.api
-      .sendMessage(context.from.id, built.rendered.text, {
-        reply_markup: keyboard,
-        link_preview_options: { is_disabled: true },
-      })
-      .catch(() => undefined);
   });
 
   bot.callbackQuery("sl:sched", async (context) => {
@@ -1183,11 +1268,14 @@ export function registerSupportListHandlers(
       where: { botId: bound.getRecord().id },
       data: { publishingEnabled: false },
     });
-    await showSchedule(context, bound);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:sched",
+      true,
+    );
   });
 
   bot.callbackQuery("sl:resume", async (context) => {
@@ -1200,11 +1288,14 @@ export function registerSupportListHandlers(
       where: { botId: bound.getRecord().id },
       data: { publishingEnabled: true },
     });
-    await showSchedule(context, bound);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:sched",
+      true,
+    );
   });
 
   bot.callbackQuery("sl:addslot", async (context) => {
@@ -1221,10 +1312,14 @@ export function registerSupportListHandlers(
       settings.scheduleMode === SupportListScheduleMode.CUSTOM &&
       slots.length >= MAX_CUSTOM_TIMES
     ) {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.maxSlots"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.maxSlots"),
+        "sl:sched",
+        false,
+      );
       return;
     }
     await clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id);
@@ -1270,11 +1365,14 @@ export function registerSupportListHandlers(
       },
     });
     await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
-    await showSchedule(context, bound);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:sched",
+      true,
+    );
   });
 
   bot.callbackQuery(/^sl:slot:time:(\d+)$/, async (context) => {
@@ -1289,10 +1387,14 @@ export function registerSupportListHandlers(
     const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
     const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
     if (!Number.isInteger(index) || index < 0 || index >= slots.length) {
-      await context.answerCallbackQuery({
-        text: translate(language, "management.notFound"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        "sl:slots",
+        false,
+      );
       return;
     }
     await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
@@ -1321,10 +1423,14 @@ export function registerSupportListHandlers(
     const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
     const slot = slots[index];
     if (!slot) {
-      await context.answerCallbackQuery({
-        text: translate(language, "management.notFound"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        "sl:slots",
+        false,
+      );
       return;
     }
     await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
@@ -1349,10 +1455,14 @@ export function registerSupportListHandlers(
     const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
     const slot = slots[index];
     if (!slot) {
-      await context.answerCallbackQuery({
-        text: translate(language, "management.notFound"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        "sl:slots",
+        false,
+      );
       return;
     }
     await bound.editDashboard(
@@ -1371,10 +1481,14 @@ export function registerSupportListHandlers(
     const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
     const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
     if (!slots[index]) {
-      await context.answerCallbackQuery({
-        text: translate(language, "management.notFound"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        "sl:slots",
+        false,
+      );
       return;
     }
     const next = slots.filter((_, slotIndex) => slotIndex !== index);
@@ -1386,11 +1500,14 @@ export function registerSupportListHandlers(
       },
     });
     await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
-    await bound.editDashboard(context, await slotsView(bound, language));
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:slots",
+      true,
+    );
   });
 
   bot.callbackQuery("sl:tz", async (context) => {
@@ -1405,10 +1522,14 @@ export function registerSupportListHandlers(
     const zone = context.match[1] ?? "";
     const language = await languageOf(bound, context.from.id);
     if (!isValidTimeZone(zone)) {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.invalidTimeZone"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.invalidTimeZone"),
+        "sl:tz",
+        false,
+      );
       return;
     }
     await bound.prisma.supportListSettings.update({
@@ -1416,11 +1537,14 @@ export function registerSupportListHandlers(
       data: { timeZone: zone },
     });
     await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
-    await showSchedule(context, bound);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:sched",
+      true,
+    );
   });
 
   bot.callbackQuery("sl:reset", async (context) => {
@@ -1449,11 +1573,14 @@ export function registerSupportListHandlers(
       },
     });
     await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
-    await bound.editDashboard(context, await adminView(bound, language));
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:admin",
+      true,
+    );
   });
 
   bot.callbackQuery("sl:link", async (context) => {
@@ -1532,6 +1659,50 @@ export async function handleSupportListPrivateMessage(
   }
 }
 
+async function draftPromptView(
+  deps: SupportListRuntime,
+  language: SupportedLanguage,
+  draft: SupportListDraft,
+): Promise<DashboardView> {
+  if (draft.kind === "listName") {
+    const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+    return buildListNamePrompt(language, settings.listName);
+  }
+  if (draft.kind === "contactUrl") {
+    return buildPrompt(
+      language,
+      `${translate(language, "supportList.sendContact")}\n\n${translate(language, "supportList.contactHint")}`,
+      "sl:admin",
+    );
+  }
+  if (draft.kind === "slotTime") {
+    return buildPrompt(
+      language,
+      translate(language, "supportList.sendOneTime"),
+      draft.index === null ? "sl:sched" : "sl:slots",
+    );
+  }
+  if (draft.kind === "slotKeep") {
+    return buildPrompt(
+      language,
+      translate(language, "supportList.sendRetention"),
+      draft.index === null ? "sl:sched" : "sl:slots",
+    );
+  }
+  if (draft.kind === "timeZone") {
+    return buildPrompt(
+      language,
+      translate(language, "supportList.sendTimeZone"),
+      "sl:sched",
+    );
+  }
+  return buildPrompt(
+    language,
+    translate(language, "supportList.adminReasonPrompt"),
+    "sl:admin",
+  );
+}
+
 async function handleDraft(
   context: Context,
   deps: SupportListRuntime & { bot: TelegramBot },
@@ -1542,14 +1713,29 @@ async function handleDraft(
   const text = context.message.text.trim();
   const userMessageId = context.message.message_id;
   const fail = async (key: TranslationKey) => {
-    const sent = await context.reply(translate(language, key));
     dismissLater(deps.bot, context.chat!.id, userMessageId);
-    dismissLater(deps.bot, context.chat!.id, sent.message_id);
+    await editStoredPanel(
+      deps,
+      draft.chatId,
+      draft.dashboardMessageId,
+      buildNotice(language, translate(language, key), {
+        ok: false,
+        callback: "sl:draft",
+      }),
+    );
   };
-  const finish = async (view: DashboardView) => {
+  const saved = async (callback: string) => {
     await clearSupportListDraft(deps.redis, deps.getRecord().id, context.from!.id);
     dismissLater(deps.bot, context.chat!.id, userMessageId);
-    await editStoredPanel(deps, draft.chatId, draft.dashboardMessageId, view);
+    await editStoredPanel(
+      deps,
+      draft.chatId,
+      draft.dashboardMessageId,
+      buildNotice(language, translate(language, "supportList.saved"), {
+        ok: true,
+        callback,
+      }),
+    );
   };
   if (draft.kind === "listName") {
     const name = parseListName(text);
@@ -1561,7 +1747,7 @@ async function handleDraft(
       where: { botId: deps.getRecord().id },
       data: { listName: name },
     });
-    await finish(await adminView(deps, language));
+    await saved("sl:admin");
     return;
   }
   if (draft.kind === "contactUrl") {
@@ -1574,7 +1760,7 @@ async function handleDraft(
       where: { botId: deps.getRecord().id },
       data: { contactUrl: url },
     });
-    await finish(await adminView(deps, language));
+    await saved("sl:admin");
     return;
   }
   if (draft.kind === "slotTime") {
@@ -1622,7 +1808,7 @@ async function handleDraft(
       return;
     }
     await saveCustomSlots(deps, next);
-    await finish(await slotsView(deps, language));
+    await saved("sl:slots");
     return;
   }
   if (draft.kind === "slotKeep") {
@@ -1658,7 +1844,7 @@ async function handleDraft(
       return;
     }
     await saveCustomSlots(deps, next);
-    await finish(await slotsView(deps, language));
+    await saved("sl:slots");
     return;
   }
   if (draft.kind === "timeZone") {
@@ -1671,7 +1857,7 @@ async function handleDraft(
       data: { timeZone: text },
     });
     await replaceUnstartedCycles(deps.prisma, deps.getRecord().id);
-    await finish(await scheduleView(deps, language));
+    await saved("sl:sched");
     return;
   }
   if (draft.kind !== "adminReason") {
@@ -1705,24 +1891,9 @@ async function handleDraft(
   const scope = (["m", "a", "p", "r"] as const).includes(draft.scope as ListScope)
     ? (draft.scope as ListScope)
     : "a";
-  await finish(
+  await saved(
     updated && before
-      ? buildMembershipDetail({
-          language,
-          title: before.channel.title ?? before.channel.username ?? updated.id,
-          status: translate(language, "supportList.statusDisabled"),
-          membershipId: updated.id,
-          page: draft.page,
-          scope,
-          flags: {
-            participantDisabled: updated.participantDisabled,
-            adminDisabled: updated.adminDisabled,
-            adminDisableReason: updated.adminDisableReason,
-            permissionsLost: updated.permissionsLost,
-            inviteUnavailable: updated.inviteUnavailable,
-          },
-          pendingReview: updated.acceptanceStatus === "PENDING",
-        })
-      : await adminView(deps, language),
+      ? `sl:item:${updated.id}:${draft.page}:${scope}`
+      : "sl:admin",
   );
 }

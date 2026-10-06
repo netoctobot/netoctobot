@@ -129,6 +129,8 @@ export type TranslationKey =
   | "supportList.sendListName"
   | "supportList.invalidListName"
   | "supportList.saved"
+  | "supportList.ok"
+  | "supportList.viewRetry"
   | "supportList.sendContact"
   | "supportList.invalidContact"
   | "supportList.empty"

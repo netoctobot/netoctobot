@@ -1,4 +1,4 @@
-import { GrammyError, type Bot as TelegramBot } from "grammy";
+import { GrammyError, HttpError, type Bot as TelegramBot } from "grammy";
 import type { ChatMember } from "grammy/types";
 import {
   BotAdminRequiredError,
@@ -7,6 +7,7 @@ import {
   ChannelNotFoundError,
   hasRequiredChannelRights,
 } from "../channels/channel.service.js";
+import { isHttpsUrl } from "./render.js";
 
 export class PromoterRequiredError extends Error {
   constructor() {
@@ -151,35 +152,68 @@ export async function inspectSupportChannel(
 }
 
 export type OpenUrlResult =
-  | { kind: "url"; url: string }
+  | { kind: "url"; url: string; created: boolean }
   | { kind: "invite_disabled" }
+  | { kind: "permissions_lost" }
   | { kind: "unavailable" };
+
+export function selectChannelUrl(input: {
+  username: string | null;
+  storedInviteUrl?: string | null;
+}): { kind: "public" | "reuse"; url: string } | { kind: "create" } {
+  const username = input.username?.trim();
+  if (username) {
+    return { kind: "public", url: `https://t.me/${username}` };
+  }
+  const stored = input.storedInviteUrl?.trim() ?? "";
+  if (isHttpsUrl(stored)) {
+    return { kind: "reuse", url: stored };
+  }
+  return { kind: "create" };
+}
+
+export function classifyInviteFailure(
+  error: unknown,
+): "unavailable" | "invite" | "permissions" {
+  if (error instanceof HttpError || !(error instanceof GrammyError)) {
+    return "unavailable";
+  }
+  if (error.error_code === 429 || error.error_code >= 500) {
+    return "unavailable";
+  }
+  if (error.description.toLowerCase().includes("invite")) {
+    return "invite";
+  }
+  return "permissions";
+}
 
 export async function resolveChannelOpenUrl(
   telegramBot: TelegramBot,
-  input: { channelTelegramId: bigint | number; username: string | null },
+  input: {
+    channelTelegramId: bigint | number;
+    username: string | null;
+    storedInviteUrl?: string | null;
+  },
 ): Promise<OpenUrlResult> {
-  if (input.username) {
-    return { kind: "url", url: `https://t.me/${input.username}` };
+  const selected = selectChannelUrl(input);
+  if (selected.kind !== "create") {
+    return { kind: "url", url: selected.url, created: false };
   }
   try {
     const invite = await telegramBot.api.createChatInviteLink(
       Number(input.channelTelegramId),
       { name: "Octobot support list" },
     );
-    return { kind: "url", url: invite.invite_link };
+    return { kind: "url", url: invite.invite_link, created: true };
   } catch (error) {
-    if (retryAfterMs(error) !== null) {
+    const failure = classifyInviteFailure(error);
+    if (failure === "unavailable") {
       return { kind: "unavailable" };
     }
-    if (
-      !(error instanceof GrammyError) ||
-      error.error_code === 429 ||
-      error.error_code >= 500
-    ) {
-      return { kind: "unavailable" };
+    if (failure === "invite") {
+      return { kind: "invite_disabled" };
     }
-    return { kind: "invite_disabled" };
+    return { kind: "permissions_lost" };
   }
 }
 

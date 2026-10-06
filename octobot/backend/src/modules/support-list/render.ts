@@ -13,6 +13,24 @@ export interface RenderedList {
   text: string;
   buttons: { label: string; url: string }[] | null;
   memberIds: string[];
+  parseMode: "HTML" | null;
+}
+
+const HTTPS_URL = /^https:\/\/[^\s"'<>\\]+$/;
+
+export function isHttpsUrl(url: string): boolean {
+  return url.length <= 2048 && HTTPS_URL.test(url);
+}
+
+export function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+export function escapeHtmlAttribute(value: string): string {
+  return escapeHtml(value).replaceAll('"', "&quot;");
 }
 
 export function rotateEntries<T>(entries: T[], offset: number): T[] {
@@ -68,11 +86,7 @@ export function renderSupportList(input: {
   if (input.entries.length === 0) {
     return { ok: false, reason: "empty" };
   }
-  if (
-    input.entries.some(
-      (entry) => !entry.url.startsWith("https://") || entry.url.length > 2048,
-    )
-  ) {
+  if (input.entries.some((entry) => !isHttpsUrl(entry.url))) {
     return { ok: false, reason: "unfit" };
   }
   const memberIds = input.entries.map((entry) => entry.id);
@@ -89,22 +103,25 @@ export function renderSupportList(input: {
           url: entry.url,
         })),
         memberIds,
+        parseMode: null,
       },
     };
   }
 
-  const lines = [input.listName, ""];
+  const lines = [escapeHtml(input.listName), ""];
   for (const entry of input.entries) {
     const title = entry.title.replace(/\s+/g, " ").trim() || entry.url;
-    lines.push(`${title} — ${entry.url}`);
+    lines.push(
+      `<a href="${escapeHtmlAttribute(entry.url)}">${escapeHtml(title)}</a>`,
+    );
   }
   const text = lines.join("\n");
-  if (text.length > TELEGRAM_TEXT_LIMIT) {
+  if (text.length === 0 || text.length > TELEGRAM_TEXT_LIMIT) {
     return { ok: false, reason: "unfit" };
   }
   return {
     ok: true,
-    rendered: { text, buttons: null, memberIds },
+    rendered: { text, buttons: null, memberIds, parseMode: "HTML" },
   };
 }
 
@@ -122,8 +139,9 @@ export function parseRenderedList(value: unknown): RenderedList | null {
   if (memberIds.length !== record.memberIds.length) {
     return null;
   }
+  const parseMode = record.parseMode === "HTML" ? "HTML" : null;
   if (record.buttons === null || record.buttons === undefined) {
-    return { text: record.text, buttons: null, memberIds };
+    return { text: record.text, buttons: null, memberIds, parseMode };
   }
   if (!Array.isArray(record.buttons)) {
     return null;
@@ -143,5 +161,5 @@ export function parseRenderedList(value: unknown): RenderedList | null {
       url: (button as { url: string }).url,
     });
   }
-  return { text: record.text, buttons, memberIds };
+  return { text: record.text, buttons, memberIds, parseMode };
 }

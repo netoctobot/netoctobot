@@ -55,6 +55,7 @@ import {
 } from "./dashboard-state.js";
 import {
   buildMainMenu,
+  dashboardMessageOptions,
   type DashboardView,
 } from "./platform-menu.js";
 import {
@@ -283,7 +284,7 @@ export class BotRuntimeManager {
           dashboard.chatId,
           dashboard.messageId,
           view.text,
-          { reply_markup: view.keyboard },
+          dashboardMessageOptions(view),
         );
         await context.deleteMessage().catch(() => undefined);
         return;
@@ -303,9 +304,7 @@ export class BotRuntimeManager {
         }
       }
     }
-    const message = await context.reply(view.text, {
-      reply_markup: view.keyboard,
-    });
+    const message = await context.reply(view.text, dashboardMessageOptions(view));
     await saveDashboardState(
       this.redis,
       runtime.botRecord.id,
@@ -324,9 +323,7 @@ export class BotRuntimeManager {
     view: DashboardView,
   ): Promise<void> {
     try {
-      await context.editMessageText(view.text, {
-        reply_markup: view.keyboard,
-      });
+      await context.editMessageText(view.text, dashboardMessageOptions(view));
     } catch (error) {
       if (!this.isMessageNotModified(error)) {
         throw error;

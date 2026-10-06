@@ -4,6 +4,7 @@ import { InlineKeyboard } from "grammy";
 import { buildChannelAddLink } from "../channels/channel-add-link.js";
 import { translate } from "../localization/localization.service.js";
 import type { DashboardView } from "../bots/platform-menu.js";
+import type { RenderedList } from "./render.js";
 import { displayedListName } from "./contact-url.js";
 import { MAX_ACCEPTED_CHANNELS, TIME_ZONE_PRESETS } from "./constants.js";
 import type { DisableFlags, DisableReasonCode } from "./eligibility.js";
@@ -194,6 +195,7 @@ export function buildMembershipDetail(input: {
   scope: ListScope;
   flags: DisableFlags;
   pendingReview: boolean;
+  viewUrl: string;
 }): DashboardView {
   const keyboard = new InlineKeyboard();
   const suffix = `${input.membershipId}:${input.page}:${input.scope}`;
@@ -203,7 +205,7 @@ export function buildMembershipDetail(input: {
       .text(translate(input.language, "supportList.reject"), `sl:rej:${input.membershipId}`)
       .row();
   }
-  keyboard.text(translate(input.language, "supportList.view"), `sl:view:${suffix}`).row();
+  keyboard.url(translate(input.language, "supportList.view"), input.viewUrl).row();
   if (!input.pendingReview) {
     keyboard
       .text(translate(input.language, "supportList.activate"), `sl:on:${suffix}`)
@@ -278,6 +280,36 @@ export function buildReasonView(input: {
       input.language,
       `sl:item:${input.membershipId}:${input.page}:${input.scope}`,
     ),
+  };
+}
+
+export function buildNotice(
+  language: SupportedLanguage,
+  text: string,
+  action: { ok: boolean; callback: string },
+): DashboardView {
+  return {
+    text,
+    keyboard: new InlineKeyboard().text(
+      translate(language, action.ok ? "supportList.ok" : "menu.back"),
+      action.callback,
+    ),
+  };
+}
+
+export function buildListPreview(
+  language: SupportedLanguage,
+  rendered: RenderedList,
+): DashboardView {
+  const keyboard = new InlineKeyboard();
+  for (const button of rendered.buttons ?? []) {
+    keyboard.url(button.label, button.url).row();
+  }
+  keyboard.text(translate(language, "menu.back"), "sl:admin");
+  return {
+    text: rendered.text,
+    keyboard,
+    ...(rendered.parseMode ? { parseMode: rendered.parseMode } : {}),
   };
 }
 
