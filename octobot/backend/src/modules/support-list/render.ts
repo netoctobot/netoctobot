@@ -1,3 +1,5 @@
+import { SupportedLanguage } from "@prisma/client";
+import { translate } from "../localization/localization.service.js";
 import {
   BUTTON_LABEL_LIMIT,
   TELEGRAM_TEXT_LIMIT,
@@ -20,6 +22,31 @@ const HTTPS_URL = /^https:\/\/[^\s"'<>\\]+$/;
 
 export function isHttpsUrl(url: string): boolean {
   return url.length <= 2048 && HTTPS_URL.test(url);
+}
+
+export function listJoinUrl(botUsername: string): string {
+  return `https://t.me/${botUsername}?start=add`;
+}
+
+export function appendListJoinButton(
+  rendered: RenderedList,
+  botUsername: string,
+): RenderedList {
+  const username = botUsername.trim();
+  const url = username ? listJoinUrl(username) : "";
+  if (!isHttpsUrl(url)) {
+    return rendered;
+  }
+  return {
+    ...rendered,
+    buttons: [
+      ...(rendered.buttons ?? []),
+      {
+        label: translate(SupportedLanguage.AR, "supportList.joinList"),
+        url,
+      },
+    ],
+  };
 }
 
 export function escapeHtml(value: string): string {

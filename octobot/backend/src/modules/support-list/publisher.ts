@@ -13,7 +13,7 @@ import {
   PublishDeferredError,
 } from "./delivery.js";
 import { isPublishable } from "./eligibility.js";
-import { channelDisplayName, nextRotationOffset, parseRenderedList, renderSupportList, rotateEntries, type RenderedList } from "./render.js";
+import { appendListJoinButton, channelDisplayName, nextRotationOffset, parseRenderedList, renderSupportList, rotateEntries, type RenderedList } from "./render.js";
 import {
   capturedRetentionMinutes,
   deleteAtFromSuccessfulSend,
@@ -90,9 +90,16 @@ async function buildCurrentList(
   if (!rendered.ok) {
     return { kind: rendered.reason === "empty" ? "empty" : "unfit" };
   }
+  const bot = await prisma.bot.findUnique({
+    where: { id: botId },
+    select: { botUsername: true },
+  });
   return {
     kind: "ready",
-    rendered: rendered.rendered,
+    rendered: appendListJoinButton(
+      rendered.rendered,
+      bot?.botUsername ?? "",
+    ),
     rotationCount: entries.length,
   };
 }
@@ -503,7 +510,12 @@ export async function publishCycle(
         Number(membership.channelTelegramId),
         rendered.text,
         {
-          ...(rendered.parseMode ? { parse_mode: rendered.parseMode } : {}),
+          ...(rendered.parseMode
+            ? {
+                parse_mode: rendered.parseMode,
+                link_preview_options: { is_disabled: true },
+              }
+            : {}),
           ...(markup
             ? { reply_markup: markup }
             : { link_preview_options: { is_disabled: true } }),

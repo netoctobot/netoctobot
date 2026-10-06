@@ -13,6 +13,7 @@ import { dashboardStateKey, getDashboardState } from "../bots/dashboard-state.js
 import { translate } from "../localization/localization.service.js";
 import {
   handleSupportListMyChatMember,
+  presentSupportListHome,
   registerSupportListHandlers,
   type SupportListRuntime,
 } from "./handlers.js";
@@ -145,6 +146,9 @@ test("automatic acceptance stays off the add panel and back edits that panel", a
     supportListSettings: tx.supportListSettings,
     supportListPublication: { count: async () => 0 },
     channel: { findUnique: async () => null },
+    bot: {
+      findFirst: async () => ({ botUsername: "testnetoctobot" }),
+    },
   } as unknown as PrismaClient;
   const bot = new Bot("123456:AA", { botInfo });
   bot.api.config.use(async (_previous, method, payload) => {
@@ -295,8 +299,85 @@ test("automatic acceptance stays off the add panel and back edits that panel", a
   assert.equal(homeEdits[0]?.payload.message_id, 40);
   assert.equal(homeEdits[0]?.payload.chat_id, actor.id);
   assert.notEqual(homeEdits[0]?.payload.message_id, 99);
+  const homeKeyboard = homeEdits[0]?.payload.reply_markup as {
+    inline_keyboard?: Array<Array<{ text?: string; url?: string }>>;
+  };
+  const createBot = homeKeyboard.inline_keyboard?.at(-1)?.[0];
+  assert.equal(createBot?.text, "أنشئ بوتك الخاص");
+  assert.equal(createBot?.url, "https://t.me/testnetoctobot");
   assert.deepEqual(
     JSON.parse(values.get(dashboardStateKey(record.id, actor.id)) ?? "{}"),
     { chatId: actor.id, messageId: 40 },
   );
+});
+
+test("start add opens the add screen and remembers that panel", async () => {
+  const values = new Map<string, string>();
+  const redis = {
+    get: async (key: string) => values.get(key) ?? null,
+    set: async (key: string, value: string) => {
+      values.set(key, value);
+      return "OK";
+    },
+    del: async (key: string) => (values.delete(key) ? 1 : 0),
+  } as unknown as Redis;
+  const user = {
+    id: "user-1",
+    telegramId: BigInt(actor.id),
+    firstName: actor.first_name,
+  };
+  const prisma = {
+    $transaction: async (
+      callback: (transaction: {
+        user: { upsert: () => Promise<typeof user> };
+        userBotPreference: {
+          upsert: () => Promise<{ language: SupportedLanguage }>;
+        };
+      }) => unknown,
+    ) =>
+      callback({
+        user: { upsert: async () => user },
+        userBotPreference: {
+          upsert: async () => ({ language: SupportedLanguage.AR }),
+        },
+      }),
+  } as unknown as PrismaClient;
+  const record = {
+    id: "bot-1",
+    botUsername: "sed235bot",
+    isActive: true,
+  } as DatabaseBot;
+  let shownText = "";
+  const deps: SupportListRuntime = {
+    prisma,
+    redis,
+    getRecord: () => record,
+    getOwnerTelegramId: async () => 999,
+    showDashboard: async (_context, view) => {
+      shownText = view.text;
+      values.set(
+        dashboardStateKey(record.id, actor.id),
+        JSON.stringify({ chatId: actor.id, messageId: 40 }),
+      );
+    },
+    editDashboard: async () => {
+      throw new Error("start add must send the add screen as the panel");
+    },
+  };
+  await presentSupportListHome(
+    {
+      from: { ...actor, language_code: "ar" },
+      chat: { id: actor.id, type: "private" },
+      match: "add",
+    } as Context,
+    deps,
+  );
+  assert.equal(
+    shownText,
+    translate(SupportedLanguage.AR, "supportList.addInstructions"),
+  );
+  assert.deepEqual(await getChannelLinkState(redis, record.id, actor.id), {
+    chatId: actor.id,
+    dashboardMessageId: 40,
+  });
 });

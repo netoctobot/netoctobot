@@ -30,6 +30,7 @@ import {
   occupiesAcceptedSlot,
 } from "./eligibility.js";
 import {
+  appendListJoinButton,
   buttonLabel,
   nextRotationOffset,
   renderSupportList,
@@ -625,6 +626,115 @@ test("a list without a custom name uses the subscribe heading", () => {
   if (posted.ok) {
     assert.match(posted.rendered.text, /^اشترك في القنوات التالية\n/);
   }
+});
+
+test("the join button stays last in both formats and in the preview", () => {
+  for (const format of ["TEXT", "BUTTONS"] as const) {
+    const rendered = renderSupportList({
+      listName: "List",
+      format,
+      entries: [
+        { id: "1", title: "One", url: "https://t.me/one" },
+        { id: "2", title: "Two", url: "https://t.me/two" },
+      ],
+    });
+    assert.equal(rendered.ok, true);
+    if (!rendered.ok) {
+      continue;
+    }
+    const posted = appendListJoinButton(rendered.rendered, "sed235bot");
+    assert.deepEqual(posted.memberIds, ["1", "2"]);
+    assert.equal(posted.buttons?.at(-1)?.label, "أضف قناتك للقائمة");
+    assert.equal(posted.buttons?.at(-1)?.url, "https://t.me/sed235bot?start=add");
+    if (format === "TEXT") {
+      assert.equal(posted.buttons?.length, 1);
+      assert.match(posted.text, /<a href="https:\/\/t\.me\/one">One<\/a>/);
+    } else {
+      assert.equal(posted.buttons?.length, 3);
+      assert.equal(posted.buttons?.[0]?.url, "https://t.me/one");
+    }
+    const preview = buildListPreview(SupportedLanguage.AR, posted);
+    const rows = preview.keyboard.inline_keyboard;
+    const previewJoin = rows.at(-2)?.[0];
+    const back = rows.at(-1)?.[0];
+    assert.equal(
+      previewJoin && "url" in previewJoin ? previewJoin.url : "",
+      "https://t.me/sed235bot?start=add",
+    );
+    assert.equal(
+      previewJoin && "text" in previewJoin ? previewJoin.text : "",
+      "أضف قناتك للقائمة",
+    );
+    assert.equal(
+      back && "callback_data" in back ? back.callback_data : "",
+      "sl:admin",
+    );
+  }
+  const plain = renderSupportList({
+    listName: "List",
+    format: "TEXT",
+    entries: [{ id: "1", title: "One", url: "https://t.me/one" }],
+  });
+  assert.equal(plain.ok, true);
+  if (plain.ok) {
+    assert.equal(appendListJoinButton(plain.rendered, " ").buttons, null);
+  }
+});
+
+test("regular users get a link to the platform bot", () => {
+  const visitor = buildSupportListHome(
+    { listName: "List", contactUrl: null },
+    SupportedLanguage.AR,
+    false,
+    1,
+    0,
+    "testnetoctobot",
+  );
+  const create = visitor.keyboard.inline_keyboard.at(-1)?.[0];
+  assert.equal(create && "text" in create ? create.text : "", "أنشئ بوتك الخاص");
+  assert.equal(
+    create && "url" in create ? create.url : "",
+    "https://t.me/testnetoctobot",
+  );
+  const english = buildSupportListHome(
+    { listName: "List", contactUrl: null },
+    SupportedLanguage.EN,
+    false,
+    1,
+    0,
+    "testnetoctobot",
+  );
+  const englishCreate = english.keyboard.inline_keyboard.at(-1)?.[0];
+  assert.equal(
+    englishCreate && "text" in englishCreate ? englishCreate.text : "",
+    "Create your own bot",
+  );
+  const owner = buildSupportListHome(
+    { listName: "List", contactUrl: null },
+    SupportedLanguage.AR,
+    true,
+    1,
+    0,
+    "testnetoctobot",
+  );
+  assert.deepEqual(
+    owner.keyboard.inline_keyboard.flat().flatMap((button) =>
+      "url" in button ? [button.url] : [],
+    ),
+    [],
+  );
+  const missing = buildSupportListHome(
+    { listName: "List", contactUrl: null },
+    SupportedLanguage.AR,
+    false,
+    1,
+  );
+  assert.deepEqual(
+    missing.keyboard.inline_keyboard.flat().flatMap((button) =>
+      "url" in button ? [button.url] : [],
+    ),
+    [],
+  );
 });
 
 test("contact links and list names stay short", () => {

@@ -1,4 +1,5 @@
 import {
+  BotType,
   Prisma,
   SupportListAcceptanceMode,
   SupportListAcceptanceStatus,
@@ -28,7 +29,7 @@ import {
   type TranslationKey,
 } from "../localization/localization.service.js";
 import { parseSupportedLanguage } from "../localization/supported-languages.js";
-import { saveDashboardState } from "../bots/dashboard-state.js";
+import { getDashboardState, saveDashboardState } from "../bots/dashboard-state.js";
 import {
   dashboardMessageOptions,
   type DashboardView,
@@ -263,6 +264,20 @@ async function acceptedCount(
   });
 }
 
+async function activePlatformBotUsername(
+  deps: SupportListRuntime,
+): Promise<string | null> {
+  const platform = await deps.prisma.bot.findFirst({
+    where: {
+      botType: BotType.PLATFORM_BOT,
+      deletedAt: null,
+      isActive: true,
+    },
+    select: { botUsername: true },
+  });
+  return platform?.botUsername ?? null;
+}
+
 async function showHome(
   context: Context,
   deps: SupportListRuntime,
@@ -283,12 +298,43 @@ async function showHome(
     owner
       ? await countUnconfirmedPublications(deps.prisma, deps.getRecord().id)
       : 0,
+    owner ? null : await activePlatformBotUsername(deps),
   );
   if (context.callbackQuery) {
     await deps.editDashboard(context, view);
     return;
   }
   await deps.showDashboard(context, view);
+}
+
+async function openAddChannel(
+  context: Context,
+  deps: SupportListRuntime,
+): Promise<void> {
+  if (!context.from || !context.chat) {
+    return;
+  }
+  const { preference } = await syncBotUser(
+    deps.prisma,
+    context.from,
+    deps.getRecord().id,
+  );
+  await deps.showDashboard(
+    context,
+    buildSupportAddChannel(preference.language, deps.getRecord().botUsername),
+  );
+  const dashboard = await getDashboardState(
+    deps.redis,
+    deps.getRecord().id,
+    context.from.id,
+  );
+  if (!dashboard || dashboard.chatId !== context.chat.id) {
+    return;
+  }
+  await saveChannelLinkState(deps.redis, deps.getRecord().id, context.from.id, {
+    chatId: dashboard.chatId,
+    dashboardMessageId: dashboard.messageId,
+  });
 }
 
 export async function presentSupportListHome(
@@ -305,6 +351,11 @@ export async function presentSupportListHome(
     clearChannelLinkState(deps.redis, deps.getRecord().id, context.from.id),
     clearSupportListDraft(deps.redis, deps.getRecord().id, context.from.id),
   ]);
+  const payload = typeof context.match === "string" ? context.match.trim() : "";
+  if (payload === "add") {
+    await openAddChannel(context, deps);
+    return;
+  }
   await showHome(context, deps, context.from.id);
 }
 

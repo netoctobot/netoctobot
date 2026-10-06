@@ -104,6 +104,8 @@ export type TranslationKey =
   | "supportList.welcome"
   | "supportList.home"
   | "supportList.addChannel"
+  | "supportList.joinList"
+  | "supportList.createOwnBot"
   | "supportList.myChannels"
   | "supportList.pending"
   | "supportList.contactAdmin"

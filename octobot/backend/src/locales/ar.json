@@ -120,6 +120,8 @@
     "welcome": "مرحباً بك في قائمة {{listName}}.",
     "home": "القائمة: {{listName}}\nالحد: {{count}}/{{max}} قناة مقبولة.",
     "addChannel": "إضافة قناة",
+    "joinList": "أضف قناتك للقائمة",
+    "createOwnBot": "أنشئ بوتك الخاص",
     "myChannels": "قنواتي",
     "pending": "بانتظار القبول",
     "contactAdmin": "التواصل مع الإدارة",

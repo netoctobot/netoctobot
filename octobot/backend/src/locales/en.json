@@ -120,6 +120,8 @@
     "welcome": "Welcome to the {{listName}} list.",
     "home": "List: {{listName}}\nLimit: {{count}}/{{max}} accepted channels.",
     "addChannel": "Add a channel",
+    "joinList": "أضف قناتك للقائمة",
+    "createOwnBot": "Create your own bot",
     "myChannels": "My channels",
     "pending": "Awaiting acceptance",
     "contactAdmin": "Contact admin",

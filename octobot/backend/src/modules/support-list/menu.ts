@@ -39,6 +39,7 @@ export function buildSupportListHome(
   isOwner: boolean,
   acceptedCount: number,
   unconfirmedCount = 0,
+  platformBotUsername: string | null = null,
 ): DashboardView {
   const keyboard = new InlineKeyboard()
     .text(translate(language, "supportList.addChannel"), "sl:add")
@@ -56,6 +57,12 @@ export function buildSupportListHome(
     keyboard.text(
       translate(language, "supportList.contactAdmin"),
       "sl:contact",
+    );
+  }
+  if (!isOwner && platformBotUsername) {
+    keyboard.row().url(
+      translate(language, "supportList.createOwnBot"),
+      `https://t.me/${platformBotUsername}`,
     );
   }
   if (isOwner) {
