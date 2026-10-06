@@ -228,7 +228,7 @@ enum SupportListPublicationStatus {
 model SupportListSettings {
   id                String                    @id @default(cuid())
   botId             String                    @unique
-  listName          String                    @default("Support list")
+  listName          String                    @default("اشترك في القنوات التالية")
   acceptanceMode    SupportListAcceptanceMode @default(AUTO)
   format            SupportListFormat         @default(BUTTONS)
   timeZone          String                    @default("UTC")

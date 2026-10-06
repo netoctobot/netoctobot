@@ -4,6 +4,7 @@ import { InlineKeyboard } from "grammy";
 import { buildChannelAddLink } from "../channels/channel-add-link.js";
 import { translate } from "../localization/localization.service.js";
 import type { DashboardView } from "../bots/platform-menu.js";
+import { displayedListName } from "./contact-url.js";
 import { MAX_ACCEPTED_CHANNELS, TIME_ZONE_PRESETS } from "./constants.js";
 import type { DisableFlags, DisableReasonCode } from "./eligibility.js";
 import { disableReasonCodes } from "./eligibility.js";
@@ -63,9 +64,9 @@ export function buildSupportListHome(
     text: appendUnconfirmed(
       language,
       `${translate(language, "supportList.welcome", {
-        listName: settings.listName,
+        listName: displayedListName(settings.listName),
       })}\n\n${translate(language, "supportList.home", {
-        listName: settings.listName,
+        listName: displayedListName(settings.listName),
         count: acceptedCount,
         max: MAX_ACCEPTED_CHANNELS,
       })}`,
@@ -113,6 +114,18 @@ export function buildPrompt(
     text,
     keyboard: back(language, backCallback),
   };
+}
+
+export function buildListNamePrompt(
+  language: SupportedLanguage,
+  storedName: string,
+): DashboardView {
+  const listName = displayedListName(storedName);
+  return buildPrompt(
+    language,
+    `${translate(language, "supportList.currentListName", { listName })}\n\n${translate(language, "supportList.sendListName")}`,
+    "sl:admin",
+  );
 }
 
 function statusLabel(
@@ -278,7 +291,7 @@ export function buildAdminHome(
     text: appendUnconfirmed(
       language,
       translate(language, "supportList.home", {
-        listName: settings.listName,
+        listName: displayedListName(settings.listName),
         count: acceptedCount,
         max: MAX_ACCEPTED_CHANNELS,
       }),

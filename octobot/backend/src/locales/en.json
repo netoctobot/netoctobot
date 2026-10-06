@@ -141,6 +141,7 @@
     "resume": "Resume publishing",
     "contactLink": "Contact link",
     "addInstructions": "Add the bot as an admin, or forward a post, or send the channel id. You must be allowed to add admins, and the bot needs post and delete rights. Adding the bot does not skip review.",
+    "currentListName": "Current name: {{listName}}",
     "sendListName": "Send the list name, for example Education. Up to 64 characters.",
     "invalidListName": "Send a name of 1 to 64 characters.",
     "saved": "Saved.",

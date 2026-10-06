@@ -19,6 +19,7 @@ import {
   deleteAtFromSuccessfulSend,
   shouldSkipBacklog,
 } from "./schedule.js";
+import { displayedListName } from "./contact-url.js";
 import {
   MAX_RETENTION_MINUTES,
   MIN_RETENTION_MINUTES,
@@ -110,7 +111,7 @@ export async function previewSupportList(
     prisma,
     telegram,
     botId,
-    settings.listName,
+    displayedListName(settings.listName),
     settings.format,
     settings.rotationOffset,
   );
@@ -232,6 +233,7 @@ export async function publishCycle(
     return;
   }
   const { settings } = cycle;
+  const listName = displayedListName(settings.listName);
   const bot = settings.bot;
   if (
     cycle.status === SupportListCycleStatus.PENDING &&
@@ -297,7 +299,7 @@ export async function publishCycle(
       deps.prisma,
       telegram,
       bot.id,
-      settings.listName,
+      listName,
       settings.format,
       settings.rotationOffset,
     );
@@ -325,7 +327,7 @@ export async function publishCycle(
           translate(
             preference?.language ?? SupportedLanguage.EN,
             "supportList.publishUnfit",
-            { listName: settings.listName },
+            { listName },
           ),
         );
       }
@@ -409,7 +411,7 @@ export async function publishCycle(
         publicationId: publication.id,
         ownerTelegramId: bot.owner.telegramId,
         language: ownerLanguage,
-        listName: settings.listName,
+        listName,
         channelLabel: known
           ? channelDisplayName(known.channel)
           : String(publication.channelTelegramId),
@@ -479,7 +481,7 @@ export async function publishCycle(
           publicationId: publication.id,
           ownerTelegramId: bot.owner.telegramId,
           language: ownerLanguage,
-          listName: settings.listName,
+          listName,
           channelLabel,
           alreadyNotified: fresh.ownerNotified,
         });
@@ -527,7 +529,7 @@ export async function publishCycle(
         publicationId: publication.id,
         ownerTelegramId: bot.owner.telegramId,
         language: ownerLanguage,
-        listName: settings.listName,
+        listName,
         channelLabel,
         alreadyNotified: false,
       });

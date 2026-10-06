@@ -72,6 +72,7 @@ import {
   buildAdminHome,
   buildDeleteConfirm,
   buildFormatMenu,
+  buildListNamePrompt,
   buildMembershipDetail,
   buildMembershipList,
   buildPrompt,
@@ -1042,6 +1043,7 @@ export function registerSupportListHandlers(
       return;
     }
     const language = await languageOf(bound, context.from.id);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
     await clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id);
     await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
       kind: "listName",
@@ -1050,7 +1052,7 @@ export function registerSupportListHandlers(
     });
     await bound.editDashboard(
       context,
-      buildPrompt(language, translate(language, "supportList.sendListName"), "sl:admin"),
+      buildListNamePrompt(language, settings.listName),
     );
     await context.answerCallbackQuery();
   });

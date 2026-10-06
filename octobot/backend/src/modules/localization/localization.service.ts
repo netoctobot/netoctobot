@@ -125,6 +125,7 @@ export type TranslationKey =
   | "supportList.resume"
   | "supportList.contactLink"
   | "supportList.addInstructions"
+  | "supportList.currentListName"
   | "supportList.sendListName"
   | "supportList.invalidListName"
   | "supportList.saved"

@@ -7,12 +7,17 @@ import en from "../../locales/en.json" with { type: "json" };
 import { translate } from "../localization/localization.service.js";
 import { userCanPromote } from "./access.js";
 import {
+  DEFAULT_LIST_NAME,
   MAX_ACCEPTED_CHANNELS,
   PUBLISH_GRACE_MINUTES,
   SEND_DELAY_ALLOWANCE_MINUTES,
 } from "./constants.js";
 import { classifySendFailure, occupiedUntil } from "./delivery.js";
-import { parseContactUrl, parseListName } from "./contact-url.js";
+import {
+  displayedListName,
+  parseContactUrl,
+  parseListName,
+} from "./contact-url.js";
 import {
   acceptanceDecision,
   claimAcceptedSlot,
@@ -26,7 +31,11 @@ import {
   renderSupportList,
   rotateEntries,
 } from "./render.js";
-import { buildSlotsMenu } from "./menu.js";
+import {
+  buildListNamePrompt,
+  buildSlotsMenu,
+  buildSupportListHome,
+} from "./menu.js";
 import {
   capturedRetentionMinutes,
   defaultDayClocks,
@@ -477,6 +486,34 @@ test("support-list copy exists in both languages", () => {
       translate(SupportedLanguage.EN, translationKey, variables).includes("{{"),
       false,
     );
+  }
+});
+
+test("a list without a custom name uses the subscribe heading", () => {
+  assert.equal(displayedListName("Support list"), DEFAULT_LIST_NAME);
+  assert.equal(displayedListName("  "), DEFAULT_LIST_NAME);
+  assert.equal(displayedListName(null), DEFAULT_LIST_NAME);
+  assert.equal(displayedListName("قنوات التعليم"), "قنوات التعليم");
+  const home = buildSupportListHome(
+    { listName: "Support list", contactUrl: null },
+    SupportedLanguage.AR,
+    false,
+    0,
+  );
+  assert.match(home.text, new RegExp(DEFAULT_LIST_NAME));
+  assert.match(home.text, /مرحباً بك في قائمة اشترك في القنوات التالية/);
+  const prompt = buildListNamePrompt(SupportedLanguage.AR, "Support list");
+  assert.match(prompt.text, /^الاسم الحالي: اشترك في القنوات التالية\n\nأرسل اسم القائمة/);
+  const custom = buildListNamePrompt(SupportedLanguage.AR, "قنوات التعليم");
+  assert.match(custom.text, /^الاسم الحالي: قنوات التعليم\n\n/);
+  const posted = renderSupportList({
+    listName: displayedListName(""),
+    format: "TEXT",
+    entries: [{ id: "1", title: "One", url: "https://t.me/one" }],
+  });
+  assert.equal(posted.ok, true);
+  if (posted.ok) {
+    assert.match(posted.rendered.text, /^اشترك في القنوات التالية\n/);
   }
 });
 
