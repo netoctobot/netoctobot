@@ -34,6 +34,7 @@ export interface OccupiedPublication {
   status: string;
   deleteAt: Date;
   sendAttemptedAt: Date | null;
+  retentionMinutes?: number;
 }
 
 export function occupiedUntil(input: {
@@ -56,7 +57,7 @@ export function occupiedUntil(input: {
     ) {
       until = deleteAtFromSuccessfulSend(
         publication.sendAttemptedAt ?? input.now,
-        input.retentionMinutes,
+        publication.retentionMinutes ?? input.retentionMinutes,
       );
     }
     if (!until || until.getTime() <= input.now.getTime()) {

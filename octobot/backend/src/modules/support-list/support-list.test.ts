@@ -26,15 +26,21 @@ import {
   renderSupportList,
   rotateEntries,
 } from "./render.js";
+import { buildSlotsMenu } from "./menu.js";
 import {
+  capturedRetentionMinutes,
   defaultDayClocks,
   deleteAtFromSuccessfulSend,
   formatInTimeZone,
   isOverdueForResume,
   minimumSlotGapMinutes,
+  pendingCycleCanBeReplaced,
+  readCustomSlots,
+  savedCustomSchedule,
   shouldSkipBacklog,
   slotsForHorizon,
   validateCustomSchedule,
+  validateCustomSlots,
   zonedTimeToUtc,
 } from "./schedule.js";
 
@@ -281,6 +287,92 @@ test("a live previous post holds the next cycle until its own delete time", () =
   assert.equal(uncertain?.toISOString(), "2026-10-06T14:30:00.000Z");
 });
 
+test("each custom slot keeps its own duration across midnight", () => {
+  assert.equal(
+    validateCustomSlots([
+      { time: { hour: 22, minute: 0 }, retentionMinutes: 180 },
+      { time: { hour: 1, minute: 0 }, retentionMinutes: 60 },
+    ]).ok,
+    false,
+  );
+  assert.equal(
+    validateCustomSlots([
+      { time: { hour: 20, minute: 0 }, retentionMinutes: 60 },
+      { time: { hour: 8, minute: 0 }, retentionMinutes: 180 },
+    ]).ok,
+    true,
+  );
+  assert.equal(
+    validateCustomSlots([
+      { time: { hour: 9, minute: 0 }, retentionMinutes: 180 },
+      { time: { hour: 12, minute: 30 }, retentionMinutes: 15 },
+    ]).ok,
+    false,
+  );
+});
+
+test("legacy time strings use the shared duration", () => {
+  const legacy = readCustomSlots(["09:30", "21:00"], 90);
+  assert.deepEqual(
+    legacy.map((slot) => slot.retentionMinutes),
+    [90, 90],
+  );
+  const stored = readCustomSlots(
+    [{ time: "09:30", retentionMinutes: 60 }],
+    180,
+  );
+  assert.equal(stored[0]?.retentionMinutes, 60);
+  assert.equal(savedCustomSchedule(stored).scheduleMode, "CUSTOM");
+});
+
+test("a sent post keeps the retention captured on its cycle", () => {
+  const scheduledAt = new Date("2026-10-06T09:00:00.000Z");
+  const plannedDelete = new Date("2026-10-06T10:00:00.000Z");
+  const retention = capturedRetentionMinutes(scheduledAt, plannedDelete);
+  assert.equal(retention, 60);
+  assert.equal(
+    deleteAtFromSuccessfulSend(
+      new Date("2026-10-06T09:05:00.000Z"),
+      retention,
+    ).toISOString(),
+    "2026-10-06T10:05:00.000Z",
+  );
+  assert.equal(
+    pendingCycleCanBeReplaced({ status: "PENDING", publicationCount: 0 }),
+    true,
+  );
+  assert.equal(
+    pendingCycleCanBeReplaced({ status: "PENDING", publicationCount: 1 }),
+    false,
+  );
+  assert.equal(
+    pendingCycleCanBeReplaced({ status: "PUBLISHED", publicationCount: 1 }),
+    false,
+  );
+});
+
+test("default times screen explains the schedule without edit buttons", () => {
+  assert.equal(
+    ar.supportList.defaultSlots,
+    "الجدولة افتراضية: يُختار موعدان للنشر يوميًا، وتبقى القائمة 3 ساعات",
+  );
+  const view = buildSlotsMenu(SupportedLanguage.EN, "DEFAULT", [
+    { time: "09:30", retentionMinutes: 180 },
+  ]);
+  const callbacks = view.keyboard.inline_keyboard
+    .flat()
+    .map((button) => ("callback_data" in button ? button.callback_data : ""));
+  assert.deepEqual(callbacks, ["sl:sched"]);
+  const custom = buildSlotsMenu(SupportedLanguage.EN, "CUSTOM", [
+    { time: "09:30", retentionMinutes: 180 },
+  ]);
+  const row = custom.keyboard.inline_keyboard[0] ?? [];
+  assert.deepEqual(
+    row.map((button) => ("callback_data" in button ? button.callback_data : "")),
+    ["sl:slot:time:0", "sl:slot:keep:0", "sl:slot:del:0"],
+  );
+});
+
 test("rotation is fair and new entries stay at the end until the next turn", () => {
   const entries = ["a", "b", "c"];
   assert.deepEqual(rotateEntries(entries, 0), ["a", "b", "c"]);
@@ -374,6 +466,8 @@ test("support-list copy exists in both languages", () => {
       next: "later",
       times: "09:00",
       channel: "C",
+      minutes: 180,
+      time: "09:30",
     };
     assert.equal(
       translate(SupportedLanguage.AR, translationKey, variables).includes("{{"),

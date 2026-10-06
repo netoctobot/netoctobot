@@ -15,9 +15,14 @@ import {
 import { isPublishable } from "./eligibility.js";
 import { channelDisplayName, nextRotationOffset, parseRenderedList, renderSupportList, rotateEntries, type RenderedList } from "./render.js";
 import {
+  capturedRetentionMinutes,
   deleteAtFromSuccessfulSend,
   shouldSkipBacklog,
 } from "./schedule.js";
+import {
+  MAX_RETENTION_MINUTES,
+  MIN_RETENTION_MINUTES,
+} from "./constants.js";
 import { translate } from "../localization/localization.service.js";
 
 export interface PublishDeps {
@@ -262,10 +267,20 @@ export async function publishCycle(
         status: true,
         deleteAt: true,
         sendAttemptedAt: true,
+        cycle: { select: { scheduledAt: true, deleteAt: true } },
       },
     });
     const resumeAt = occupiedUntil({
-      publications: live,
+      publications: live.map((publication) => ({
+        cycleId: publication.cycleId,
+        status: publication.status,
+        deleteAt: publication.deleteAt,
+        sendAttemptedAt: publication.sendAttemptedAt,
+        retentionMinutes: capturedRetentionMinutes(
+          publication.cycle.scheduledAt,
+          publication.cycle.deleteAt,
+        ),
+      })),
       currentCycleId: cycle.id,
       retentionMinutes: settings.retentionMinutes,
       now,
@@ -519,9 +534,12 @@ export async function publishCycle(
       continue;
     }
     const sentAt = new Date();
+    const captured = capturedRetentionMinutes(cycle.scheduledAt, cycle.deleteAt);
     const deleteAt = deleteAtFromSuccessfulSend(
       sentAt,
-      settings.retentionMinutes,
+      captured >= MIN_RETENTION_MINUTES && captured <= MAX_RETENTION_MINUTES
+        ? captured
+        : settings.retentionMinutes,
     );
     const saved = await persistSentPublication(deps.prisma, publication.id, {
       messageId: BigInt(messageId),

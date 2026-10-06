@@ -3,29 +3,31 @@ import {
   SupportListScheduleMode,
   type PrismaClient,
 } from "@prisma/client";
-import { HORIZON_DAYS } from "./constants.js";
+import { DEFAULT_RETENTION_MINUTES, HORIZON_DAYS } from "./constants.js";
 import {
   addLocalDays,
   civilParts,
   defaultDayClocks,
+  deleteAtFromSuccessfulSend,
   isValidTimeZone,
   localDateKey,
-  readCustomTimes,
+  readCustomSlots,
   shouldSkipBacklog,
-  validateCustomSchedule,
+  validateCustomSlots,
   zonedTimeToUtc,
+  type CustomSlot,
 } from "./schedule.js";
 
-export async function skipFuturePendingCycles(
+export async function replaceUnstartedCycles(
   prisma: PrismaClient,
   botId: string,
 ): Promise<void> {
-  await prisma.supportListCycle.updateMany({
+  await prisma.supportListCycle.deleteMany({
     where: {
       botId,
       status: SupportListCycleStatus.PENDING,
+      publications: { none: {} },
     },
-    data: { status: SupportListCycleStatus.SKIPPED },
   });
 }
 
@@ -63,9 +65,12 @@ export async function ensureSupportListHorizon(
     if (!settings || !isValidTimeZone(settings.timeZone)) {
       continue;
     }
-    const customTimes = readCustomTimes(settings.customTimes);
+    const customSlots = readCustomSlots(
+      settings.customTimes,
+      settings.retentionMinutes,
+    );
     if (settings.scheduleMode === SupportListScheduleMode.CUSTOM) {
-      if (!validateCustomSchedule(customTimes, settings.retentionMinutes).ok) {
+      if (!validateCustomSlots(customSlots).ok) {
         continue;
       }
     }
@@ -118,17 +123,20 @@ export async function ensureSupportListHorizon(
       if (covered.has(dayKey)) {
         continue;
       }
-      const clocks =
+      const daySlots: CustomSlot[] =
         settings.scheduleMode === SupportListScheduleMode.CUSTOM
-          ? customTimes
-          : defaultDayClocks(Math.random);
-      for (const clock of clocks) {
+          ? customSlots
+          : defaultDayClocks(Math.random).map((time) => ({
+              time,
+              retentionMinutes: DEFAULT_RETENTION_MINUTES,
+            }));
+      for (const slot of daySlots) {
         const scheduledAt = zonedTimeToUtc(
           cursor.year,
           cursor.month,
           cursor.day,
-          clock.hour,
-          clock.minute,
+          slot.time.hour,
+          slot.time.minute,
           settings.timeZone,
         );
         if (scheduledAt.getTime() <= now.getTime()) {
@@ -143,8 +151,9 @@ export async function ensureSupportListHorizon(
               settingsId: settings.id,
               botId: bot.id,
               scheduledAt,
-              deleteAt: new Date(
-                scheduledAt.getTime() + settings.retentionMinutes * 60_000,
+              deleteAt: deleteAtFromSuccessfulSend(
+                scheduledAt,
+                slot.retentionMinutes,
               ),
               rotationOffset: settings.rotationOffset,
               status: SupportListCycleStatus.PENDING,

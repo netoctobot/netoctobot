@@ -1,4 +1,5 @@
 import {
+  Prisma,
   SupportListAcceptanceMode,
   SupportListAcceptanceStatus,
   SupportListFormat,
@@ -34,10 +35,15 @@ import {
   TelegramUnavailableError,
   botCanInvite,
 } from "./access.js";
-import { ADMIN_REASON_LIMIT } from "./constants.js";
+import {
+  ADMIN_REASON_LIMIT,
+  DEFAULT_RETENTION_MINUTES,
+  DEFAULT_TIME_ZONE,
+  MAX_CUSTOM_TIMES,
+} from "./constants.js";
 import { parseContactUrl, parseListName } from "./contact-url.js";
 import {
-  skipFuturePendingCycles,
+  replaceUnstartedCycles,
   skipOverduePendingCycles,
 } from "./cycles.js";
 import { disableReasonCodes } from "./eligibility.js";
@@ -71,7 +77,11 @@ import {
   buildPrompt,
   buildReasonView,
   buildRequestKeyboard,
+  buildResetSettingsConfirm,
+  buildResetSlotsConfirm,
   buildScheduleMenu,
+  buildSlotDeleteConfirm,
+  buildSlotsMenu,
   buildSupportAddChannel,
   buildSupportLanguageMenu,
   buildSupportListHome,
@@ -86,10 +96,41 @@ import {
   formatClock,
   formatInTimeZone,
   isValidTimeZone,
-  parseClockList,
-  readCustomTimes,
-  validateCustomSchedule,
+  parseClock,
+  parseRetentionMinutes,
+  readCustomSlots,
+  serializeCustomSlots,
+  validateCustomSlots,
+  type CustomSlot,
 } from "./schedule.js";
+
+const INPUT_DISMISS_MS = 5000;
+
+function dismissLater(
+  bot: TelegramBot,
+  chatId: number,
+  messageId: number | undefined,
+): void {
+  if (!messageId) {
+    return;
+  }
+  setTimeout(() => {
+    void bot.api.deleteMessage(chatId, messageId).catch(() => undefined);
+  }, INPUT_DISMISS_MS);
+}
+
+async function editStoredPanel(
+  deps: SupportListRuntime & { bot: TelegramBot },
+  chatId: number,
+  messageId: number,
+  view: DashboardView,
+): Promise<void> {
+  await deps.bot.api
+    .editMessageText(chatId, messageId, view.text, {
+      reply_markup: view.keyboard,
+    })
+    .catch(() => undefined);
+}
 
 export interface SupportListRuntime {
   prisma: PrismaClient;
@@ -450,12 +491,10 @@ function itemStatus(language: SupportedLanguage, item: MembershipPageItem): stri
   return translate(language, "supportList.statusAccepted");
 }
 
-async function showSchedule(
-  context: Context,
+async function scheduleView(
   deps: SupportListRuntime,
-): Promise<void> {
-  if (!context.from) return;
-  const language = await languageOf(deps, context.from.id);
+  language: SupportedLanguage,
+): Promise<DashboardView> {
   const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
   const next = await deps.prisma.supportListCycle.findFirst({
     where: {
@@ -465,23 +504,77 @@ async function showSchedule(
     },
     orderBy: { scheduledAt: "asc" },
   });
-  const times = readCustomTimes(settings.customTimes).map(formatClock).join(", ");
-  await deps.editDashboard(
-    context,
-    buildScheduleMenu({
+  const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+  const times = slots
+    .map((slot) => `${formatClock(slot.time)} (${slot.retentionMinutes})`)
+    .join(", ");
+  return buildScheduleMenu({
       language,
       timeZone: settings.timeZone,
       modeLabel:
         settings.scheduleMode === SupportListScheduleMode.CUSTOM
           ? translate(language, "supportList.customMode", { times: times || "—" })
           : translate(language, "supportList.defaultMode"),
-      retention: settings.retentionMinutes,
       publishing: settings.publishingEnabled,
       next: next
         ? `${formatInTimeZone(next.scheduledAt, settings.timeZone)} (${settings.timeZone})`
         : translate(language, "supportList.noNext"),
-    }),
+  });
+}
+
+async function showSchedule(
+  context: Context,
+  deps: SupportListRuntime,
+): Promise<void> {
+  if (!context.from) return;
+  const language = await languageOf(deps, context.from.id);
+  await deps.editDashboard(context, await scheduleView(deps, language));
+}
+
+async function slotsView(
+  deps: SupportListRuntime,
+  language: SupportedLanguage,
+): Promise<DashboardView> {
+  const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+  const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+  return buildSlotsMenu(
+    language,
+    settings.scheduleMode,
+    settings.scheduleMode === SupportListScheduleMode.CUSTOM
+      ? slots.map((slot) => ({
+          time: formatClock(slot.time),
+          retentionMinutes: slot.retentionMinutes,
+        }))
+      : [],
   );
+}
+
+async function adminView(
+  deps: SupportListRuntime,
+  language: SupportedLanguage,
+): Promise<DashboardView> {
+  const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+  return buildAdminHome(
+    language,
+    settings,
+    await acceptedCount(deps),
+    await countUnconfirmedPublications(deps.prisma, deps.getRecord().id),
+  );
+}
+
+async function saveCustomSlots(
+  deps: SupportListRuntime,
+  slots: CustomSlot[],
+): Promise<void> {
+  const saved = serializeCustomSlots(slots);
+  await deps.prisma.supportListSettings.update({
+    where: { botId: deps.getRecord().id },
+    data: {
+      scheduleMode: SupportListScheduleMode.CUSTOM,
+      customTimes: saved as unknown as Prisma.InputJsonValue,
+    },
+  });
+  await replaceUnstartedCycles(deps.prisma, deps.getRecord().id);
 }
 
 export function registerSupportListHandlers(
@@ -1073,47 +1166,46 @@ export function registerSupportListHandlers(
   });
 
   bot.callbackQuery("sl:sched", async (context) => {
-    if (!(await ownerOnly(context))) return;
+    if (!(await ownerOnly(context)) || !context.from) return;
+    await clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id);
     await showSchedule(context, bound);
     await context.answerCallbackQuery();
   });
 
   bot.callbackQuery("sl:pause", async (context) => {
     if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
     await bound.prisma.supportListSettings.update({
       where: { botId: bound.getRecord().id },
       data: { publishingEnabled: false },
     });
     await showSchedule(context, bound);
-    await context.answerCallbackQuery();
+    await context.answerCallbackQuery({
+      text: translate(language, "supportList.saved"),
+      show_alert: true,
+    });
   });
 
   bot.callbackQuery("sl:resume", async (context) => {
     if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
     await skipOverduePendingCycles(bound.prisma, bound.getRecord().id);
     await bound.prisma.supportListSettings.update({
       where: { botId: bound.getRecord().id },
       data: { publishingEnabled: true },
     });
     await showSchedule(context, bound);
-    await context.answerCallbackQuery();
-  });
-
-  bot.callbackQuery("sl:default", async (context) => {
-    if (!(await ownerOnly(context))) return;
-    await bound.prisma.supportListSettings.update({
-      where: { botId: bound.getRecord().id },
-      data: {
-        scheduleMode: SupportListScheduleMode.DEFAULT,
-        retentionMinutes: 180,
-      },
+    await context.answerCallbackQuery({
+      text: translate(language, "supportList.saved"),
+      show_alert: true,
     });
-    await skipFuturePendingCycles(bound.prisma, bound.getRecord().id);
-    await showSchedule(context, bound);
-    await context.answerCallbackQuery();
   });
 
-  bot.callbackQuery("sl:times", async (context) => {
+  bot.callbackQuery("sl:addslot", async (context) => {
     if (!(await ownerOnly(context)) || !context.from || !context.chat) return;
     const message = context.callbackQuery?.message;
     if (!message || !("message_id" in message)) {
@@ -1121,17 +1213,182 @@ export function registerSupportListHandlers(
       return;
     }
     const language = await languageOf(bound, context.from.id);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    if (
+      settings.scheduleMode === SupportListScheduleMode.CUSTOM &&
+      slots.length >= MAX_CUSTOM_TIMES
+    ) {
+      await context.answerCallbackQuery({
+        text: translate(language, "supportList.maxSlots"),
+        show_alert: true,
+      });
+      return;
+    }
     await clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id);
     await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
-      kind: "times",
+      kind: "slotTime",
       chatId: context.chat.id,
       dashboardMessageId: message.message_id,
+      index: null,
     });
     await bound.editDashboard(
       context,
-      buildPrompt(language, translate(language, "supportList.sendTimes"), "sl:sched"),
+      buildPrompt(language, translate(language, "supportList.sendOneTime"), "sl:sched"),
     );
     await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("sl:slots", async (context) => {
+    if (!(await ownerOnly(context)) || !context.from) return;
+    const language = await languageOf(bound, context.from.id);
+    await clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id);
+    await bound.editDashboard(context, await slotsView(bound, language));
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("sl:default", async (context) => {
+    if (!(await ownerOnly(context)) || !context.from) return;
+    const language = await languageOf(bound, context.from.id);
+    await bound.editDashboard(context, buildResetSlotsConfirm(language));
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("sl:default:yes", async (context) => {
+    if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
+    await bound.prisma.supportListSettings.update({
+      where: { botId: bound.getRecord().id },
+      data: {
+        scheduleMode: SupportListScheduleMode.DEFAULT,
+        retentionMinutes: DEFAULT_RETENTION_MINUTES,
+        customTimes: [],
+      },
+    });
+    await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
+    await showSchedule(context, bound);
+    await context.answerCallbackQuery({
+      text: translate(language, "supportList.saved"),
+      show_alert: true,
+    });
+  });
+
+  bot.callbackQuery(/^sl:slot:time:(\d+)$/, async (context) => {
+    if (!(await ownerOnly(context)) || !context.from || !context.chat) return;
+    const message = context.callbackQuery?.message;
+    if (!message || !("message_id" in message)) {
+      await context.answerCallbackQuery();
+      return;
+    }
+    const language = await languageOf(bound, context.from.id);
+    const index = Number(context.match[1]);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    if (!Number.isInteger(index) || index < 0 || index >= slots.length) {
+      await context.answerCallbackQuery({
+        text: translate(language, "management.notFound"),
+        show_alert: true,
+      });
+      return;
+    }
+    await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
+      kind: "slotTime",
+      chatId: context.chat.id,
+      dashboardMessageId: message.message_id,
+      index,
+    });
+    await bound.editDashboard(
+      context,
+      buildPrompt(language, translate(language, "supportList.sendOneTime"), "sl:slots"),
+    );
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^sl:slot:keep:(\d+)$/, async (context) => {
+    if (!(await ownerOnly(context)) || !context.from || !context.chat) return;
+    const message = context.callbackQuery?.message;
+    if (!message || !("message_id" in message)) {
+      await context.answerCallbackQuery();
+      return;
+    }
+    const language = await languageOf(bound, context.from.id);
+    const index = Number(context.match[1]);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    const slot = slots[index];
+    if (!slot) {
+      await context.answerCallbackQuery({
+        text: translate(language, "management.notFound"),
+        show_alert: true,
+      });
+      return;
+    }
+    await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
+      kind: "slotKeep",
+      chatId: context.chat.id,
+      dashboardMessageId: message.message_id,
+      index,
+      time: formatClock(slot.time),
+    });
+    await bound.editDashboard(
+      context,
+      buildPrompt(language, translate(language, "supportList.sendRetention"), "sl:slots"),
+    );
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^sl:slot:del:(\d+)$/, async (context) => {
+    if (!(await ownerOnly(context)) || !context.from) return;
+    const language = await languageOf(bound, context.from.id);
+    const index = Number(context.match[1]);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    const slot = slots[index];
+    if (!slot) {
+      await context.answerCallbackQuery({
+        text: translate(language, "management.notFound"),
+        show_alert: true,
+      });
+      return;
+    }
+    await bound.editDashboard(
+      context,
+      buildSlotDeleteConfirm(language, formatClock(slot.time), index),
+    );
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^sl:slot:yes:(\d+)$/, async (context) => {
+    if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
+    const index = Number(context.match[1]);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    if (!slots[index]) {
+      await context.answerCallbackQuery({
+        text: translate(language, "management.notFound"),
+        show_alert: true,
+      });
+      return;
+    }
+    const next = slots.filter((_, slotIndex) => slotIndex !== index);
+    await bound.prisma.supportListSettings.update({
+      where: { botId: bound.getRecord().id },
+      data: {
+        scheduleMode: SupportListScheduleMode.CUSTOM,
+        customTimes: serializeCustomSlots(next) as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
+    await bound.editDashboard(context, await slotsView(bound, language));
+    await context.answerCallbackQuery({
+      text: translate(language, "supportList.saved"),
+      show_alert: true,
+    });
   });
 
   bot.callbackQuery("sl:tz", async (context) => {
@@ -1156,10 +1413,44 @@ export function registerSupportListHandlers(
       where: { botId: bound.getRecord().id },
       data: { timeZone: zone },
     });
-    await skipFuturePendingCycles(bound.prisma, bound.getRecord().id);
+    await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
     await showSchedule(context, bound);
     await context.answerCallbackQuery({
       text: translate(language, "supportList.saved"),
+      show_alert: true,
+    });
+  });
+
+  bot.callbackQuery("sl:reset", async (context) => {
+    if (!(await ownerOnly(context)) || !context.from) return;
+    const language = await languageOf(bound, context.from.id);
+    await bound.editDashboard(context, buildResetSettingsConfirm(language));
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("sl:reset:yes", async (context) => {
+    if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
+    await bound.prisma.supportListSettings.update({
+      where: { botId: bound.getRecord().id },
+      data: {
+        acceptanceMode: SupportListAcceptanceMode.AUTO,
+        format: SupportListFormat.BUTTONS,
+        timeZone: DEFAULT_TIME_ZONE,
+        publishingEnabled: true,
+        scheduleMode: SupportListScheduleMode.DEFAULT,
+        retentionMinutes: DEFAULT_RETENTION_MINUTES,
+        customTimes: [],
+        contactUrl: null,
+      },
+    });
+    await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
+    await bound.editDashboard(context, await adminView(bound, language));
+    await context.answerCallbackQuery({
+      text: translate(language, "supportList.saved"),
+      show_alert: true,
     });
   });
 
@@ -1244,11 +1535,19 @@ async function handleDraft(
   deps: SupportListRuntime & { bot: TelegramBot },
   draft: NonNullable<Awaited<ReturnType<typeof getSupportListDraft>>>,
 ): Promise<void> {
-  if (!context.from || !context.message?.text) return;
+  if (!context.from || !context.chat || !context.message?.text) return;
   const language = await languageOf(deps, context.from.id);
   const text = context.message.text.trim();
+  const userMessageId = context.message.message_id;
   const fail = async (key: TranslationKey) => {
-    await context.reply(translate(language, key));
+    const sent = await context.reply(translate(language, key));
+    dismissLater(deps.bot, context.chat!.id, userMessageId);
+    dismissLater(deps.bot, context.chat!.id, sent.message_id);
+  };
+  const finish = async (view: DashboardView) => {
+    await clearSupportListDraft(deps.redis, deps.getRecord().id, context.from!.id);
+    dismissLater(deps.bot, context.chat!.id, userMessageId);
+    await editStoredPanel(deps, draft.chatId, draft.dashboardMessageId, view);
   };
   if (draft.kind === "listName") {
     const name = parseListName(text);
@@ -1260,7 +1559,10 @@ async function handleDraft(
       where: { botId: deps.getRecord().id },
       data: { listName: name },
     });
-  } else if (draft.kind === "contactUrl") {
+    await finish(await adminView(deps, language));
+    return;
+  }
+  if (draft.kind === "contactUrl") {
     const url = parseContactUrl(text);
     if (!url) {
       await fail("supportList.invalidContact");
@@ -1270,49 +1572,94 @@ async function handleDraft(
       where: { botId: deps.getRecord().id },
       data: { contactUrl: url },
     });
-  } else if (draft.kind === "times") {
-    const times = parseClockList(text);
-    if (!times) {
+    await finish(await adminView(deps, language));
+    return;
+  }
+  if (draft.kind === "slotTime") {
+    const time = parseClock(text);
+    if (!time) {
       await fail("supportList.invalidTimes");
       return;
     }
-    await saveSupportListDraft(deps.redis, deps.getRecord().id, context.from.id, {
-      kind: "retention",
-      chatId: draft.chatId,
-      dashboardMessageId: draft.dashboardMessageId,
-      times: times.map(formatClock),
-    });
-    await context.reply(translate(language, "supportList.sendRetention"));
-    await context.deleteMessage().catch(() => undefined);
-    return;
-  } else if (draft.kind === "retention") {
-    const minutes = Number(text);
-    const times = draft.times
-      .map((value) => parseClockList(value)?.[0])
-      .filter((value): value is NonNullable<typeof value> => Boolean(value));
-    const parsed = parseClockList(draft.times.join(" "));
-    const clocks = parsed ?? times;
-    const check = validateCustomSchedule(clocks, minutes);
+    const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    if (draft.index === null) {
+      await saveSupportListDraft(deps.redis, deps.getRecord().id, context.from.id, {
+        kind: "slotKeep",
+        chatId: draft.chatId,
+        dashboardMessageId: draft.dashboardMessageId,
+        index: null,
+        time: formatClock(time),
+      });
+      dismissLater(deps.bot, context.chat.id, userMessageId);
+      await editStoredPanel(
+        deps,
+        draft.chatId,
+        draft.dashboardMessageId,
+        buildPrompt(language, translate(language, "supportList.sendRetention"), "sl:sched"),
+      );
+      return;
+    }
+    const current = slots[draft.index];
+    if (!current) {
+      await fail("management.notFound");
+      return;
+    }
+    const next = slots.map((slot, index) =>
+      index === draft.index ? { time, retentionMinutes: slot.retentionMinutes } : slot,
+    );
+    const check = validateCustomSlots(next);
     if (!check.ok) {
       await fail(
         check.reason === "overlap"
           ? "supportList.overlap"
-          : check.reason === "retention"
-            ? "supportList.retentionLimit"
-            : "supportList.invalidTimes",
+          : check.reason === "duplicate"
+            ? "supportList.invalidTimes"
+            : "supportList.retentionLimit",
       );
       return;
     }
-    await deps.prisma.supportListSettings.update({
-      where: { botId: deps.getRecord().id },
-      data: {
-        scheduleMode: SupportListScheduleMode.CUSTOM,
-        customTimes: clocks.map(formatClock),
-        retentionMinutes: minutes,
-      },
-    });
-    await skipFuturePendingCycles(deps.prisma, deps.getRecord().id);
-  } else if (draft.kind === "timeZone") {
+    await saveCustomSlots(deps, next);
+    await finish(await slotsView(deps, language));
+    return;
+  }
+  if (draft.kind === "slotKeep") {
+    const minutes = parseRetentionMinutes(text);
+    if (minutes === null) {
+      await fail("supportList.retentionLimit");
+      return;
+    }
+    const time = parseClock(draft.time);
+    if (!time) {
+      await fail("supportList.invalidTimes");
+      return;
+    }
+    const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    const next =
+      draft.index === null
+        ? [...slots, { time, retentionMinutes: minutes }]
+        : slots.map((slot, index) =>
+            index === draft.index ? { time, retentionMinutes: minutes } : slot,
+          );
+    const check = validateCustomSlots(next);
+    if (!check.ok) {
+      await fail(
+        check.reason === "overlap"
+          ? "supportList.overlap"
+          : check.reason === "duplicate"
+            ? "supportList.invalidTimes"
+            : check.reason === "count"
+              ? "supportList.maxSlots"
+              : "supportList.retentionLimit",
+      );
+      return;
+    }
+    await saveCustomSlots(deps, next);
+    await finish(await slotsView(deps, language));
+    return;
+  }
+  if (draft.kind === "timeZone") {
     if (!isValidTimeZone(text)) {
       await fail("supportList.invalidTimeZone");
       return;
@@ -1321,36 +1668,59 @@ async function handleDraft(
       where: { botId: deps.getRecord().id },
       data: { timeZone: text },
     });
-    await skipFuturePendingCycles(deps.prisma, deps.getRecord().id);
-  } else if (draft.kind === "adminReason") {
-    const reason = text.replace(/\s+/g, " ").trim();
-    if (reason.length < 1 || reason.length > ADMIN_REASON_LIMIT) {
-      await fail("supportList.invalidReason");
-      return;
-    }
-    const before = await getMembershipForBot(
-      deps.prisma,
-      deps.getRecord().id,
-      draft.membershipId,
-    );
-    const updated = await disableByAdmin(
-      deps.prisma,
-      deps.getRecord().id,
-      draft.membershipId,
-      reason,
-    );
-    if (updated && before && Number(before.addedBy.telegramId) !== context.from.id) {
-      await notifyUser(
-        deps,
-        Number(before.addedBy.telegramId),
-        before.addedByUserId,
-        "supportList.adminDisabledNotice",
-        { title: before.channel.title ?? before.id, reason },
-      );
-    }
+    await replaceUnstartedCycles(deps.prisma, deps.getRecord().id);
+    await finish(await scheduleView(deps, language));
+    return;
   }
-  await clearSupportListDraft(deps.redis, deps.getRecord().id, context.from.id);
-  await context.deleteMessage().catch(() => undefined);
-  await context.reply(translate(language, "supportList.saved"));
-  await showHome(context, deps, context.from.id);
+  if (draft.kind !== "adminReason") {
+    return;
+  }
+  const reason = text.replace(/\s+/g, " ").trim();
+  if (reason.length < 1 || reason.length > ADMIN_REASON_LIMIT) {
+    await fail("supportList.invalidReason");
+    return;
+  }
+  const before = await getMembershipForBot(
+    deps.prisma,
+    deps.getRecord().id,
+    draft.membershipId,
+  );
+  const updated = await disableByAdmin(
+    deps.prisma,
+    deps.getRecord().id,
+    draft.membershipId,
+    reason,
+  );
+  if (updated && before && Number(before.addedBy.telegramId) !== context.from.id) {
+    await notifyUser(
+      deps,
+      Number(before.addedBy.telegramId),
+      before.addedByUserId,
+      "supportList.adminDisabledNotice",
+      { title: before.channel.title ?? before.id, reason },
+    );
+  }
+  const scope = (["m", "a", "p", "r"] as const).includes(draft.scope as ListScope)
+    ? (draft.scope as ListScope)
+    : "a";
+  await finish(
+    updated && before
+      ? buildMembershipDetail({
+          language,
+          title: before.channel.title ?? before.channel.username ?? updated.id,
+          status: translate(language, "supportList.statusDisabled"),
+          membershipId: updated.id,
+          page: draft.page,
+          scope,
+          flags: {
+            participantDisabled: updated.participantDisabled,
+            adminDisabled: updated.adminDisabled,
+            adminDisableReason: updated.adminDisableReason,
+            permissionsLost: updated.permissionsLost,
+            inviteUnavailable: updated.inviteUnavailable,
+          },
+          pendingReview: updated.acceptanceStatus === "PENDING",
+        })
+      : await adminView(deps, language),
+  );
 }
