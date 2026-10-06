@@ -28,6 +28,7 @@ import {
   type TranslationKey,
 } from "../localization/localization.service.js";
 import { parseSupportedLanguage } from "../localization/supported-languages.js";
+import { saveDashboardState } from "../bots/dashboard-state.js";
 import {
   dashboardMessageOptions,
   type DashboardView,
@@ -142,6 +143,41 @@ function dismissLater(
   setTimeout(() => {
     void bot.api.deleteMessage(chatId, messageId).catch(() => undefined);
   }, INPUT_DISMISS_MS);
+}
+
+async function rememberPanel(
+  context: Context,
+  deps: SupportListRuntime,
+): Promise<void> {
+  const message = context.callbackQuery?.message;
+  if (
+    !context.from ||
+    !context.chat ||
+    !message ||
+    !("message_id" in message)
+  ) {
+    return;
+  }
+  await saveDashboardState(deps.redis, deps.getRecord().id, context.from.id, {
+    chatId: context.chat.id,
+    messageId: message.message_id,
+  });
+}
+
+async function deliverNotice(
+  bot: TelegramBot,
+  botId: string,
+  telegramUserId: number,
+  text: string,
+): Promise<void> {
+  try {
+    await bot.api.sendMessage(telegramUserId, text);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown send error";
+    console.error(
+      `Support-list notice was not delivered for bot ${botId}: ${detail}`,
+    );
+  }
 }
 
 async function editStoredPanel(
@@ -437,12 +473,18 @@ export async function handleSupportListMyChatMember(
       result,
       chatUsername ? `https://t.me/${chatUsername}` : null,
     );
-    await deps.bot.api.sendMessage(context.from.id, text).catch(() => undefined);
+    if (result.kind === "accepted" || result.kind === "pending") {
+      await clearChannelLinkState(deps.redis, deps.getRecord().id, context.from.id);
+    }
+    await deliverNotice(deps.bot, deps.getRecord().id, context.from.id, text);
   } catch (error) {
     const language = await languageOf(deps, context.from.id);
-    await deps.bot.api
-      .sendMessage(context.from.id, translate(language, submitErrorKey(error)))
-      .catch(() => undefined);
+    await deliverNotice(
+      deps.bot,
+      deps.getRecord().id,
+      context.from.id,
+      translate(language, submitErrorKey(error)),
+    );
   }
 }
 
@@ -632,12 +674,19 @@ export function registerSupportListHandlers(
 
   bot.callbackQuery("sl:home", async (context) => {
     if (!context.from) return;
-    await Promise.all([
-      clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id),
-      clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id),
-    ]);
-    await showHome(context, bound, context.from.id);
-    await context.answerCallbackQuery();
+    try {
+      await Promise.all([
+        clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id),
+        clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id),
+      ]);
+      await showHome(context, bound, context.from.id);
+      await rememberPanel(context, bound);
+    } finally {
+      await context.answerCallbackQuery().catch((error: unknown) => {
+        const detail = error instanceof Error ? error.message : "Unknown callback error";
+        console.error(`Support-list back callback was not answered: ${detail}`);
+      });
+    }
   });
 
   bot.callbackQuery("sl:lang", async (context) => {
@@ -662,16 +711,29 @@ export function registerSupportListHandlers(
 
   bot.callbackQuery("sl:add", async (context) => {
     if (!context.from || !context.chat) return;
+    const message = context.callbackQuery?.message;
+    if (!message || !("message_id" in message)) {
+      await context.answerCallbackQuery();
+      return;
+    }
     await clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id);
     await saveChannelLinkState(bound.redis, bound.getRecord().id, context.from.id, {
       chatId: context.chat.id,
+      dashboardMessageId: message.message_id,
     });
     const language = await languageOf(bound, context.from.id);
-    await bound.editDashboard(
-      context,
-      buildSupportAddChannel(language, bound.getRecord().botUsername),
-    );
-    await context.answerCallbackQuery();
+    try {
+      await bound.editDashboard(
+        context,
+        buildSupportAddChannel(language, bound.getRecord().botUsername),
+      );
+      await rememberPanel(context, bound);
+    } finally {
+      await context.answerCallbackQuery().catch((error: unknown) => {
+        const detail = error instanceof Error ? error.message : "Unknown callback error";
+        console.error(`Support-list add callback was not answered: ${detail}`);
+      });
+    }
   });
 
   bot.callbackQuery("sl:contact", async (context) => {
