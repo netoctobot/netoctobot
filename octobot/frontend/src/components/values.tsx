@@ -23,12 +23,20 @@ export function CopyValue({
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
 
   async function copy() {
+    let copied = false;
     try {
       await navigator.clipboard.writeText(value);
-      setState("copied");
+      copied = true;
     } catch {
-      setState("failed");
+      const area = document.createElement("textarea");
+      area.value = value;
+      area.setAttribute("readonly", "true");
+      document.body.append(area);
+      area.select();
+      copied = document.execCommand("copy");
+      area.remove();
     }
+    setState(copied ? "copied" : "failed");
     window.setTimeout(() => setState("idle"), 1600);
   }
 

@@ -139,7 +139,11 @@ export function DataRow({ children }: { children: ReactNode }) {
 }
 
 export function DataCell({ children }: { children: ReactNode }) {
-  return <td className="px-3 py-3">{children}</td>;
+  return (
+    <td className="px-3 py-3">
+      <div className="flex flex-col items-start gap-1">{children}</div>
+    </td>
+  );
 }
 
 export function Dialog({
@@ -154,40 +158,55 @@ export function Dialog({
   children: ReactNode;
 }) {
   const t = useTranslations("common");
-  const ref = useRef<HTMLDialogElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) {
-      return;
-    }
-    if (open && !dialog.open) {
-      dialog.showModal();
-    }
-    if (!open && dialog.open) {
-      dialog.close();
+    if (open) {
+      panel.current?.focus();
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) {
+    return null;
+  }
+
   return (
-    <dialog
-      ref={ref}
-      onClose={onClose}
-      aria-labelledby="dialog-title"
-    >
-      <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
-        <h2 id="dialog-title" className="text-lg font-semibold">
-          {title}
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-full border border-line px-3 py-1 text-sm"
-        >
-          {t("close")}
-        </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#172421]/45 p-4">
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dialog-title"
+        tabIndex={-1}
+        className="w-full max-w-lg rounded-3xl border border-line bg-card text-ink outline-none"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+          <h2 id="dialog-title" className="text-lg font-semibold">
+            {title}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-line px-3 py-1 text-sm"
+          >
+            {t("close")}
+          </button>
+        </div>
+        <div className="px-5 py-4">{children}</div>
       </div>
-      <div className="px-5 py-4">{children}</div>
-    </dialog>
+    </div>
   );
 }
