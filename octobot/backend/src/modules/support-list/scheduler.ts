@@ -16,6 +16,14 @@ import {
 const PUBLISH_QUEUE = "support-list-publish";
 const DELETE_QUEUE = "support-list-delete";
 
+export function publishJobId(cycleId: string): string {
+  return `publish-${cycleId}`;
+}
+
+export function deleteJobId(publicationId: string): string {
+  return `delete-${publicationId}`;
+}
+
 function bullConnection(redisUrl: string): Redis {
   return new Redis(redisUrl, { maxRetriesPerRequest: null });
 }
@@ -137,43 +145,46 @@ export class SupportListScheduler {
   async syncHorizon(): Promise<void> {
     const cycles = await ensureSupportListHorizon(this.prisma);
     for (const cycle of cycles) {
-      await this.enqueuePublish(cycle.id, cycle.scheduledAt);
+      try {
+        await this.enqueuePublish(cycle.id, cycle.scheduledAt);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.error(
+          `Support list publish enqueue failed for ${cycle.id}: ${detail}`,
+        );
+      }
     }
   }
 
   async enqueuePublish(cycleId: string, scheduledAt: Date): Promise<void> {
     const delay = Math.max(0, scheduledAt.getTime() - Date.now());
-    await this.#publishQueue
-      .add(
-        "publish",
-        { cycleId },
-        {
-          jobId: `publish:${cycleId}`,
-          delay,
-          attempts: 8,
-          removeOnComplete: 1000,
-          removeOnFail: 1000,
-        },
-      )
-      .catch(() => undefined);
+    await this.#publishQueue.add(
+      "publish",
+      { cycleId },
+      {
+        jobId: publishJobId(cycleId),
+        delay,
+        attempts: 8,
+        removeOnComplete: 1000,
+        removeOnFail: 1000,
+      },
+    );
   }
 
   async enqueueDelete(publicationId: string, deleteAt: Date): Promise<void> {
     const delay = Math.max(0, deleteAt.getTime() - Date.now());
-    await this.#deleteQueue
-      .add(
-        "delete",
-        { publicationId },
-        {
-          jobId: `delete:${publicationId}`,
-          delay,
-          attempts: 8,
-          backoff: { type: "exponential", delay: 30_000 },
-          removeOnComplete: 1000,
-          removeOnFail: 1000,
-        },
-      )
-      .catch(() => undefined);
+    await this.#deleteQueue.add(
+      "delete",
+      { publicationId },
+      {
+        jobId: deleteJobId(publicationId),
+        delay,
+        attempts: 8,
+        backoff: { type: "exponential", delay: 30_000 },
+        removeOnComplete: 1000,
+        removeOnFail: 1000,
+      },
+    );
   }
 
   async stop(): Promise<void> {
