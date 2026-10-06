@@ -80,3 +80,12 @@ These decisions are the source of truth for implementation. They supersede confl
 - Creator tier is stored on `Bot.currentTierId`, not on `User`.
 - `Channel.isPlatformCatalog` plus `PlatformForcedChannel` hold multiple platform forced-subscription channels.
 - Placement message deletion time is `AdPlacement.messageDeletedAt`, not a row soft-delete.
+
+## Web admin dashboard
+
+- The only web surface in this slice is the platform owner dashboard. Advertiser, bot-creator, and channel-owner dashboards, plus ads, wallets, earnings, withdrawals, and Stars, stay deferred.
+- Contact conversations are not shown; they are not stored.
+- Sign-in uses the Telegram Login Widget and is checked with the platform bot token. The session is an HttpOnly cookie. Only the bootstrapped owner (`OWNER_TELEGRAM_ID`) with an existing user row may enter. Assigning other admins stays deferred, and blueprint permission names such as `MANAGE_ADS` are not introduced.
+- Web language is `WebLocalePreference`, one row per user, separate from `UserBotPreference`. The dashboard never reads or writes bot language. Before sign-in the choice lives in the `octobot-web-locale` cookie. After sign-in the saved account preference is restored and copied to that cookie. An explicit choice is never replaced by a Telegram `language_code` or by the browser language. With no cookie and no account preference, the dashboard uses English.
+- The UI is a Next.js App Router app. Arabic is RTL and English is LTR. Interface copy, alerts, and validation come from `frontend/messages/ar.json` and `en.json`. User-authored content is shown as stored.
+- The dashboard reads users, bots, channels, support-list publishing, and audit records. It can disable a support-list membership through `disableByAdmin`, and it can activate or reorder `PlatformForcedChannel` rows. It does not copy the catalog into `ForcedSubscription`, decrypt bot tokens, run bot or channel lifecycle actions, or enforce forced subscription inside Telegram chats.

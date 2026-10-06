@@ -1,0 +1,217 @@
+{
+  "meta": {
+    "title": "Platform admin"
+  },
+  "brand": "Octobot",
+  "language": {
+    "label": "Language",
+    "arabic": "العربية",
+    "english": "English",
+    "switchTo": "Interface language"
+  },
+  "nav": {
+    "overview": "Overview",
+    "users": "Users",
+    "bots": "Bots",
+    "channels": "Channels",
+    "publishing": "Publishing",
+    "catalog": "Forced subscription",
+    "audit": "Audit log",
+    "signOut": "Sign out"
+  },
+  "login": {
+    "title": "Platform admin",
+    "intro": "Sign in with the platform owner Telegram account.",
+    "widgetLabel": "Telegram sign-in",
+    "missingBot": "The platform bot is not ready yet.",
+    "widgetUnavailable": "The Telegram sign-in button could not be loaded."
+  },
+  "errors": {
+    "unauthorized": "Sign in to continue.",
+    "notOwner": "This Telegram account is not the platform owner.",
+    "ownerNotRegistered": "Open the platform bot once before using the dashboard.",
+    "invalidLogin": "Telegram sign-in could not be verified.",
+    "invalidReason": "Enter a reason of up to 200 characters.",
+    "invalidLanguage": "Choose Arabic or English.",
+    "invalidOrder": "The catalog order is out of date. Reload and try again.",
+    "notFound": "That record is no longer available.",
+    "platformBotMissing": "The platform bot is not ready yet.",
+    "generic": "Something went wrong. Try again."
+  },
+  "alerts": {
+    "saved": "Saved.",
+    "copied": "Copied.",
+    "copyFailed": "Could not copy."
+  },
+  "copy": {
+    "action": "Copy",
+    "actionFor": "Copy {label}",
+    "id": "identifier",
+    "username": "username",
+    "link": "link"
+  },
+  "common": {
+    "loading": "Loading…",
+    "empty": "Nothing to show.",
+    "retry": "Retry",
+    "previous": "Previous",
+    "next": "Next",
+    "pageStatus": "{page} / {pages}",
+    "yes": "Yes",
+    "no": "No",
+    "active": "Active",
+    "inactive": "Inactive",
+    "deleted": "Deleted",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "back": "Back",
+    "timezone": "Time zone",
+    "none": "None",
+    "open": "Open"
+  },
+  "overview": {
+    "title": "Overview",
+    "users": "Users",
+    "bots": "Bots",
+    "channels": "Channels",
+    "activeCycles": "Active publish cycles",
+    "catalogChannels": "Catalog channels"
+  },
+  "users": {
+    "title": "Users",
+    "name": "Name",
+    "username": "Username",
+    "telegramId": "Telegram ID",
+    "createdAt": "Created",
+    "status": "Status"
+  },
+  "bots": {
+    "title": "Bots",
+    "username": "Username",
+    "type": "Type",
+    "status": "Status",
+    "owner": "Owner",
+    "links": "Channel links",
+    "platformForced": "Platform forced subscription",
+    "allowed": "Allowed",
+    "optedOut": "Opted out",
+    "welcome": "Welcome messages",
+    "footer": "Footer text",
+    "createdAt": "Created"
+  },
+  "channels": {
+    "title": "Channels",
+    "name": "Channel",
+    "username": "Username",
+    "telegramId": "Telegram ID",
+    "members": "Members",
+    "catalog": "Catalog",
+    "status": "Status",
+    "owner": "Added by",
+    "links": "Bot links",
+    "addedAt": "Added",
+    "reason": "Deactivation note"
+  },
+  "publishing": {
+    "title": "Publishing",
+    "listName": "List name",
+    "bot": "Bot",
+    "publishing": "Publishing",
+    "on": "On",
+    "off": "Off",
+    "schedule": "Schedule",
+    "nextSlot": "Next slot",
+    "retention": "Retention in minutes",
+    "acceptance": "Acceptance",
+    "format": "Format",
+    "contactUrl": "Contact link",
+    "memberships": "Memberships",
+    "cycles": "Cycles",
+    "publications": "Publications",
+    "disable": "Disable membership",
+    "reason": "Reason",
+    "reasonHint": "The channel owner sees this text as written.",
+    "alreadyDisabled": "Disabled by an admin",
+    "scheduledAt": "Publishes",
+    "deleteAt": "Deletes",
+    "customTimes": "Custom times",
+    "participant": "Paused by participant",
+    "permissions": "Permissions lost",
+    "invite": "Invite unavailable",
+    "messageId": "Message ID"
+  },
+  "catalog": {
+    "title": "Forced subscription",
+    "catalog": "Platform catalog",
+    "sort": "Order",
+    "moveUp": "Move earlier",
+    "moveDown": "Move later",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "ownerSubs": "Owner forced subscriptions",
+    "addedBy": "Added by",
+    "bot": "Bot",
+    "channel": "Channel",
+    "createdAt": "Created"
+  },
+  "audit": {
+    "title": "Audit log",
+    "when": "When",
+    "action": "Action",
+    "actor": "Actor",
+    "entity": "Record",
+    "details": "Details",
+    "language": "Language",
+    "active": "Active",
+    "actions": {
+      "webLocaleSet": "Web language saved",
+      "supportListAdminDisable": "Support-list membership disabled",
+      "catalogSetActive": "Catalog channel updated",
+      "catalogReorder": "Catalog order updated"
+    }
+  },
+  "status": {
+    "bot": {
+      "PLATFORM_BOT": "Platform bot",
+      "CONTACT_BOT": "Contact bot",
+      "SUPPORT_LIST_BOT": "Support-list bot"
+    },
+    "link": {
+      "ACTIVE": "Active",
+      "INACTIVE": "Inactive"
+    },
+    "acceptanceMode": {
+      "MANUAL": "Manual",
+      "AUTO": "Automatic"
+    },
+    "format": {
+      "TEXT": "Text",
+      "BUTTONS": "Buttons"
+    },
+    "scheduleMode": {
+      "DEFAULT": "Default",
+      "CUSTOM": "Custom"
+    },
+    "acceptance": {
+      "PENDING": "Pending",
+      "ACCEPTED": "Accepted",
+      "REJECTED": "Rejected"
+    },
+    "cycle": {
+      "PENDING": "Waiting to publish",
+      "PUBLISHING": "Publishing",
+      "PUBLISHED": "Published",
+      "SKIPPED": "Skipped",
+      "FAILED": "Failed"
+    },
+    "publication": {
+      "PENDING": "Waiting to send",
+      "SENT": "Sent",
+      "SKIPPED": "Skipped",
+      "FAILED": "Failed",
+      "DELETED": "Deleted",
+      "DELETE_FAILED": "Delete failed"
+    }
+  }
+}

@@ -47,6 +47,7 @@ model User {
   adPlacementsAsBotCreator    AdPlacement[]        @relation("AdPlacementBotCreator")
   adPlacementsAsChannelOwner  AdPlacement[]        @relation("AdPlacementChannelOwner")
   supportListMemberships      SupportListMembership[]
+  webLocalePreference         WebLocalePreference?
 
   @@map("users")
 }
@@ -655,6 +656,17 @@ model ForcedSubscription {
   @@index([botId])
   @@index([channelId])
   @@map("forced_subscriptions")
+}
+
+model WebLocalePreference {
+  userId     String            @id
+  language   SupportedLanguage
+  isExplicit Boolean           @default(true)
+  updatedAt  DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("web_locale_preferences")
 }
 
 model AdminRole {

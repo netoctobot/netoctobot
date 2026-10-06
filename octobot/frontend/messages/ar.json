@@ -1,0 +1,217 @@
+{
+  "meta": {
+    "title": "إدارة المنصة"
+  },
+  "brand": "Octobot",
+  "language": {
+    "label": "اللغة",
+    "arabic": "العربية",
+    "english": "English",
+    "switchTo": "لغة الواجهة"
+  },
+  "nav": {
+    "overview": "نظرة عامة",
+    "users": "المستخدمون",
+    "bots": "البوتات",
+    "channels": "القنوات",
+    "publishing": "النشر",
+    "catalog": "الاشتراك الإجباري",
+    "audit": "سجل التدقيق",
+    "signOut": "تسجيل الخروج"
+  },
+  "login": {
+    "title": "إدارة المنصة",
+    "intro": "ادخل بحساب مالك المنصة على Telegram.",
+    "widgetLabel": "الدخول عبر Telegram",
+    "missingBot": "بوت المنصة غير جاهز بعد.",
+    "widgetUnavailable": "تعذر تحميل زر الدخول عبر Telegram."
+  },
+  "errors": {
+    "unauthorized": "سجل الدخول للمتابعة.",
+    "notOwner": "حساب Telegram هذا ليس مالك المنصة.",
+    "ownerNotRegistered": "افتح بوت المنصة مرة واحدة قبل استخدام اللوحة.",
+    "invalidLogin": "تعذر التحقق من دخول Telegram.",
+    "invalidReason": "أدخل سببًا لا يتجاوز 200 حرف.",
+    "invalidLanguage": "اختر العربية أو الإنجليزية.",
+    "invalidOrder": "ترتيب الكتالوج لم يعد مطابقًا. أعد التحميل ثم حاول مرة أخرى.",
+    "notFound": "هذا السجل لم يعد متاحًا.",
+    "platformBotMissing": "بوت المنصة غير جاهز بعد.",
+    "generic": "حدث خطأ. حاول مرة أخرى."
+  },
+  "alerts": {
+    "saved": "تم الحفظ.",
+    "copied": "تم النسخ.",
+    "copyFailed": "تعذر النسخ."
+  },
+  "copy": {
+    "action": "نسخ",
+    "actionFor": "نسخ {label}",
+    "id": "المعرّف",
+    "username": "اسم المستخدم",
+    "link": "الرابط"
+  },
+  "common": {
+    "loading": "جارٍ التحميل…",
+    "empty": "لا يوجد ما يُعرض.",
+    "retry": "إعادة المحاولة",
+    "previous": "السابق",
+    "next": "التالي",
+    "pageStatus": "{page} / {pages}",
+    "yes": "نعم",
+    "no": "لا",
+    "active": "نشط",
+    "inactive": "متوقف",
+    "deleted": "محذوف",
+    "close": "إغلاق",
+    "cancel": "إلغاء",
+    "confirm": "تأكيد",
+    "back": "رجوع",
+    "timezone": "المنطقة الزمنية",
+    "none": "لا يوجد",
+    "open": "فتح"
+  },
+  "overview": {
+    "title": "نظرة عامة",
+    "users": "المستخدمون",
+    "bots": "البوتات",
+    "channels": "القنوات",
+    "activeCycles": "دورات النشر النشطة",
+    "catalogChannels": "قنوات الكتالوج"
+  },
+  "users": {
+    "title": "المستخدمون",
+    "name": "الاسم",
+    "username": "اسم المستخدم",
+    "telegramId": "معرّف Telegram",
+    "createdAt": "تاريخ الإنشاء",
+    "status": "الحالة"
+  },
+  "bots": {
+    "title": "البوتات",
+    "username": "اسم المستخدم",
+    "type": "النوع",
+    "status": "الحالة",
+    "owner": "المالك",
+    "links": "روابط القنوات",
+    "platformForced": "الاشتراك الإجباري للمنصة",
+    "allowed": "مفعّل",
+    "optedOut": "متوقف لهذا البوت",
+    "welcome": "رسائل الترحيب",
+    "footer": "نص التذييل",
+    "createdAt": "تاريخ الإنشاء"
+  },
+  "channels": {
+    "title": "القنوات",
+    "name": "القناة",
+    "username": "اسم المستخدم",
+    "telegramId": "معرّف Telegram",
+    "members": "الأعضاء",
+    "catalog": "الكتالوج",
+    "status": "الحالة",
+    "owner": "أضافها",
+    "links": "روابط البوتات",
+    "addedAt": "تاريخ الإضافة",
+    "reason": "ملاحظة الإيقاف"
+  },
+  "publishing": {
+    "title": "النشر",
+    "listName": "اسم القائمة",
+    "bot": "البوت",
+    "publishing": "النشر",
+    "on": "يعمل",
+    "off": "متوقف",
+    "schedule": "الجدول",
+    "nextSlot": "الموعد التالي",
+    "retention": "مدة البقاء بالدقائق",
+    "acceptance": "القبول",
+    "format": "التنسيق",
+    "contactUrl": "رابط التواصل",
+    "memberships": "العضويات",
+    "cycles": "الدورات",
+    "publications": "المنشورات",
+    "disable": "إيقاف العضوية",
+    "reason": "السبب",
+    "reasonHint": "يرى صاحب القناة هذا النص كما كُتب.",
+    "alreadyDisabled": "أوقفتها الإدارة",
+    "scheduledAt": "موعد النشر",
+    "deleteAt": "موعد الحذف",
+    "customTimes": "أوقات مخصصة",
+    "participant": "أوقفها المشارك",
+    "permissions": "فُقدت الصلاحيات",
+    "invite": "دعوة غير متاحة",
+    "messageId": "معرّف الرسالة"
+  },
+  "catalog": {
+    "title": "الاشتراك الإجباري",
+    "catalog": "كتالوج المنصة",
+    "sort": "الترتيب",
+    "moveUp": "تقديم",
+    "moveDown": "تأخير",
+    "activate": "تفعيل",
+    "deactivate": "إيقاف",
+    "ownerSubs": "اشتراكات المالك غير المنصية",
+    "addedBy": "أضافها",
+    "bot": "البوت",
+    "channel": "القناة",
+    "createdAt": "تاريخ الإنشاء"
+  },
+  "audit": {
+    "title": "سجل التدقيق",
+    "when": "الوقت",
+    "action": "الإجراء",
+    "actor": "المنفّذ",
+    "entity": "السجل",
+    "details": "التفاصيل",
+    "language": "اللغة",
+    "active": "نشط",
+    "actions": {
+      "webLocaleSet": "حُفظت لغة الويب",
+      "supportListAdminDisable": "أُوقفت عضوية قائمة دعم",
+      "catalogSetActive": "حُدّثت قناة الكتالوج",
+      "catalogReorder": "حُدّث ترتيب الكتالوج"
+    }
+  },
+  "status": {
+    "bot": {
+      "PLATFORM_BOT": "بوت المنصة",
+      "CONTACT_BOT": "بوت التواصل",
+      "SUPPORT_LIST_BOT": "بوت قائمة الدعم"
+    },
+    "link": {
+      "ACTIVE": "نشط",
+      "INACTIVE": "متوقف"
+    },
+    "acceptanceMode": {
+      "MANUAL": "يدوي",
+      "AUTO": "تلقائي"
+    },
+    "format": {
+      "TEXT": "نص",
+      "BUTTONS": "أزرار"
+    },
+    "scheduleMode": {
+      "DEFAULT": "افتراضي",
+      "CUSTOM": "مخصص"
+    },
+    "acceptance": {
+      "PENDING": "بانتظار القبول",
+      "ACCEPTED": "مقبول",
+      "REJECTED": "مرفوض"
+    },
+    "cycle": {
+      "PENDING": "بانتظار النشر",
+      "PUBLISHING": "قيد النشر",
+      "PUBLISHED": "نُشر",
+      "SKIPPED": "تم تخطيه",
+      "FAILED": "فشل"
+    },
+    "publication": {
+      "PENDING": "بانتظار الإرسال",
+      "SENT": "أُرسل",
+      "SKIPPED": "تم تخطيه",
+      "FAILED": "فشل",
+      "DELETED": "حُذف",
+      "DELETE_FAILED": "تعذر الحذف"
+    }
+  }
+}

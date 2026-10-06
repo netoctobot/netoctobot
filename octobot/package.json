@@ -5,7 +5,8 @@
   "scripts": {
     "postinstall": "pnpm --filter backend generate",
     "dev": "pnpm --filter backend dev",
-    "build": "pnpm --filter backend build",
-    "test": "pnpm --filter backend test"
+    "dev:web": "pnpm --filter frontend dev",
+    "build": "pnpm --filter backend build && pnpm --filter frontend build",
+    "test": "pnpm --filter backend test && pnpm --filter frontend test"
   }
 }
