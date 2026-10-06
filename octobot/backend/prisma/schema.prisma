@@ -216,7 +216,9 @@ enum SupportListCycleStatus {
 
 enum SupportListPublicationStatus {
   PENDING
+  SENDING
   SENT
+  UNCONFIRMED
   SKIPPED
   FAILED
   DELETED
@@ -305,6 +307,8 @@ model SupportListPublication {
   messageId           BigInt?
   status              SupportListPublicationStatus @default(PENDING)
   deleteAt            DateTime
+  sendAttemptedAt     DateTime?
+  ownerNotified       Boolean                      @default(false)
   createdAt           DateTime                     @default(now())
   updatedAt           DateTime                     @updatedAt
 

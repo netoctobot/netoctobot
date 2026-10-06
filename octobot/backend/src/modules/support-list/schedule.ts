@@ -5,6 +5,8 @@ import {
   MAX_CUSTOM_TIMES,
   MAX_RETENTION_MINUTES,
   MIN_RETENTION_MINUTES,
+  PUBLISH_GRACE_MINUTES,
+  SEND_DELAY_ALLOWANCE_MINUTES,
 } from "./constants.js";
 
 export interface CivilTime {
@@ -197,6 +199,31 @@ function minutesOfDay(time: CivilTime): number {
   return time.hour * 60 + time.minute;
 }
 
+export function minimumSlotGapMinutes(retentionMinutes: number): number {
+  return (
+    retentionMinutes + SEND_DELAY_ALLOWANCE_MINUTES + CYCLE_GAP_MINUTES
+  );
+}
+
+export function deleteAtFromSuccessfulSend(
+  sentAt: Date,
+  retentionMinutes: number,
+): Date {
+  return new Date(sentAt.getTime() + retentionMinutes * 60_000);
+}
+
+export function shouldSkipBacklog(
+  scheduledAt: Date,
+  now: Date,
+  graceMinutes = PUBLISH_GRACE_MINUTES,
+): boolean {
+  return scheduledAt.getTime() + graceMinutes * 60_000 < now.getTime();
+}
+
+export function isOverdueForResume(scheduledAt: Date, now: Date): boolean {
+  return scheduledAt.getTime() <= now.getTime();
+}
+
 export function validateCustomSchedule(
   times: CivilTime[],
   retentionMinutes: number,
@@ -217,7 +244,7 @@ export function validateCustomSchedule(
       return { ok: false, reason: "duplicate" };
     }
   }
-  const requiredGap = retentionMinutes + CYCLE_GAP_MINUTES;
+  const requiredGap = minimumSlotGapMinutes(retentionMinutes);
   const points = [...minutes, (minutes[0] ?? 0) + 24 * 60];
   for (let index = 1; index < points.length; index += 1) {
     if ((points[index] ?? 0) - (points[index - 1] ?? 0) < requiredGap) {
@@ -272,7 +299,7 @@ export function slotsForHorizon(input: {
       }
       slots.push({
         scheduledAt,
-        deleteAt: new Date(scheduledAt.getTime() + retention * 60_000),
+        deleteAt: deleteAtFromSuccessfulSend(scheduledAt, retention),
       });
     }
   }

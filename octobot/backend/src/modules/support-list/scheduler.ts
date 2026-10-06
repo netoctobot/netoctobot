@@ -5,6 +5,7 @@ import type { Env } from "../../config/env.js";
 import { decryptToken } from "../../lib/token-crypto.js";
 import type { PrismaClient } from "@prisma/client";
 import { retryAfterMs, TelegramUnavailableError } from "./access.js";
+import { PublishDeferredError } from "./delivery.js";
 import { ensureSupportListHorizon } from "./cycles.js";
 import {
   deletePublishedMessage,
@@ -86,6 +87,13 @@ export class SupportListScheduler {
           }
           await publishCycle(deps, String(job.data.cycleId));
         } catch (error) {
+          if (
+            error instanceof PublishDeferredError &&
+            token
+          ) {
+            await job.moveToDelayed(error.resumeAt.getTime(), token);
+            throw new DelayedError();
+          }
           if (await delayForTelegram(job, token, error)) {
             throw new DelayedError();
           }

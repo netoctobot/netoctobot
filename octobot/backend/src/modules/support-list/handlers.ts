@@ -36,7 +36,10 @@ import {
 } from "./access.js";
 import { ADMIN_REASON_LIMIT } from "./constants.js";
 import { parseContactUrl, parseListName } from "./contact-url.js";
-import { skipFuturePendingCycles } from "./cycles.js";
+import {
+  skipFuturePendingCycles,
+  skipOverduePendingCycles,
+} from "./cycles.js";
 import { disableReasonCodes } from "./eligibility.js";
 import {
   clearSupportListDraft,
@@ -75,7 +78,10 @@ import {
   buildTimeZoneMenu,
   type ListScope,
 } from "./menu.js";
-import { previewSupportList } from "./publisher.js";
+import {
+  countUnconfirmedPublications,
+  previewSupportList,
+} from "./publisher.js";
 import {
   formatClock,
   formatInTimeZone,
@@ -168,11 +174,15 @@ async function showHome(
     deps.getRecord().id,
   );
   const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+  const owner = await isOwner(deps, telegramUserId);
   const view = buildSupportListHome(
     settings,
     preference.language,
-    await isOwner(deps, telegramUserId),
+    owner,
     await acceptedCount(deps),
+    owner
+      ? await countUnconfirmedPublications(deps.prisma, deps.getRecord().id)
+      : 0,
   );
   if (context.callbackQuery) {
     await deps.editDashboard(context, view);
@@ -921,7 +931,12 @@ export function registerSupportListHandlers(
     const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
     await bound.editDashboard(
       context,
-      buildAdminHome(language, settings, await acceptedCount(bound)),
+      buildAdminHome(
+        language,
+        settings,
+        await acceptedCount(bound),
+        await countUnconfirmedPublications(bound.prisma, bound.getRecord().id),
+      ),
     );
     await context.answerCallbackQuery();
   });
@@ -972,7 +987,12 @@ export function registerSupportListHandlers(
     const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
     await bound.editDashboard(
       context,
-      buildAdminHome(language, settings, await acceptedCount(bound)),
+      buildAdminHome(
+        language,
+        settings,
+        await acceptedCount(bound),
+        await countUnconfirmedPublications(bound.prisma, bound.getRecord().id),
+      ),
     );
   });
 
@@ -1002,7 +1022,12 @@ export function registerSupportListHandlers(
     const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
     await bound.editDashboard(
       context,
-      buildAdminHome(language, settings, await acceptedCount(bound)),
+      buildAdminHome(
+        language,
+        settings,
+        await acceptedCount(bound),
+        await countUnconfirmedPublications(bound.prisma, bound.getRecord().id),
+      ),
     );
   });
 
@@ -1065,6 +1090,7 @@ export function registerSupportListHandlers(
 
   bot.callbackQuery("sl:resume", async (context) => {
     if (!(await ownerOnly(context))) return;
+    await skipOverduePendingCycles(bound.prisma, bound.getRecord().id);
     await bound.prisma.supportListSettings.update({
       where: { botId: bound.getRecord().id },
       data: { publishingEnabled: true },

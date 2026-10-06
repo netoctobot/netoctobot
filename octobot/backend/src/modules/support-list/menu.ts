@@ -18,11 +18,25 @@ function back(language: SupportedLanguage, data: string): InlineKeyboard {
   );
 }
 
+function appendUnconfirmed(
+  language: SupportedLanguage,
+  text: string,
+  unconfirmedCount: number,
+): string {
+  if (unconfirmedCount < 1) {
+    return text;
+  }
+  return `${text}\n\n${translate(language, "supportList.unconfirmedHome", {
+    count: unconfirmedCount,
+  })}`;
+}
+
 export function buildSupportListHome(
   settings: Pick<SupportListSettings, "listName" | "contactUrl">,
   language: SupportedLanguage,
   isOwner: boolean,
   acceptedCount: number,
+  unconfirmedCount = 0,
 ): DashboardView {
   const keyboard = new InlineKeyboard()
     .text(translate(language, "supportList.addChannel"), "sl:add")
@@ -46,13 +60,17 @@ export function buildSupportListHome(
     keyboard.row().text(translate(language, "supportList.admin"), "sl:admin");
   }
   return {
-    text: `${translate(language, "supportList.welcome", {
-      listName: settings.listName,
-    })}\n\n${translate(language, "supportList.home", {
-      listName: settings.listName,
-      count: acceptedCount,
-      max: MAX_ACCEPTED_CHANNELS,
-    })}`,
+    text: appendUnconfirmed(
+      language,
+      `${translate(language, "supportList.welcome", {
+        listName: settings.listName,
+      })}\n\n${translate(language, "supportList.home", {
+        listName: settings.listName,
+        count: acceptedCount,
+        max: MAX_ACCEPTED_CHANNELS,
+      })}`,
+      isOwner ? unconfirmedCount : 0,
+    ),
     keyboard,
   };
 }
@@ -254,13 +272,18 @@ export function buildAdminHome(
   language: SupportedLanguage,
   settings: SupportListSettings,
   acceptedCount: number,
+  unconfirmedCount = 0,
 ): DashboardView {
   return {
-    text: translate(language, "supportList.home", {
-      listName: settings.listName,
-      count: acceptedCount,
-      max: MAX_ACCEPTED_CHANNELS,
-    }),
+    text: appendUnconfirmed(
+      language,
+      translate(language, "supportList.home", {
+        listName: settings.listName,
+        count: acceptedCount,
+        max: MAX_ACCEPTED_CHANNELS,
+      }),
+      unconfirmedCount,
+    ),
     keyboard: new InlineKeyboard()
       .text(translate(language, "supportList.listName"), "sl:name")
       .text(translate(language, "supportList.acceptance"), "sl:mode")

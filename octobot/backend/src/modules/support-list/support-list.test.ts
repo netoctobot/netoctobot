@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SupportedLanguage } from "@prisma/client";
+import { GrammyError, HttpError } from "grammy";
 import ar from "../../locales/ar.json" with { type: "json" };
 import en from "../../locales/en.json" with { type: "json" };
 import { translate } from "../localization/localization.service.js";
 import { userCanPromote } from "./access.js";
-import { MAX_ACCEPTED_CHANNELS } from "./constants.js";
+import {
+  MAX_ACCEPTED_CHANNELS,
+  PUBLISH_GRACE_MINUTES,
+  SEND_DELAY_ALLOWANCE_MINUTES,
+} from "./constants.js";
+import { classifySendFailure, occupiedUntil } from "./delivery.js";
 import { parseContactUrl, parseListName } from "./contact-url.js";
 import {
   acceptanceDecision,
@@ -22,7 +28,11 @@ import {
 } from "./render.js";
 import {
   defaultDayClocks,
+  deleteAtFromSuccessfulSend,
   formatInTimeZone,
+  isOverdueForResume,
+  minimumSlotGapMinutes,
+  shouldSkipBacklog,
   slotsForHorizon,
   validateCustomSchedule,
   zonedTimeToUtc,
@@ -141,15 +151,18 @@ test("custom times reject overlap, duplicates, and the 48 hour delete window", (
   );
 });
 
-test("default daily windows do not overlap a 3 hour post", () => {
+test("default daily windows do not overlap a 3 hour post after send delay", () => {
+  const gap = minimumSlotGapMinutes(180);
+  assert.equal(gap, 180 + SEND_DELAY_ALLOWANCE_MINUTES + 10);
   for (let index = 0; index < 50; index += 1) {
     const [morning, evening] = defaultDayClocks(() => index / 50);
-    const morningEnd = morning.hour * 60 + morning.minute + 180 + 10;
+    const morningEnd = morning.hour * 60 + morning.minute + gap;
     const eveningStart = evening.hour * 60 + evening.minute;
     assert.ok(morningEnd <= eveningStart);
     assert.ok(morning.hour >= 8 && morning.hour <= 10);
     assert.ok(evening.hour >= 17 && evening.hour <= 19);
   }
+  assert.ok(10 * 60 + 59 + gap <= 17 * 60);
 });
 
 test("saved civil times stay fixed in UTC and Asia/Riyadh", () => {
@@ -167,6 +180,105 @@ test("saved civil times stay fixed in UTC and Asia/Riyadh", () => {
   });
   assert.equal(slots[0]?.scheduledAt.toISOString(), "2026-10-05T09:30:00.000Z");
   assert.equal(slots[0]?.deleteAt.toISOString(), "2026-10-05T12:30:00.000Z");
+});
+
+test("custom times keep room for a delayed send", () => {
+  assert.equal(
+    validateCustomSchedule(
+      [
+        { hour: 9, minute: 0 },
+        { hour: 12, minute: 30 },
+      ],
+      180,
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateCustomSchedule(
+      [
+        { hour: 9, minute: 0 },
+        { hour: 12, minute: 40 },
+      ],
+      180,
+    ).ok,
+    true,
+  );
+});
+
+test("delete time is counted from the successful send", () => {
+  const sentAt = new Date("2026-10-06T10:20:00.000Z");
+  const deleteAt = deleteAtFromSuccessfulSend(sentAt, 180);
+  assert.equal(deleteAt.toISOString(), "2026-10-06T13:20:00.000Z");
+  assert.equal(deleteAt.getTime() - sentAt.getTime(), 180 * 60_000);
+});
+
+test("a late backlog is skipped and resume treats due cycles as missed", () => {
+  const now = new Date("2026-10-06T12:00:00.000Z");
+  const recent = new Date(now.getTime() - (PUBLISH_GRACE_MINUTES - 1) * 60_000);
+  const missed = new Date(now.getTime() - (PUBLISH_GRACE_MINUTES + 1) * 60_000);
+  assert.equal(shouldSkipBacklog(recent, now), false);
+  assert.equal(shouldSkipBacklog(missed, now), true);
+  assert.equal(isOverdueForResume(now, now), true);
+  assert.equal(
+    isOverdueForResume(new Date(now.getTime() + 60_000), now),
+    false,
+  );
+});
+
+test("an unknown send is not treated as a safe retry", () => {
+  const grammy = (code: number) =>
+    new GrammyError(
+      "telegram",
+      { ok: false, error_code: code, description: "telegram" },
+      "sendMessage",
+      {},
+    );
+  assert.equal(classifySendFailure(grammy(429)), "retry");
+  assert.equal(classifySendFailure(grammy(403)), "rejected");
+  assert.equal(classifySendFailure(grammy(500)), "unknown");
+  assert.equal(
+    classifySendFailure(new HttpError("timeout", new Error("socket hang up"))),
+    "unknown",
+  );
+});
+
+test("a live previous post holds the next cycle until its own delete time", () => {
+  const now = new Date("2026-10-06T12:00:00.000Z");
+  const deleteAt = new Date("2026-10-06T15:00:00.000Z");
+  const held = occupiedUntil({
+    now,
+    currentCycleId: "next",
+    retentionMinutes: 180,
+    publications: [
+      {
+        cycleId: "previous",
+        status: "SENT",
+        deleteAt,
+        sendAttemptedAt: new Date("2026-10-06T12:00:00.000Z"),
+      },
+      {
+        cycleId: "next",
+        status: "SENT",
+        deleteAt: new Date("2026-10-06T18:00:00.000Z"),
+        sendAttemptedAt: now,
+      },
+    ],
+  });
+  assert.equal(held?.toISOString(), deleteAt.toISOString());
+  const uncertain = occupiedUntil({
+    now,
+    currentCycleId: "next",
+    retentionMinutes: 180,
+    publications: [
+      {
+        cycleId: "previous",
+        status: "UNCONFIRMED",
+        deleteAt: new Date("2026-10-06T12:00:00.000Z"),
+        sendAttemptedAt: new Date("2026-10-06T11:30:00.000Z"),
+      },
+    ],
+  });
+  assert.equal(uncertain?.toISOString(), "2026-10-06T14:30:00.000Z");
 });
 
 test("rotation is fair and new entries stay at the end until the next turn", () => {
@@ -261,6 +373,7 @@ test("support-list copy exists in both languages", () => {
       state: "on",
       next: "later",
       times: "09:00",
+      channel: "C",
     };
     assert.equal(
       translate(SupportedLanguage.AR, translationKey, variables).includes("{{"),

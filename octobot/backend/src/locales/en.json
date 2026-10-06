@@ -193,7 +193,7 @@
     "sendTimes": "Send up to 4 times as HH:mm, for example 09:30, 21:00",
     "sendRetention": "Send how many minutes the post stays (15 to 2820).",
     "invalidTimes": "Could not read the times. Send one to four HH:mm values.",
-    "overlap": "Those times overlap the keep duration and the retry margin.",
+    "overlap": "Those times are closer than the keep duration, the 30-minute send-delay allowance, and the 10-minute retry margin.",
     "retentionLimit": "Duration must be from 15 minutes up to 47 hours.",
     "sendTimeZone": "Send an IANA time zone, for example Asia/Riyadh.",
     "invalidTimeZone": "That time zone name is unknown.",
@@ -203,6 +203,8 @@
     "reasonPermissions": "The bot lost post or delete rights. Restore them, then tap Activate.",
     "reasonInvite": "Private channel without invite permission. Restoring it clears only this reason.",
     "publishUnfit": "“{{listName}}” was not published because it does not fit in one message. No partial list was sent.",
+    "unconfirmedHome": "{{count}} destination(s) have an unconfirmed delivery. They were not sent again. Check those channels. A copy without a stored message id cannot be deleted automatically.",
+    "unconfirmedDelivery": "Delivery of “{{listName}}” to “{{channel}}” is unconfirmed. It was not sent again, because Telegram may already have the post. Check the channel. This copy cannot be deleted automatically without a stored message id.",
     "notAllowed": "Only the owner can do this.",
     "timeZone": "Time zone"
   },

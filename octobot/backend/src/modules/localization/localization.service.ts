@@ -187,6 +187,8 @@ export type TranslationKey =
   | "supportList.reasonPermissions"
   | "supportList.reasonInvite"
   | "supportList.publishUnfit"
+  | "supportList.unconfirmedHome"
+  | "supportList.unconfirmedDelivery"
   | "supportList.notAllowed"
   | "supportList.timeZone"
   | "errors.privateOnly"

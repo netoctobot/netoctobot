@@ -11,11 +11,25 @@ import {
   isValidTimeZone,
   localDateKey,
   readCustomTimes,
+  shouldSkipBacklog,
   validateCustomSchedule,
   zonedTimeToUtc,
 } from "./schedule.js";
 
 export async function skipFuturePendingCycles(
+  prisma: PrismaClient,
+  botId: string,
+): Promise<void> {
+  await prisma.supportListCycle.updateMany({
+    where: {
+      botId,
+      status: SupportListCycleStatus.PENDING,
+    },
+    data: { status: SupportListCycleStatus.SKIPPED },
+  });
+}
+
+export async function skipOverduePendingCycles(
   prisma: PrismaClient,
   botId: string,
   now = new Date(),
@@ -24,7 +38,7 @@ export async function skipFuturePendingCycles(
     where: {
       botId,
       status: SupportListCycleStatus.PENDING,
-      scheduledAt: { gt: now },
+      scheduledAt: { lte: now },
     },
     data: { status: SupportListCycleStatus.SKIPPED },
   });
@@ -66,9 +80,20 @@ export async function ensureSupportListHorizon(
       },
     });
     for (const cycle of existing) {
-      if (cycle.status === SupportListCycleStatus.PENDING) {
-        cycles.push({ id: cycle.id, scheduledAt: cycle.scheduledAt });
+      if (cycle.status !== SupportListCycleStatus.PENDING) {
+        continue;
       }
+      if (shouldSkipBacklog(cycle.scheduledAt, now)) {
+        await prisma.supportListCycle.updateMany({
+          where: {
+            id: cycle.id,
+            status: SupportListCycleStatus.PENDING,
+          },
+          data: { status: SupportListCycleStatus.SKIPPED },
+        });
+        continue;
+      }
+      cycles.push({ id: cycle.id, scheduledAt: cycle.scheduledAt });
     }
     const covered = new Set(
       existing
