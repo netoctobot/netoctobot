@@ -93,13 +93,16 @@ export default function ChannelsPage() {
               },
               {
                 header: t("owner"),
-                render: (channel) => (
-                  <Person
-                    firstName={channel.owner.firstName}
-                    username={channel.owner.username}
-                    telegramId={channel.owner.telegramId}
-                  />
-                ),
+                render: (channel) =>
+                  channel.owner ? (
+                    <Person
+                      firstName={channel.owner.firstName}
+                      username={channel.owner.username}
+                      telegramId={channel.owner.telegramId}
+                    />
+                  ) : (
+                    <UserContent value={null} />
+                  ),
               },
             ]}
           />

@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "next dev --port 3001",
     "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port 3001",
     "test": "tsx --test messages.test.ts src/lib/format.test.ts src/lib/reason.test.ts"
   },
   "dependencies": {

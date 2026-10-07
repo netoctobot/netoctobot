@@ -11,6 +11,7 @@ const DASHBOARD_PREFIXES = [
   "/channels",
   "/publishing",
   "/catalog",
+  "/broadcast",
   "/audit",
 ];
 

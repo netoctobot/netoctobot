@@ -50,7 +50,7 @@ export default function BotDetailPage() {
             },
             {
               label: t("platformForced"),
-              value: data.allowPlatformForced ? t("allowed") : t("optedOut"),
+              value: t("appliesToAll"),
             },
             { label: copy("id"), value: <CopyValue value={data.id} label={copy("id")} /> },
           ]}

@@ -5,6 +5,7 @@ import { createPrismaClient } from "./lib/prisma.js";
 import { createRedisClient } from "./lib/redis.js";
 import { bootstrapLocalDashboardAdmin } from "./modules/admin/bootstrap-admin.js";
 import { BotRuntimeManager } from "./modules/bots/bot-runtime-manager.js";
+import { BroadcastScheduler } from "./modules/broadcast/scheduler.js";
 import { SupportListScheduler } from "./modules/support-list/scheduler.js";
 
 const env = loadEnv();
@@ -12,6 +13,7 @@ const prisma = createPrismaClient();
 const redis = createRedisClient(env.REDIS_URL);
 const runtimeManager = new BotRuntimeManager(env, prisma, redis);
 const supportListScheduler = new SupportListScheduler(env, prisma);
+const broadcastScheduler = new BroadcastScheduler(env, prisma);
 
 let app: ReturnType<typeof buildApp> | undefined;
 
@@ -29,7 +31,7 @@ try {
   runtimeManager.add(runtime);
   await runtimeManager.loadActiveUserBots();
 
-  app = buildApp(env, prisma, redis, runtimeManager);
+  app = buildApp(env, prisma, redis, runtimeManager, broadcastScheduler);
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
   await runtimeManager.registerAllWebhooks();
   await supportListScheduler.start();
@@ -44,6 +46,7 @@ try {
   );
 } catch (error) {
   await supportListScheduler.stop().catch(() => undefined);
+  await broadcastScheduler.stop().catch(() => undefined);
   await runtimeManager.shutdown();
   if (app) {
     await app.close();
@@ -57,6 +60,7 @@ try {
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {
     await supportListScheduler.stop().catch(() => undefined);
+    await broadcastScheduler.stop().catch(() => undefined);
     await runtimeManager.shutdown();
     await app?.close();
     process.exit(0);

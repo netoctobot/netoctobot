@@ -14,6 +14,24 @@ import {
 } from "./admin-session.js";
 import { reorderCatalog, setCatalogActive } from "./catalog.service.js";
 import {
+  activateCatalogChannel,
+  addCatalogChannel,
+  catalogTelegramFromToken,
+  removeCatalogChannel,
+  type CatalogTelegram,
+} from "../forced-subscription/catalog-admin.js";
+import { broadcastProbe } from "../broadcast/probe.js";
+import {
+  createBroadcast,
+  listBroadcastBots,
+  listBroadcasts,
+  parseBroadcastRequest,
+  previewBroadcast,
+  readBroadcast,
+  stopBroadcast,
+} from "../broadcast/service.js";
+import type { BroadcastScheduler } from "../broadcast/scheduler.js";
+import {
   adminListQuery,
   readAudit,
   readBot,
@@ -34,6 +52,8 @@ const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 export interface AdminRouteOptions {
   now?: () => number;
+  catalogTelegram?: CatalogTelegram;
+  broadcast?: BroadcastScheduler | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -97,6 +117,9 @@ export function registerAdminRoutes(
 ): void {
   const now = options.now ?? Date.now;
   const secure = new URL(env.PUBLIC_BASE_URL).protocol === "https:";
+  const catalogTelegram =
+    options.catalogTelegram ?? catalogTelegramFromToken(env.BOT_TOKEN);
+  const probe = broadcastProbe(prisma, env.ENCRYPTION_KEY);
 
   async function requireAdmin(
     request: { headers: { cookie?: string | string[] }; ip: string },
@@ -329,17 +352,73 @@ export function registerAdminRoutes(
       if (!id || isActive === null) {
         return reply.code(400).send({ error: "invalid_order" });
       }
+      if (isActive) {
+        const activated = await activateCatalogChannel(
+          prisma,
+          catalogTelegram,
+          admin.username,
+          id,
+          request.ip,
+        );
+        if (!activated.ok) {
+          const status = activated.error === "not_found"
+            ? 404
+            : activated.error === "catalog_unavailable"
+              ? 503
+              : 400;
+          return reply.code(status).send({ error: activated.error });
+        }
+        return activated;
+      }
       const updated = await setCatalogActive(
         prisma,
         admin.username,
         id,
-        isActive,
+        false,
         request.ip,
       );
       if (!updated) {
         return reply.code(404).send({ error: "not_found" });
       }
       return updated;
+    },
+  );
+
+  app.post("/admin/catalog", async (request, reply) => {
+    const admin = await requireAdmin(request, reply);
+    if (!admin) {
+      return;
+    }
+    const reference =
+      isRecord(request.body) && typeof request.body.reference === "string"
+        ? request.body.reference
+        : "";
+    const added = await addCatalogChannel(
+      prisma,
+      catalogTelegram,
+      admin.username,
+      reference,
+      request.ip,
+    );
+    if (!added.ok) {
+      const status = added.error === "catalog_unavailable" ? 503 : 400;
+      return reply.code(status).send({ error: added.error });
+    }
+    return added;
+  });
+
+  app.delete<{ Params: { id: string } }>(
+    "/admin/catalog/:id",
+    async (request, reply) => {
+      const admin = await requireAdmin(request, reply);
+      if (!admin) {
+        return;
+      }
+      const id = routeId(request.params.id);
+      if (!id || !(await removeCatalogChannel(prisma, admin.username, id, request.ip))) {
+        return reply.code(404).send({ error: "not_found" });
+      }
+      return { id };
     },
   );
 
@@ -372,6 +451,75 @@ export function registerAdminRoutes(
     }
     return readForcedSubscriptions(prisma);
   });
+
+  app.get("/admin/broadcasts/bots", async (request, reply) => {
+    if (!(await requireAdmin(request, reply))) {
+      return;
+    }
+    return listBroadcastBots(prisma);
+  });
+
+  app.post("/admin/broadcasts/preview", async (request, reply) => {
+    if (!(await requireAdmin(request, reply))) {
+      return;
+    }
+    const parsed = parseBroadcastRequest(request.body);
+    if (!parsed) {
+      return reply.code(400).send({ error: "invalid_broadcast" });
+    }
+    return previewBroadcast(prisma, parsed, probe);
+  });
+
+  app.post("/admin/broadcasts", async (request, reply) => {
+    const admin = await requireAdmin(request, reply);
+    if (!admin) {
+      return;
+    }
+    const parsed = parseBroadcastRequest(request.body);
+    if (!parsed) {
+      return reply.code(400).send({ error: "invalid_broadcast" });
+    }
+    const created = await createBroadcast(prisma, admin.username, parsed, probe);
+    if (options.broadcast) {
+      for (const deliveryId of created.deliveryIds) {
+        await options.broadcast.enqueue(created.id, deliveryId);
+      }
+    }
+    return created;
+  });
+
+  app.get("/admin/broadcasts", async (request, reply) => {
+    if (!(await requireAdmin(request, reply))) {
+      return;
+    }
+    return listBroadcasts(prisma);
+  });
+
+  app.get<{ Params: { id: string } }>("/admin/broadcasts/:id", async (request, reply) => {
+    if (!(await requireAdmin(request, reply))) {
+      return;
+    }
+    const id = routeId(request.params.id);
+    const row = id ? await readBroadcast(prisma, id) : null;
+    if (!row) {
+      return reply.code(404).send({ error: "not_found" });
+    }
+    return row;
+  });
+
+  app.post<{ Params: { id: string } }>(
+    "/admin/broadcasts/:id/stop",
+    async (request, reply) => {
+      if (!(await requireAdmin(request, reply))) {
+        return;
+      }
+      const id = routeId(request.params.id);
+      if (!id || !(await stopBroadcast(prisma, id))) {
+        return reply.code(404).send({ error: "not_found" });
+      }
+      return { id, stopRequested: true };
+    },
+  );
 
   app.get("/admin/audit", async (request, reply) => {
     if (!(await requireAdmin(request, reply))) {

@@ -20,6 +20,8 @@ export default function CatalogPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState<CatalogItem | null>(null);
+  const [removing, setRemoving] = useState<CatalogItem | null>(null);
+  const [reference, setReference] = useState("");
 
   async function run(action: () => Promise<void>) {
     setError(null);
@@ -53,6 +55,41 @@ export default function CatalogPage() {
       <p className="text-sm text-muted">{t("purpose")}</p>
       <Alert code={saved ? "saved" : null} tone="saved" />
       <Alert code={error} />
+      <Section title={t("add")} hint={t("referenceHint")}>
+        <form
+          className="flex flex-col items-start gap-3 sm:flex-row sm:items-end"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = reference.trim();
+            if (!value) {
+              return;
+            }
+            void run(async () => {
+              await api("/catalog", {
+                method: "POST",
+                body: JSON.stringify({ reference: value }),
+              });
+              setReference("");
+            });
+          }}
+        >
+          <label className="flex w-full max-w-md flex-col gap-1 text-sm">
+            <span>{t("reference")}</span>
+            <input
+              value={reference}
+              onChange={(event) => setReference(event.target.value)}
+              dir="ltr"
+              className="rounded-lg border border-line bg-card px-3 py-2 text-start"
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded-lg bg-action px-3 py-2 text-sm text-white"
+          >
+            {t("add")}
+          </button>
+        </form>
+      </Section>
       <Section title={t("catalog")} hint={t("catalogHint")}>
         <PageState
           loading={catalog.loading}
@@ -111,6 +148,13 @@ export default function CatalogPage() {
                         onClick={() => setPending(item)}
                       >
                         {item.isActive ? t("deactivate") : t("activate")}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-line px-2 py-1 text-sm"
+                        onClick={() => setRemoving(item)}
+                      >
+                        {t("remove")}
                       </button>
                     </div>
                   );
@@ -205,6 +249,36 @@ export default function CatalogPage() {
             type="button"
             className="rounded-lg border border-line px-3 py-1.5 text-sm"
             onClick={() => setPending(null)}
+          >
+            {common("cancel")}
+          </button>
+        </div>
+      </Dialog>
+      <Dialog
+        open={removing !== null}
+        title={t("remove")}
+        onClose={() => setRemoving(null)}
+      >
+        <p className="text-sm">{t("confirmRemove")}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-lg bg-action px-3 py-1.5 text-sm text-white"
+            onClick={() => {
+              const item = removing;
+              if (!item) {
+                return;
+              }
+              setRemoving(null);
+              void run(() => api(`/catalog/${item.id}`, { method: "DELETE" }));
+            }}
+          >
+            {common("confirm")}
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-line px-3 py-1.5 text-sm"
+            onClick={() => setRemoving(null)}
           >
             {common("cancel")}
           </button>

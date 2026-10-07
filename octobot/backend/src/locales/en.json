@@ -206,6 +206,13 @@
     "notAllowed": "Only the owner can do this.",
     "timeZone": "Time zone"
   },
+  "subscription": {
+    "required": "Subscribe to the required channels, then tap Check subscription.",
+    "check": "Check subscription",
+    "join": "Join",
+    "retry": "The check could not be completed. Try again.",
+    "ready": "Subscription is complete. Repeat the action you wanted."
+  },
   "errors": {
     "privateOnly": "Use this bot in a private chat.",
     "generic": "An unexpected error occurred. Please try again."

@@ -55,6 +55,7 @@ import {
   setExplicitLanguage,
   syncBotUser,
 } from "./modules/users/user.service.js";
+import { attachSubscriptionGate } from "./modules/forced-subscription/gate.js";
 import {
   isPrivateSlashCommand,
   PRIVATE_HOME_COMMAND_PATTERN,
@@ -138,6 +139,14 @@ function registerPlatformHandlers(
   runtimeManager: BotRuntimeManager,
   redis: Redis,
 ): void {
+  attachSubscriptionGate(bot, {
+    prisma,
+    redis,
+    api: bot.api,
+    botId: () => platformBotId,
+    bypass: () => false,
+  });
+
   const showHomeFromCommand = async (context: Context) => {
     if (!context.from) {
       return;

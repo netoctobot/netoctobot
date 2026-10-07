@@ -56,12 +56,19 @@ export default function AuditPage() {
   const actions = useTranslations("audit.actions");
   const actionKey: Record<
     string,
-    "webLocaleSet" | "supportListAdminDisable" | "catalogSetActive" | "catalogReorder"
+    | "webLocaleSet"
+    | "supportListAdminDisable"
+    | "catalogSetActive"
+    | "catalogReorder"
+    | "catalogAdd"
+    | "catalogRemove"
   > = {
     "web_locale.set": "webLocaleSet",
     "support_list.admin_disable": "supportListAdminDisable",
     "catalog.set_active": "catalogSetActive",
     "catalog.reorder": "catalogReorder",
+    "catalog.add": "catalogAdd",
+    "catalog.remove": "catalogRemove",
   };
   return (
     <div className="flex flex-col gap-4">

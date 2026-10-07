@@ -31,6 +31,12 @@ const ERROR_KEYS: Record<string, string> = {
   invalid_language: "errors.invalidLanguage",
   invalid_order: "errors.invalidOrder",
   not_found: "errors.notFound",
+  catalog_unresolved: "errors.catalogUnresolved",
+  catalog_not_channel: "errors.catalogNotChannel",
+  catalog_unavailable: "errors.catalogUnavailable",
+  catalog_not_admin: "errors.catalogNotAdmin",
+  catalog_join_unavailable: "errors.catalogJoinUnavailable",
+  invalid_broadcast: "errors.invalidBroadcast",
 };
 
 export function errorKey(code: string): string {

@@ -7,6 +7,7 @@ import {
   Megaphone,
   Radio,
   ScrollText,
+  Send,
   ShieldCheck,
   Users,
   X,
@@ -27,6 +28,7 @@ const NAV = [
   ["/channels", "channels", Radio],
   ["/publishing", "publishing", Megaphone],
   ["/catalog", "catalog", ShieldCheck],
+  ["/broadcast", "broadcast", Send],
   ["/audit", "audit", ScrollText],
 ] as const satisfies ReadonlyArray<readonly [string, string, LucideIcon]>;
 

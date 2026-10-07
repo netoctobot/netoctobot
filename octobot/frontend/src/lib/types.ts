@@ -99,7 +99,7 @@ export interface ChannelRow {
   isPlatformCatalog: boolean;
   isActive: boolean;
   deletedAt: string | null;
-  owner: UserRef;
+  owner: UserRef | null;
 }
 
 export interface ChannelDetail extends ChannelRow {
@@ -215,4 +215,53 @@ export interface AuditRow {
   details: unknown;
   createdAt: string;
   actor: UserRef | null;
+}
+
+export interface BroadcastBotOption {
+  id: string;
+  botUsername: string;
+  botType: string;
+  isActive: boolean;
+  deletedAt: string | null;
+}
+
+export interface BroadcastPreview {
+  text: string;
+  eligible: Array<{
+    channelId: string;
+    title: string | null;
+    username: string | null;
+    botId: string;
+  }>;
+  excluded: Array<{
+    channelId: string;
+    title: string | null;
+    username?: string | null;
+    reason: string;
+  }>;
+}
+
+export interface BroadcastCampaign {
+  id: string;
+  text: string;
+  status: string;
+  targetMode: string;
+  createdAt: string;
+  stopRequested: boolean;
+  counts: Record<string, number>;
+}
+
+export interface BroadcastDetail extends BroadcastCampaign {
+  includeActive: boolean;
+  includeInactive: boolean;
+  includeDeleted: boolean;
+  createdByAdmin: string;
+  deliveries: Array<{
+    id: string;
+    status: string;
+    reason: string | null;
+    messageId: string | null;
+    title: string | null;
+    username: string | null;
+  }>;
 }

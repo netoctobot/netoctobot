@@ -189,6 +189,11 @@ export type TranslationKey =
   | "supportList.publishUnfit"
   | "supportList.notAllowed"
   | "supportList.timeZone"
+  | "subscription.required"
+  | "subscription.check"
+  | "subscription.join"
+  | "subscription.retry"
+  | "subscription.ready"
   | "errors.privateOnly"
   | "errors.generic";
 

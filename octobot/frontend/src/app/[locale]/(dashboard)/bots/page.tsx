@@ -98,7 +98,7 @@ export default function BotsPage() {
               },
               {
                 header: t("platformForced"),
-                render: (bot) => (bot.allowPlatformForced ? t("allowed") : t("optedOut")),
+                render: () => t("appliesToAll"),
               },
             ]}
           />

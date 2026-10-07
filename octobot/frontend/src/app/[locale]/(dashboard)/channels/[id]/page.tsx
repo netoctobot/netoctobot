@@ -53,11 +53,15 @@ export default function ChannelDetailPage() {
             { label: t("reason"), value: <UserContent value={data.deactivationReason} /> },
           ]}
         />
-        <Person
-          firstName={data.owner.firstName}
-          username={data.owner.username}
-          telegramId={data.owner.telegramId}
-        />
+        {data.owner ? (
+          <Person
+            firstName={data.owner.firstName}
+            username={data.owner.username}
+            telegramId={data.owner.telegramId}
+          />
+        ) : (
+          <UserContent value={null} />
+        )}
       </Section>
       <Section title={t("links")} hint={t("linksHint")}>
         {data.links.length === 0 ? (

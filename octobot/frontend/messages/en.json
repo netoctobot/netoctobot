@@ -16,6 +16,7 @@
     "channels": "Channels",
     "publishing": "Support lists",
     "catalog": "Subscription catalog",
+    "broadcast": "Broadcast",
     "audit": "Audit log",
     "signOut": "Sign out"
   },
@@ -47,6 +48,12 @@
     "invalidLanguage": "Choose Arabic or English, then try again.",
     "invalidOrder": "The catalog order changed. Reload the page and arrange it again.",
     "notFound": "That record is no longer available. Return to the list.",
+    "catalogUnresolved": "That channel reference could not be resolved. Use a channel id, @username, or t.me link.",
+    "catalogNotChannel": "That chat is not a channel.",
+    "catalogUnavailable": "Telegram could not be checked. Try again.",
+    "catalogNotAdmin": "The platform bot must be an administrator of the channel before it can be activated.",
+    "catalogJoinUnavailable": "Activation needs a join link. Make the channel public or let the platform bot create an invite.",
+    "invalidBroadcast": "Write the post, choose at least one bot scope, and select bots when the campaign is limited.",
     "generic": "The request could not be completed. Try again."
   },
   "alerts": {
@@ -111,8 +118,7 @@
     "owner": "Owner",
     "links": "Channel links",
     "platformForced": "Platform forced subscription",
-    "allowed": "Allowed",
-    "optedOut": "Opted out",
+    "appliesToAll": "Applies to every bot",
     "welcome": "Welcome messages",
     "footer": "Footer text",
     "createdAt": "Created",
@@ -183,11 +189,16 @@
     "bot": "Bot",
     "channel": "Channel",
     "createdAt": "Created",
-    "purpose": "Arrange and activate the platform catalog here. Existing bot subscriptions are read-only.",
-    "catalogHint": "Changing activity updates the catalog channel and does not copy it into bot subscriptions.",
-    "subsHint": "Forced subscriptions already stored on bots. This list does not edit them.",
-    "confirmActivate": "This channel becomes active in the platform catalog. It is not copied into bot subscriptions.",
-    "confirmDeactivate": "This channel becomes inactive in the platform catalog. Existing bot subscriptions stay as they are."
+    "purpose": "Active catalog channels are required on every bot. Add, arrange, and activate them here. Owner subscriptions stay read-only.",
+    "catalogHint": "Activation checks that the platform bot is an administrator and that a join link is available. The channel is not copied into bot subscriptions.",
+    "subsHint": "Forced subscriptions already stored by owners. This list does not edit them and does not enforce them.",
+    "confirmActivate": "This channel becomes active in the platform catalog after the platform bot is confirmed as an administrator. It is not copied into bot subscriptions.",
+    "confirmDeactivate": "This channel becomes inactive in the platform catalog. Existing owner subscriptions stay as they are.",
+    "add": "Add channel",
+    "reference": "Channel",
+    "referenceHint": "Channel id, @username, or a t.me link. The row is added inactive.",
+    "remove": "Remove",
+    "confirmRemove": "This removes the channel from the platform catalog. The channel record stays, and owner subscriptions are not changed."
   },
   "audit": {
     "purpose": "What an admin changed from the dashboard: language, catalog, and support-list membership.",
@@ -203,7 +214,9 @@
       "webLocaleSet": "Web language saved",
       "supportListAdminDisable": "Support-list membership disabled",
       "catalogSetActive": "Catalog channel updated",
-      "catalogReorder": "Catalog order updated"
+      "catalogReorder": "Catalog order updated",
+      "catalogAdd": "Catalog channel added",
+      "catalogRemove": "Catalog channel removed"
     }
   },
   "status": {
@@ -247,6 +260,59 @@
       "FAILED": "Failed",
       "DELETED": "Deleted",
       "DELETE_FAILED": "Delete failed"
+    },
+    "broadcast": {
+      "RUNNING": "Sending",
+      "STOPPED": "Stopped",
+      "COMPLETED": "Completed"
+    },
+    "delivery": {
+      "PENDING": "Waiting",
+      "SENT": "Sent",
+      "EXCLUDED": "Excluded",
+      "UNCERTAIN": "Uncertain",
+      "FAILED": "Failed",
+      "STOPPED": "Stopped"
+    },
+    "broadcastReason": {
+      "invalid_token": "Token cannot be decrypted",
+      "not_admin": "Bot is not an administrator",
+      "no_post_permission": "Bot cannot publish",
+      "unavailable": "Telegram could not be checked",
+      "deleted": "Channel is deleted for this scope",
+      "bot_out_of_scope": "No selected bot matches the scope",
+      "telegram_rejected": "Telegram rejected the send",
+      "uncertain": "Delivery was not confirmed"
     }
+  },
+  "broadcast": {
+    "title": "Broadcast",
+    "purpose": "Write one post, preview who can receive it, then send in the background. A channel linked to several bots receives one copy.",
+    "text": "Post",
+    "targets": "Bots",
+    "allBots": "All registered bots",
+    "selectedBots": "Selected bots",
+    "scope": "Scope",
+    "includeActive": "Active",
+    "includeInactive": "Inactive",
+    "includeDeleted": "Soft-deleted",
+    "preview": "Preview recipients",
+    "previewHeading": "Preview",
+    "eligible": "Eligible",
+    "excluded": "Excluded",
+    "reason": "Reason",
+    "confirmSend": "Send this campaign",
+    "confirmHint": "Sending does not turn bots, channels, or links back on.",
+    "campaigns": "Campaigns",
+    "status": "Status",
+    "createdAt": "Created",
+    "progress": "Progress",
+    "stop": "Stop remaining",
+    "confirmStop": "Remaining sends stop. Messages already handed to Telegram stay as recorded.",
+    "open": "Open",
+    "channel": "Channel",
+    "messageId": "Message ID",
+    "results": "Results",
+    "noEligible": "No channel can receive this post."
   }
 }

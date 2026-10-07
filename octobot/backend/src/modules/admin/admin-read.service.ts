@@ -164,12 +164,17 @@ function clocks(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
-function userRef(user: {
-  id: string;
-  telegramId: bigint;
-  username: string | null;
-  firstName: string | null;
-}) {
+function userRef(
+  user: {
+    id: string;
+    telegramId: bigint;
+    username: string | null;
+    firstName: string | null;
+  } | null,
+) {
+  if (!user) {
+    return null;
+  }
   return {
     id: user.id,
     telegramId: user.telegramId.toString(),
