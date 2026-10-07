@@ -1,12 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SupportedLanguage } from "@prisma/client";
+import { GrammyError, HttpError } from "grammy";
 import ar from "../../locales/ar.json" with { type: "json" };
 import en from "../../locales/en.json" with { type: "json" };
 import { translate } from "../localization/localization.service.js";
-import { userCanPromote } from "./access.js";
-import { MAX_ACCEPTED_CHANNELS } from "./constants.js";
-import { parseContactUrl, parseListName } from "./contact-url.js";
+import {
+  classifyInviteFailure,
+  selectChannelUrl,
+  userCanPromote,
+} from "./access.js";
+import {
+  DEFAULT_LIST_NAME,
+  MAX_ACCEPTED_CHANNELS,
+  PUBLISH_GRACE_MINUTES,
+  SEND_DELAY_ALLOWANCE_MINUTES,
+} from "./constants.js";
+import { classifySendFailure, occupiedUntil } from "./delivery.js";
+import {
+  displayedListName,
+  parseContactUrl,
+  parseListName,
+} from "./contact-url.js";
 import {
   acceptanceDecision,
   claimAcceptedSlot,
@@ -15,16 +30,33 @@ import {
   occupiesAcceptedSlot,
 } from "./eligibility.js";
 import {
+  appendListJoinButton,
   buttonLabel,
   nextRotationOffset,
   renderSupportList,
   rotateEntries,
 } from "./render.js";
 import {
+  buildListNamePrompt,
+  buildListPreview,
+  buildNotice,
+  buildSlotsMenu,
+  buildSupportListHome,
+} from "./menu.js";
+import {
+  capturedRetentionMinutes,
   defaultDayClocks,
+  deleteAtFromSuccessfulSend,
   formatInTimeZone,
+  isOverdueForResume,
+  minimumSlotGapMinutes,
+  pendingCycleCanBeReplaced,
+  readCustomSlots,
+  savedCustomSchedule,
+  shouldSkipBacklog,
   slotsForHorizon,
   validateCustomSchedule,
+  validateCustomSlots,
   zonedTimeToUtc,
 } from "./schedule.js";
 
@@ -141,15 +173,18 @@ test("custom times reject overlap, duplicates, and the 48 hour delete window", (
   );
 });
 
-test("default daily windows do not overlap a 3 hour post", () => {
+test("default daily windows do not overlap a 3 hour post after send delay", () => {
+  const gap = minimumSlotGapMinutes(180);
+  assert.equal(gap, 180 + SEND_DELAY_ALLOWANCE_MINUTES + 10);
   for (let index = 0; index < 50; index += 1) {
     const [morning, evening] = defaultDayClocks(() => index / 50);
-    const morningEnd = morning.hour * 60 + morning.minute + 180 + 10;
+    const morningEnd = morning.hour * 60 + morning.minute + gap;
     const eveningStart = evening.hour * 60 + evening.minute;
     assert.ok(morningEnd <= eveningStart);
     assert.ok(morning.hour >= 8 && morning.hour <= 10);
     assert.ok(evening.hour >= 17 && evening.hour <= 19);
   }
+  assert.ok(10 * 60 + 59 + gap <= 17 * 60);
 });
 
 test("saved civil times stay fixed in UTC and Asia/Riyadh", () => {
@@ -167,6 +202,191 @@ test("saved civil times stay fixed in UTC and Asia/Riyadh", () => {
   });
   assert.equal(slots[0]?.scheduledAt.toISOString(), "2026-10-05T09:30:00.000Z");
   assert.equal(slots[0]?.deleteAt.toISOString(), "2026-10-05T12:30:00.000Z");
+});
+
+test("custom times keep room for a delayed send", () => {
+  assert.equal(
+    validateCustomSchedule(
+      [
+        { hour: 9, minute: 0 },
+        { hour: 12, minute: 30 },
+      ],
+      180,
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateCustomSchedule(
+      [
+        { hour: 9, minute: 0 },
+        { hour: 12, minute: 40 },
+      ],
+      180,
+    ).ok,
+    true,
+  );
+});
+
+test("delete time is counted from the successful send", () => {
+  const sentAt = new Date("2026-10-06T10:20:00.000Z");
+  const deleteAt = deleteAtFromSuccessfulSend(sentAt, 180);
+  assert.equal(deleteAt.toISOString(), "2026-10-06T13:20:00.000Z");
+  assert.equal(deleteAt.getTime() - sentAt.getTime(), 180 * 60_000);
+});
+
+test("a late backlog is skipped and resume treats due cycles as missed", () => {
+  const now = new Date("2026-10-06T12:00:00.000Z");
+  const recent = new Date(now.getTime() - (PUBLISH_GRACE_MINUTES - 1) * 60_000);
+  const missed = new Date(now.getTime() - (PUBLISH_GRACE_MINUTES + 1) * 60_000);
+  assert.equal(shouldSkipBacklog(recent, now), false);
+  assert.equal(shouldSkipBacklog(missed, now), true);
+  assert.equal(isOverdueForResume(now, now), true);
+  assert.equal(
+    isOverdueForResume(new Date(now.getTime() + 60_000), now),
+    false,
+  );
+});
+
+test("an unknown send is not treated as a safe retry", () => {
+  const grammy = (code: number) =>
+    new GrammyError(
+      "telegram",
+      { ok: false, error_code: code, description: "telegram" },
+      "sendMessage",
+      {},
+    );
+  assert.equal(classifySendFailure(grammy(429)), "retry");
+  assert.equal(classifySendFailure(grammy(403)), "rejected");
+  assert.equal(classifySendFailure(grammy(500)), "unknown");
+  assert.equal(
+    classifySendFailure(new HttpError("timeout", new Error("socket hang up"))),
+    "unknown",
+  );
+});
+
+test("a live previous post holds the next cycle until its own delete time", () => {
+  const now = new Date("2026-10-06T12:00:00.000Z");
+  const deleteAt = new Date("2026-10-06T15:00:00.000Z");
+  const held = occupiedUntil({
+    now,
+    currentCycleId: "next",
+    retentionMinutes: 180,
+    publications: [
+      {
+        cycleId: "previous",
+        status: "SENT",
+        deleteAt,
+        sendAttemptedAt: new Date("2026-10-06T12:00:00.000Z"),
+      },
+      {
+        cycleId: "next",
+        status: "SENT",
+        deleteAt: new Date("2026-10-06T18:00:00.000Z"),
+        sendAttemptedAt: now,
+      },
+    ],
+  });
+  assert.equal(held?.toISOString(), deleteAt.toISOString());
+  const uncertain = occupiedUntil({
+    now,
+    currentCycleId: "next",
+    retentionMinutes: 180,
+    publications: [
+      {
+        cycleId: "previous",
+        status: "UNCONFIRMED",
+        deleteAt: new Date("2026-10-06T12:00:00.000Z"),
+        sendAttemptedAt: new Date("2026-10-06T11:30:00.000Z"),
+      },
+    ],
+  });
+  assert.equal(uncertain?.toISOString(), "2026-10-06T14:30:00.000Z");
+});
+
+test("each custom slot keeps its own duration across midnight", () => {
+  assert.equal(
+    validateCustomSlots([
+      { time: { hour: 22, minute: 0 }, retentionMinutes: 180 },
+      { time: { hour: 1, minute: 0 }, retentionMinutes: 60 },
+    ]).ok,
+    false,
+  );
+  assert.equal(
+    validateCustomSlots([
+      { time: { hour: 20, minute: 0 }, retentionMinutes: 60 },
+      { time: { hour: 8, minute: 0 }, retentionMinutes: 180 },
+    ]).ok,
+    true,
+  );
+  assert.equal(
+    validateCustomSlots([
+      { time: { hour: 9, minute: 0 }, retentionMinutes: 180 },
+      { time: { hour: 12, minute: 30 }, retentionMinutes: 15 },
+    ]).ok,
+    false,
+  );
+});
+
+test("legacy time strings use the shared duration", () => {
+  const legacy = readCustomSlots(["09:30", "21:00"], 90);
+  assert.deepEqual(
+    legacy.map((slot) => slot.retentionMinutes),
+    [90, 90],
+  );
+  const stored = readCustomSlots(
+    [{ time: "09:30", retentionMinutes: 60 }],
+    180,
+  );
+  assert.equal(stored[0]?.retentionMinutes, 60);
+  assert.equal(savedCustomSchedule(stored).scheduleMode, "CUSTOM");
+});
+
+test("a sent post keeps the retention captured on its cycle", () => {
+  const scheduledAt = new Date("2026-10-06T09:00:00.000Z");
+  const plannedDelete = new Date("2026-10-06T10:00:00.000Z");
+  const retention = capturedRetentionMinutes(scheduledAt, plannedDelete);
+  assert.equal(retention, 60);
+  assert.equal(
+    deleteAtFromSuccessfulSend(
+      new Date("2026-10-06T09:05:00.000Z"),
+      retention,
+    ).toISOString(),
+    "2026-10-06T10:05:00.000Z",
+  );
+  assert.equal(
+    pendingCycleCanBeReplaced({ status: "PENDING", publicationCount: 0 }),
+    true,
+  );
+  assert.equal(
+    pendingCycleCanBeReplaced({ status: "PENDING", publicationCount: 1 }),
+    false,
+  );
+  assert.equal(
+    pendingCycleCanBeReplaced({ status: "PUBLISHED", publicationCount: 1 }),
+    false,
+  );
+});
+
+test("default times screen explains the schedule without edit buttons", () => {
+  assert.equal(
+    ar.supportList.defaultSlots,
+    "الجدولة افتراضية: يُختار موعدان للنشر يوميًا، وتبقى القائمة 3 ساعات",
+  );
+  const view = buildSlotsMenu(SupportedLanguage.EN, "DEFAULT", [
+    { time: "09:30", retentionMinutes: 180 },
+  ]);
+  const callbacks = view.keyboard.inline_keyboard
+    .flat()
+    .map((button) => ("callback_data" in button ? button.callback_data : ""));
+  assert.deepEqual(callbacks, ["sl:sched"]);
+  const custom = buildSlotsMenu(SupportedLanguage.EN, "CUSTOM", [
+    { time: "09:30", retentionMinutes: 180 },
+  ]);
+  const row = custom.keyboard.inline_keyboard[0] ?? [];
+  assert.deepEqual(
+    row.map((button) => ("callback_data" in button ? button.callback_data : "")),
+    ["sl:slot:time:0", "sl:slot:keep:0", "sl:slot:del:0"],
+  );
 });
 
 test("rotation is fair and new entries stay at the end until the next turn", () => {
@@ -188,8 +408,10 @@ test("text lists keep every url and refuse a message that cannot fit", () => {
   });
   assert.equal(fitted.ok, true);
   if (fitted.ok) {
-    assert.match(fitted.rendered.text, /https:\/\/t\.me\/one/);
-    assert.match(fitted.rendered.text, /https:\/\/t\.me\/two/);
+    assert.equal(fitted.rendered.parseMode, "HTML");
+    assert.match(fitted.rendered.text, /<a href="https:\/\/t\.me\/one">One<\/a>/);
+    assert.match(fitted.rendered.text, /<a href="https:\/\/t\.me\/two">Two<\/a>/);
+    assert.equal(fitted.rendered.text.includes("One — "), false);
     assert.deepEqual(fitted.rendered.memberIds, ["1", "2"]);
   }
   const tooLong = renderSupportList({
@@ -204,6 +426,104 @@ test("text lists keep every url and refuse a message that cannot fit", () => {
   assert.deepEqual(tooLong, { ok: false, reason: "unfit" });
 });
 
+test("text lists escape markup and keep the visible channel name", () => {
+  const rendered = renderSupportList({
+    listName: "A <B> & C",
+    format: "TEXT",
+    entries: [
+      {
+        id: "1",
+        title: "A <B> & C_D *E*",
+        url: "https://t.me/one",
+      },
+    ],
+  });
+  assert.equal(rendered.ok, true);
+  if (rendered.ok) {
+    assert.equal(
+      rendered.rendered.text,
+      "A &lt;B&gt; &amp; C\n\n<a href=\"https://t.me/one\">A &lt;B&gt; &amp; C_D *E*</a>",
+    );
+    const preview = buildListPreview(SupportedLanguage.AR, rendered.rendered);
+    const callbacks = preview.keyboard.inline_keyboard
+      .flat()
+      .map((button) => ("callback_data" in button ? button.callback_data : ""));
+    assert.deepEqual(callbacks, ["sl:admin"]);
+    assert.equal(preview.parseMode, "HTML");
+  }
+  assert.equal(
+    renderSupportList({
+      listName: "List",
+      format: "TEXT",
+      entries: [{ id: "1", title: "One", url: "javascript:alert(1)" }],
+    }).ok,
+    false,
+  );
+});
+
+test("a stored private invite is reused until one must be created", () => {
+  assert.deepEqual(
+    selectChannelUrl({
+      username: null,
+      storedInviteUrl: "https://t.me/+saved",
+    }),
+    { kind: "reuse", url: "https://t.me/+saved" },
+  );
+  assert.deepEqual(selectChannelUrl({ username: "news", storedInviteUrl: null }), {
+    kind: "public",
+    url: "https://t.me/news",
+  });
+  assert.deepEqual(
+    selectChannelUrl({ username: null, storedInviteUrl: "not a link" }),
+    { kind: "create" },
+  );
+  const network = new HttpError("timeout", new Error("socket hang up"));
+  assert.equal(classifyInviteFailure(network), "unavailable");
+  assert.equal(
+    classifyInviteFailure(
+      new GrammyError(
+        "telegram",
+        {
+          ok: false,
+          error_code: 400,
+          description: "Bad Request: not enough rights to manage chat invite link",
+        },
+        "createChatInviteLink",
+        {},
+      ),
+    ),
+    "invite",
+  );
+  assert.equal(
+    classifyInviteFailure(
+      new GrammyError(
+        "telegram",
+        {
+          ok: false,
+          error_code: 403,
+          description: "Forbidden: bot was kicked from the channel chat",
+        },
+        "createChatInviteLink",
+        {},
+      ),
+    ),
+    "permissions",
+  );
+  const notice = buildNotice(SupportedLanguage.AR, "تعذّر فتح القناة، حاول مجددًا", {
+    ok: false,
+    callback: "sl:list:m:0",
+  });
+  assert.equal(notice.text, "تعذّر فتح القناة، حاول مجددًا");
+  const button = notice.keyboard.inline_keyboard[0]?.[0];
+  assert.equal(button && "text" in button ? button.text : "", "رجوع");
+  const saved = buildNotice(SupportedLanguage.AR, "تم الحفظ.", {
+    ok: true,
+    callback: "sl:admin",
+  });
+  const savedButton = saved.keyboard.inline_keyboard[0]?.[0];
+  assert.equal(savedButton && "text" in savedButton ? savedButton.text : "", "حسنًا");
+});
+
 test("button lists truncate labels without dropping urls", () => {
   const title = "م".repeat(80);
   const rendered = renderSupportList({
@@ -216,6 +536,10 @@ test("button lists truncate labels without dropping urls", () => {
     assert.equal(rendered.rendered.buttons?.[0]?.url, "https://t.me/joinchat/abc");
     assert.equal(Array.from(rendered.rendered.buttons?.[0]?.label ?? "").length, 64);
     assert.equal(buttonLabel(title).endsWith("…"), true);
+    const preview = buildListPreview(SupportedLanguage.EN, rendered.rendered);
+    const row = preview.keyboard.inline_keyboard;
+    assert.equal(row.at(-1)?.[0] && "callback_data" in row.at(-1)![0] ? row.at(-1)![0].callback_data : "", "sl:admin");
+    assert.equal(row[0]?.[0] && "url" in row[0][0] ? row[0][0].url : "", "https://t.me/joinchat/abc");
   }
 });
 
@@ -261,6 +585,9 @@ test("support-list copy exists in both languages", () => {
       state: "on",
       next: "later",
       times: "09:00",
+      channel: "C",
+      minutes: 180,
+      time: "09:30",
     };
     assert.equal(
       translate(SupportedLanguage.AR, translationKey, variables).includes("{{"),
@@ -271,6 +598,143 @@ test("support-list copy exists in both languages", () => {
       false,
     );
   }
+});
+
+test("a list without a custom name uses the subscribe heading", () => {
+  assert.equal(displayedListName("Support list"), DEFAULT_LIST_NAME);
+  assert.equal(displayedListName("  "), DEFAULT_LIST_NAME);
+  assert.equal(displayedListName(null), DEFAULT_LIST_NAME);
+  assert.equal(displayedListName("قنوات التعليم"), "قنوات التعليم");
+  const home = buildSupportListHome(
+    { listName: "Support list", contactUrl: null },
+    SupportedLanguage.AR,
+    false,
+    0,
+  );
+  assert.match(home.text, new RegExp(DEFAULT_LIST_NAME));
+  assert.match(home.text, /مرحباً بك في قائمة اشترك في القنوات التالية/);
+  const prompt = buildListNamePrompt(SupportedLanguage.AR, "Support list");
+  assert.match(prompt.text, /^الاسم الحالي: اشترك في القنوات التالية\n\nأرسل اسم القائمة/);
+  const custom = buildListNamePrompt(SupportedLanguage.AR, "قنوات التعليم");
+  assert.match(custom.text, /^الاسم الحالي: قنوات التعليم\n\n/);
+  const posted = renderSupportList({
+    listName: displayedListName(""),
+    format: "TEXT",
+    entries: [{ id: "1", title: "One", url: "https://t.me/one" }],
+  });
+  assert.equal(posted.ok, true);
+  if (posted.ok) {
+    assert.match(posted.rendered.text, /^اشترك في القنوات التالية\n/);
+  }
+});
+
+test("the join button stays last in both formats and in the preview", () => {
+  for (const format of ["TEXT", "BUTTONS"] as const) {
+    const rendered = renderSupportList({
+      listName: "List",
+      format,
+      entries: [
+        { id: "1", title: "One", url: "https://t.me/one" },
+        { id: "2", title: "Two", url: "https://t.me/two" },
+      ],
+    });
+    assert.equal(rendered.ok, true);
+    if (!rendered.ok) {
+      continue;
+    }
+    const posted = appendListJoinButton(rendered.rendered, "sed235bot");
+    assert.deepEqual(posted.memberIds, ["1", "2"]);
+    assert.equal(posted.buttons?.at(-1)?.label, "أضف قناتك للقائمة");
+    assert.equal(posted.buttons?.at(-1)?.url, "https://t.me/sed235bot?start=add");
+    if (format === "TEXT") {
+      assert.equal(posted.buttons?.length, 1);
+      assert.match(posted.text, /<a href="https:\/\/t\.me\/one">One<\/a>/);
+    } else {
+      assert.equal(posted.buttons?.length, 3);
+      assert.equal(posted.buttons?.[0]?.url, "https://t.me/one");
+    }
+    const preview = buildListPreview(SupportedLanguage.AR, posted);
+    const rows = preview.keyboard.inline_keyboard;
+    const previewJoin = rows.at(-2)?.[0];
+    const back = rows.at(-1)?.[0];
+    assert.equal(
+      previewJoin && "url" in previewJoin ? previewJoin.url : "",
+      "https://t.me/sed235bot?start=add",
+    );
+    assert.equal(
+      previewJoin && "text" in previewJoin ? previewJoin.text : "",
+      "أضف قناتك للقائمة",
+    );
+    assert.equal(
+      back && "callback_data" in back ? back.callback_data : "",
+      "sl:admin",
+    );
+  }
+  const plain = renderSupportList({
+    listName: "List",
+    format: "TEXT",
+    entries: [{ id: "1", title: "One", url: "https://t.me/one" }],
+  });
+  assert.equal(plain.ok, true);
+  if (plain.ok) {
+    assert.equal(appendListJoinButton(plain.rendered, " ").buttons, null);
+  }
+});
+
+test("regular users get a link to the platform bot", () => {
+  const visitor = buildSupportListHome(
+    { listName: "List", contactUrl: null },
+    SupportedLanguage.AR,
+    false,
+    1,
+    0,
+    "testnetoctobot",
+  );
+  const create = visitor.keyboard.inline_keyboard.at(-1)?.[0];
+  assert.equal(create && "text" in create ? create.text : "", "أنشئ بوتك الخاص");
+  assert.equal(
+    create && "url" in create ? create.url : "",
+    "https://t.me/testnetoctobot",
+  );
+  const english = buildSupportListHome(
+    { listName: "List", contactUrl: null },
+    SupportedLanguage.EN,
+    false,
+    1,
+    0,
+    "testnetoctobot",
+  );
+  const englishCreate = english.keyboard.inline_keyboard.at(-1)?.[0];
+  assert.equal(
+    englishCreate && "text" in englishCreate ? englishCreate.text : "",
+    "Create your own bot",
+  );
+  const owner = buildSupportListHome(
+    { listName: "List", contactUrl: null },
+    SupportedLanguage.AR,
+    true,
+    1,
+    0,
+    "testnetoctobot",
+  );
+  assert.deepEqual(
+    owner.keyboard.inline_keyboard.flat().flatMap((button) =>
+      "url" in button ? [button.url] : [],
+    ),
+    [],
+  );
+  const missing = buildSupportListHome(
+    { listName: "List", contactUrl: null },
+    SupportedLanguage.AR,
+    false,
+    1,
+  );
+  assert.deepEqual(
+    missing.keyboard.inline_keyboard.flat().flatMap((button) =>
+      "url" in button ? [button.url] : [],
+    ),
+    [],
+  );
 });
 
 test("contact links and list names stay short", () => {

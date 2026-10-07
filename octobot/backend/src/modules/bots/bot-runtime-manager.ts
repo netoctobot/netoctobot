@@ -56,6 +56,7 @@ import {
 } from "./dashboard-state.js";
 import {
   buildMainMenu,
+  dashboardMessageOptions,
   type DashboardView,
 } from "./platform-menu.js";
 import {
@@ -306,7 +307,7 @@ export class BotRuntimeManager {
           dashboard.chatId,
           dashboard.messageId,
           view.text,
-          { reply_markup: view.keyboard },
+          dashboardMessageOptions(view),
         );
         await context.deleteMessage().catch(() => undefined);
         return;
@@ -326,9 +327,7 @@ export class BotRuntimeManager {
         }
       }
     }
-    const message = await context.reply(view.text, {
-      reply_markup: view.keyboard,
-    });
+    const message = await context.reply(view.text, dashboardMessageOptions(view));
     await saveDashboardState(
       this.redis,
       runtime.botRecord.id,
@@ -347,26 +346,42 @@ export class BotRuntimeManager {
     view: DashboardView,
   ): Promise<void> {
     try {
-      await context.editMessageText(view.text, {
-        reply_markup: view.keyboard,
-      });
+      await context.editMessageText(view.text, dashboardMessageOptions(view));
     } catch (error) {
       if (!this.isMessageNotModified(error)) {
         throw error;
       }
     }
     const message = context.callbackQuery?.message;
-    if (context.from && context.chat && message) {
-      await saveDashboardState(
-        this.redis,
-        runtime.botRecord.id,
-        context.from.id,
-        {
-          chatId: context.chat.id,
-          messageId: message.message_id,
-        },
-      );
+    if (
+      !context.from ||
+      !context.chat ||
+      !message ||
+      !("message_id" in message)
+    ) {
+      return;
     }
+    const current = await getDashboardState(
+      this.redis,
+      runtime.botRecord.id,
+      context.from.id,
+    );
+    if (
+      current &&
+      (current.chatId !== context.chat.id ||
+        current.messageId !== message.message_id)
+    ) {
+      return;
+    }
+    await saveDashboardState(
+      this.redis,
+      runtime.botRecord.id,
+      context.from.id,
+      {
+        chatId: context.chat.id,
+        messageId: message.message_id,
+      },
+    );
   }
 
   private async isContactOwner(
@@ -1075,6 +1090,12 @@ export class BotRuntimeManager {
     });
 
     runtime.bot.catch(async (error) => {
+      const cause = error.error;
+      const detail =
+        cause instanceof Error ? cause.message : "Unknown handler error";
+      console.error(
+        `Bot ${runtime.botRecord.id} handler failed: ${detail}`,
+      );
       const context = error.ctx;
       if (context.chat?.type !== "private") {
         return;

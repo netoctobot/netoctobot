@@ -9,6 +9,22 @@ import { buildChannelAddLink } from "../channels/channel-add-link.js";
 export interface DashboardView {
   text: string;
   keyboard: InlineKeyboard;
+  parseMode?: "HTML";
+}
+
+export function dashboardMessageOptions(view: DashboardView): {
+  reply_markup: InlineKeyboard;
+  parse_mode?: "HTML";
+  link_preview_options?: { is_disabled: true };
+} {
+  if (!view.parseMode) {
+    return { reply_markup: view.keyboard };
+  }
+  return {
+    reply_markup: view.keyboard,
+    parse_mode: view.parseMode,
+    link_preview_options: { is_disabled: true },
+  };
 }
 
 const menuItems: ReadonlyArray<{

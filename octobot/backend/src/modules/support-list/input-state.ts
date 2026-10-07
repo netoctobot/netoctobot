@@ -4,15 +4,22 @@ const TTL_SECONDS = 600;
 
 export type SupportListDraft =
   | {
-      kind: "listName" | "contactUrl" | "times" | "timeZone";
+      kind: "listName" | "contactUrl" | "timeZone";
       chatId: number;
       dashboardMessageId: number;
     }
   | {
-      kind: "retention";
+      kind: "slotTime";
       chatId: number;
       dashboardMessageId: number;
-      times: string[];
+      index: number | null;
+    }
+  | {
+      kind: "slotKeep";
+      chatId: number;
+      dashboardMessageId: number;
+      index: number | null;
+      time: string;
     }
   | {
       kind: "adminReason";

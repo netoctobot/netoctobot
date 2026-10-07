@@ -1,4 +1,6 @@
 import {
+  BotType,
+  Prisma,
   SupportListAcceptanceMode,
   SupportListAcceptanceStatus,
   SupportListFormat,
@@ -27,21 +29,34 @@ import {
   type TranslationKey,
 } from "../localization/localization.service.js";
 import { parseSupportedLanguage } from "../localization/supported-languages.js";
-import type { DashboardView } from "../bots/platform-menu.js";
+import { getDashboardState, saveDashboardState } from "../bots/dashboard-state.js";
+import {
+  dashboardMessageOptions,
+  type DashboardView,
+} from "../bots/platform-menu.js";
 import { setExplicitLanguage, syncBotUser } from "../users/user.service.js";
 import {
   PromoterRequiredError,
   TelegramUnavailableError,
   botCanInvite,
 } from "./access.js";
-import { ADMIN_REASON_LIMIT } from "./constants.js";
+import {
+  ADMIN_REASON_LIMIT,
+  DEFAULT_RETENTION_MINUTES,
+  DEFAULT_TIME_ZONE,
+  MAX_CUSTOM_TIMES,
+} from "./constants.js";
 import { parseContactUrl, parseListName } from "./contact-url.js";
-import { skipFuturePendingCycles } from "./cycles.js";
+import {
+  replaceUnstartedCycles,
+  skipOverduePendingCycles,
+} from "./cycles.js";
 import { disableReasonCodes } from "./eligibility.js";
 import {
   clearSupportListDraft,
   getSupportListDraft,
   saveSupportListDraft,
+  type SupportListDraft,
 } from "./input-state.js";
 import {
   acceptMembership,
@@ -63,27 +78,119 @@ import {
   buildAdminHome,
   buildDeleteConfirm,
   buildFormatMenu,
+  buildListNamePrompt,
+  buildListPreview,
+  buildNotice,
   buildMembershipDetail,
   buildMembershipList,
   buildPrompt,
   buildReasonView,
   buildRequestKeyboard,
+  buildResetSettingsConfirm,
+  buildResetSlotsConfirm,
   buildScheduleMenu,
+  buildSlotDeleteConfirm,
+  buildSlotsMenu,
   buildSupportAddChannel,
   buildSupportLanguageMenu,
   buildSupportListHome,
   buildTimeZoneMenu,
   type ListScope,
 } from "./menu.js";
-import { previewSupportList } from "./publisher.js";
+import {
+  countUnconfirmedPublications,
+  previewSupportList,
+} from "./publisher.js";
 import {
   formatClock,
   formatInTimeZone,
   isValidTimeZone,
-  parseClockList,
-  readCustomTimes,
-  validateCustomSchedule,
+  parseClock,
+  parseRetentionMinutes,
+  readCustomSlots,
+  serializeCustomSlots,
+  validateCustomSlots,
+  type CustomSlot,
 } from "./schedule.js";
+
+const INPUT_DISMISS_MS = 5000;
+
+async function showNotice(
+  context: Context,
+  deps: SupportListRuntime,
+  language: SupportedLanguage,
+  text: string,
+  callback: string,
+  ok: boolean,
+): Promise<void> {
+  try {
+    await deps.editDashboard(
+      context,
+      buildNotice(language, text, { ok, callback }),
+    );
+  } finally {
+    await context.answerCallbackQuery().catch(() => undefined);
+  }
+}
+
+function dismissLater(
+  bot: TelegramBot,
+  chatId: number,
+  messageId: number | undefined,
+): void {
+  if (!messageId) {
+    return;
+  }
+  setTimeout(() => {
+    void bot.api.deleteMessage(chatId, messageId).catch(() => undefined);
+  }, INPUT_DISMISS_MS);
+}
+
+async function rememberPanel(
+  context: Context,
+  deps: SupportListRuntime,
+): Promise<void> {
+  const message = context.callbackQuery?.message;
+  if (
+    !context.from ||
+    !context.chat ||
+    !message ||
+    !("message_id" in message)
+  ) {
+    return;
+  }
+  await saveDashboardState(deps.redis, deps.getRecord().id, context.from.id, {
+    chatId: context.chat.id,
+    messageId: message.message_id,
+  });
+}
+
+async function deliverNotice(
+  bot: TelegramBot,
+  botId: string,
+  telegramUserId: number,
+  text: string,
+): Promise<void> {
+  try {
+    await bot.api.sendMessage(telegramUserId, text);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown send error";
+    console.error(
+      `Support-list notice was not delivered for bot ${botId}: ${detail}`,
+    );
+  }
+}
+
+async function editStoredPanel(
+  deps: SupportListRuntime & { bot: TelegramBot },
+  chatId: number,
+  messageId: number,
+  view: DashboardView,
+): Promise<void> {
+  await deps.bot.api
+    .editMessageText(chatId, messageId, view.text, dashboardMessageOptions(view))
+    .catch(() => undefined);
+}
 
 export interface SupportListRuntime {
   prisma: PrismaClient;
@@ -157,6 +264,20 @@ async function acceptedCount(
   });
 }
 
+async function activePlatformBotUsername(
+  deps: SupportListRuntime,
+): Promise<string | null> {
+  const platform = await deps.prisma.bot.findFirst({
+    where: {
+      botType: BotType.PLATFORM_BOT,
+      deletedAt: null,
+      isActive: true,
+    },
+    select: { botUsername: true },
+  });
+  return platform?.botUsername ?? null;
+}
+
 async function showHome(
   context: Context,
   deps: SupportListRuntime,
@@ -168,17 +289,52 @@ async function showHome(
     deps.getRecord().id,
   );
   const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+  const owner = await isOwner(deps, telegramUserId);
   const view = buildSupportListHome(
     settings,
     preference.language,
-    await isOwner(deps, telegramUserId),
+    owner,
     await acceptedCount(deps),
+    owner
+      ? await countUnconfirmedPublications(deps.prisma, deps.getRecord().id)
+      : 0,
+    owner ? null : await activePlatformBotUsername(deps),
   );
   if (context.callbackQuery) {
     await deps.editDashboard(context, view);
     return;
   }
   await deps.showDashboard(context, view);
+}
+
+async function openAddChannel(
+  context: Context,
+  deps: SupportListRuntime,
+): Promise<void> {
+  if (!context.from || !context.chat) {
+    return;
+  }
+  const { preference } = await syncBotUser(
+    deps.prisma,
+    context.from,
+    deps.getRecord().id,
+  );
+  await deps.showDashboard(
+    context,
+    buildSupportAddChannel(preference.language, deps.getRecord().botUsername),
+  );
+  const dashboard = await getDashboardState(
+    deps.redis,
+    deps.getRecord().id,
+    context.from.id,
+  );
+  if (!dashboard || dashboard.chatId !== context.chat.id) {
+    return;
+  }
+  await saveChannelLinkState(deps.redis, deps.getRecord().id, context.from.id, {
+    chatId: dashboard.chatId,
+    dashboardMessageId: dashboard.messageId,
+  });
 }
 
 export async function presentSupportListHome(
@@ -195,6 +351,11 @@ export async function presentSupportListHome(
     clearChannelLinkState(deps.redis, deps.getRecord().id, context.from.id),
     clearSupportListDraft(deps.redis, deps.getRecord().id, context.from.id),
   ]);
+  const payload = typeof context.match === "string" ? context.match.trim() : "";
+  if (payload === "add") {
+    await openAddChannel(context, deps);
+    return;
+  }
   await showHome(context, deps, context.from.id);
 }
 
@@ -363,12 +524,18 @@ export async function handleSupportListMyChatMember(
       result,
       chatUsername ? `https://t.me/${chatUsername}` : null,
     );
-    await deps.bot.api.sendMessage(context.from.id, text).catch(() => undefined);
+    if (result.kind === "accepted" || result.kind === "pending") {
+      await clearChannelLinkState(deps.redis, deps.getRecord().id, context.from.id);
+    }
+    await deliverNotice(deps.bot, deps.getRecord().id, context.from.id, text);
   } catch (error) {
     const language = await languageOf(deps, context.from.id);
-    await deps.bot.api
-      .sendMessage(context.from.id, translate(language, submitErrorKey(error)))
-      .catch(() => undefined);
+    await deliverNotice(
+      deps.bot,
+      deps.getRecord().id,
+      context.from.id,
+      translate(language, submitErrorKey(error)),
+    );
   }
 }
 
@@ -382,10 +549,14 @@ async function showScopedList(
   const language = await languageOf(deps, context.from.id);
   const owner = await isOwner(deps, context.from.id);
   if ((scope === "a" || scope === "r") && !owner) {
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.notAllowed"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      deps,
+      language,
+      translate(language, "supportList.notAllowed"),
+      "sl:home",
+      false,
+    );
     return;
   }
   const user = await deps.prisma.user.findUnique({
@@ -440,12 +611,10 @@ function itemStatus(language: SupportedLanguage, item: MembershipPageItem): stri
   return translate(language, "supportList.statusAccepted");
 }
 
-async function showSchedule(
-  context: Context,
+async function scheduleView(
   deps: SupportListRuntime,
-): Promise<void> {
-  if (!context.from) return;
-  const language = await languageOf(deps, context.from.id);
+  language: SupportedLanguage,
+): Promise<DashboardView> {
   const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
   const next = await deps.prisma.supportListCycle.findFirst({
     where: {
@@ -455,23 +624,77 @@ async function showSchedule(
     },
     orderBy: { scheduledAt: "asc" },
   });
-  const times = readCustomTimes(settings.customTimes).map(formatClock).join(", ");
-  await deps.editDashboard(
-    context,
-    buildScheduleMenu({
+  const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+  const times = slots
+    .map((slot) => `${formatClock(slot.time)} (${slot.retentionMinutes})`)
+    .join(", ");
+  return buildScheduleMenu({
       language,
       timeZone: settings.timeZone,
       modeLabel:
         settings.scheduleMode === SupportListScheduleMode.CUSTOM
           ? translate(language, "supportList.customMode", { times: times || "—" })
           : translate(language, "supportList.defaultMode"),
-      retention: settings.retentionMinutes,
       publishing: settings.publishingEnabled,
       next: next
         ? `${formatInTimeZone(next.scheduledAt, settings.timeZone)} (${settings.timeZone})`
         : translate(language, "supportList.noNext"),
-    }),
+  });
+}
+
+async function showSchedule(
+  context: Context,
+  deps: SupportListRuntime,
+): Promise<void> {
+  if (!context.from) return;
+  const language = await languageOf(deps, context.from.id);
+  await deps.editDashboard(context, await scheduleView(deps, language));
+}
+
+async function slotsView(
+  deps: SupportListRuntime,
+  language: SupportedLanguage,
+): Promise<DashboardView> {
+  const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+  const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+  return buildSlotsMenu(
+    language,
+    settings.scheduleMode,
+    settings.scheduleMode === SupportListScheduleMode.CUSTOM
+      ? slots.map((slot) => ({
+          time: formatClock(slot.time),
+          retentionMinutes: slot.retentionMinutes,
+        }))
+      : [],
   );
+}
+
+async function adminView(
+  deps: SupportListRuntime,
+  language: SupportedLanguage,
+): Promise<DashboardView> {
+  const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+  return buildAdminHome(
+    language,
+    settings,
+    await acceptedCount(deps),
+    await countUnconfirmedPublications(deps.prisma, deps.getRecord().id),
+  );
+}
+
+async function saveCustomSlots(
+  deps: SupportListRuntime,
+  slots: CustomSlot[],
+): Promise<void> {
+  const saved = serializeCustomSlots(slots);
+  await deps.prisma.supportListSettings.update({
+    where: { botId: deps.getRecord().id },
+    data: {
+      scheduleMode: SupportListScheduleMode.CUSTOM,
+      customTimes: saved as unknown as Prisma.InputJsonValue,
+    },
+  });
+  await replaceUnstartedCycles(deps.prisma, deps.getRecord().id);
 }
 
 export function registerSupportListHandlers(
@@ -480,14 +703,41 @@ export function registerSupportListHandlers(
 ): void {
   const bound = bindSupportListBot(deps, bot);
 
+  bot.callbackQuery("sl:draft", async (context) => {
+    if (!context.from || !context.chat) return;
+    const language = await languageOf(bound, context.from.id);
+    const draft = await getSupportListDraft(
+      bound.redis,
+      bound.getRecord().id,
+      context.from.id,
+    );
+    if (!draft || draft.chatId !== context.chat.id) {
+      await showHome(context, bound, context.from.id);
+      await context.answerCallbackQuery();
+      return;
+    }
+    await bound.editDashboard(
+      context,
+      await draftPromptView(bound, language, draft),
+    );
+    await context.answerCallbackQuery();
+  });
+
   bot.callbackQuery("sl:home", async (context) => {
     if (!context.from) return;
-    await Promise.all([
-      clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id),
-      clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id),
-    ]);
-    await showHome(context, bound, context.from.id);
-    await context.answerCallbackQuery();
+    try {
+      await Promise.all([
+        clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id),
+        clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id),
+      ]);
+      await showHome(context, bound, context.from.id);
+      await rememberPanel(context, bound);
+    } finally {
+      await context.answerCallbackQuery().catch((error: unknown) => {
+        const detail = error instanceof Error ? error.message : "Unknown callback error";
+        console.error(`Support-list back callback was not answered: ${detail}`);
+      });
+    }
   });
 
   bot.callbackQuery("sl:lang", async (context) => {
@@ -512,25 +762,42 @@ export function registerSupportListHandlers(
 
   bot.callbackQuery("sl:add", async (context) => {
     if (!context.from || !context.chat) return;
+    const message = context.callbackQuery?.message;
+    if (!message || !("message_id" in message)) {
+      await context.answerCallbackQuery();
+      return;
+    }
     await clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id);
     await saveChannelLinkState(bound.redis, bound.getRecord().id, context.from.id, {
       chatId: context.chat.id,
+      dashboardMessageId: message.message_id,
     });
     const language = await languageOf(bound, context.from.id);
-    await bound.editDashboard(
-      context,
-      buildSupportAddChannel(language, bound.getRecord().botUsername),
-    );
-    await context.answerCallbackQuery();
+    try {
+      await bound.editDashboard(
+        context,
+        buildSupportAddChannel(language, bound.getRecord().botUsername),
+      );
+      await rememberPanel(context, bound);
+    } finally {
+      await context.answerCallbackQuery().catch((error: unknown) => {
+        const detail = error instanceof Error ? error.message : "Unknown callback error";
+        console.error(`Support-list add callback was not answered: ${detail}`);
+      });
+    }
   });
 
   bot.callbackQuery("sl:contact", async (context) => {
     if (!context.from) return;
     const language = await languageOf(bound, context.from.id);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.contactMissing"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.contactMissing"),
+      "sl:home",
+      false,
+    );
   });
 
   bot.callbackQuery(/^sl:(mine|pend|reqs|all):(\d+)$/, async (context) => {
@@ -554,19 +821,29 @@ export function registerSupportListHandlers(
     await showScopedList(context, bound, scope, Number(context.match[2]));
   });
 
-  bot.callbackQuery(/^sl:item:([^:]+):(\d+):([mapr])$/, async (context) => {
+  const presentMembership = async (
+    context: Context,
+    membershipId: string,
+    page: number,
+    scope: ListScope,
+  ): Promise<void> => {
     if (!context.from) return;
     const language = await languageOf(bound, context.from.id);
+    const backToList = `sl:list:${scope}:${page}`;
     const membership = await getMembershipForBot(
       bound.prisma,
       bound.getRecord().id,
-      context.match[1] ?? "",
+      membershipId,
     );
     if (!membership) {
-      await context.answerCallbackQuery({
-        text: translate(language, "management.notFound"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        backToList,
+        false,
+      );
       return;
     }
     const owner = await isOwner(bound, context.from.id);
@@ -574,10 +851,39 @@ export function registerSupportListHandlers(
       where: { telegramId: BigInt(context.from.id) },
     });
     if (!owner && actor?.id !== membership.addedByUserId) {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.notAllowed"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.notAllowed"),
+        backToList,
+        false,
+      );
+      return;
+    }
+    const opened = await openMembership({
+      prisma: bound.prisma,
+      telegramBot: bot,
+      botId: bound.getRecord().id,
+      membershipId,
+    });
+    if (opened.kind !== "url") {
+      const key: TranslationKey =
+        opened.kind === "unavailable"
+          ? "supportList.viewRetry"
+          : opened.kind === "invite_disabled"
+            ? "supportList.inviteShort"
+            : opened.kind === "permissions_lost"
+              ? "supportList.permissionsShort"
+              : "management.notFound";
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, key),
+        backToList,
+        false,
+      );
       return;
     }
     const item: MembershipPageItem = {
@@ -599,44 +905,32 @@ export function registerSupportListHandlers(
         title: item.title,
         status: itemStatus(language, item),
         membershipId: membership.id,
-        page: Number(context.match[2]),
-        scope: context.match[3] as ListScope,
+        page,
+        scope,
         flags: item.flags,
+        viewUrl: opened.url,
         pendingReview: owner && membership.acceptanceStatus === "PENDING",
       }),
     );
     await context.answerCallbackQuery();
+  };
+
+  bot.callbackQuery(/^sl:item:([^:]+):(\d+):([mapr])$/, async (context) => {
+    await presentMembership(
+      context,
+      context.match[1] ?? "",
+      Number(context.match[2]),
+      context.match[3] as ListScope,
+    );
   });
 
   bot.callbackQuery(/^sl:view:([^:]+):(\d+):([mapr])$/, async (context) => {
-    if (!context.from) return;
-    const language = await languageOf(bound, context.from.id);
-    const opened = await openMembership({
-      prisma: bound.prisma,
-      telegramBot: bot,
-      botId: bound.getRecord().id,
-      membershipId: context.match[1] ?? "",
-    });
-    if (opened.kind === "url") {
-      await context.answerCallbackQuery();
-      await bound.bot.api
-        .sendMessage(context.from.id, opened.title, {
-          reply_markup: { inline_keyboard: [[{ text: translate(language, "supportList.view"), url: opened.url }]] },
-        })
-        .catch(() => undefined);
-      return;
-    }
-    await context.answerCallbackQuery({
-      text: translate(
-        language,
-        opened.kind === "invite_disabled"
-          ? "supportList.inviteShort"
-          : opened.kind === "unavailable"
-            ? "supportList.unavailable"
-            : "management.notFound",
-      ),
-      show_alert: true,
-    });
+    await presentMembership(
+      context,
+      context.match[1] ?? "",
+      Number(context.match[2]),
+      context.match[3] as ListScope,
+    );
   });
 
   bot.callbackQuery(/^sl:on:([^:]+):(\d+):([mapr])$/, async (context) => {
@@ -670,11 +964,14 @@ export function registerSupportListHandlers(
               : result.kind === "still_blocked"
                 ? "supportList.stillBlocked"
                 : "management.notFound";
-    await context.answerCallbackQuery({
-      text: translate(language, key),
-      show_alert: true,
-    });
-    await showScopedList(context, bound, scope, Number(context.match[2]));
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, key),
+      `sl:list:${scope}:${Number(context.match[2])}`,
+      result.kind === "resumed",
+    );
   });
 
   bot.callbackQuery(/^sl:off:([^:]+):(\d+):([mapr])$/, async (context) => {
@@ -717,14 +1014,17 @@ export function registerSupportListHandlers(
       context.match[1] ?? "",
       actor.id,
     );
-    await context.answerCallbackQuery({
-      text: translate(
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(
         language,
         updated ? "supportList.disabledByYou" : "management.notFound",
       ),
-      show_alert: true,
-    });
-    await showScopedList(context, bound, scope, Number(context.match[2]));
+      `sl:list:${scope}:${Number(context.match[2])}`,
+      Boolean(updated),
+    );
   });
 
   bot.callbackQuery(/^sl:del:([^:]+):(\d+):([mapr])$/, async (context) => {
@@ -736,10 +1036,14 @@ export function registerSupportListHandlers(
       context.match[1] ?? "",
     );
     if (!membership) {
-      await context.answerCallbackQuery({
-        text: translate(language, "management.notFound"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        `sl:list:${context.match[3]}:${Number(context.match[2])}`,
+        false,
+      );
       return;
     }
     await bound.editDashboard(
@@ -784,11 +1088,14 @@ export function registerSupportListHandlers(
         { title: existing.channel.title ?? existing.id },
       );
     }
-    await context.answerCallbackQuery({
-      text: translate(language, removed ? "supportList.deleted" : "management.notFound"),
-      show_alert: true,
-    });
-    await showScopedList(context, bound, scope, Number(context.match[2]));
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, removed ? "supportList.deleted" : "management.notFound"),
+      `sl:list:${scope}:${Number(context.match[2])}`,
+      Boolean(removed),
+    );
   });
 
   bot.callbackQuery(/^sl:why:([^:]+):(\d+):([mapr])$/, async (context) => {
@@ -827,10 +1134,14 @@ export function registerSupportListHandlers(
     if (!context.from) return;
     const language = await languageOf(bound, context.from.id);
     if (!(await isOwner(bound, context.from.id))) {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.notAllowed"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.notAllowed"),
+        "sl:home",
+        false,
+      );
       return;
     }
     const before = await getMembershipForBot(
@@ -852,8 +1163,11 @@ export function registerSupportListHandlers(
         { title: before.channel.title ?? before.id },
       );
     }
-    await context.answerCallbackQuery({
-      text: translate(
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(
         language,
         result === "accepted"
           ? "supportList.submittedAccepted"
@@ -862,18 +1176,23 @@ export function registerSupportListHandlers(
             : "management.notFound",
         { title: before?.channel.title ?? "" },
       ),
-      show_alert: true,
-    });
+      "sl:reqs:0",
+      result === "accepted",
+    );
   });
 
   bot.callbackQuery(/^sl:rej:([^:]+)$/, async (context) => {
     if (!context.from) return;
     const language = await languageOf(bound, context.from.id);
     if (!(await isOwner(bound, context.from.id))) {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.notAllowed"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.notAllowed"),
+        "sl:home",
+        false,
+      );
       return;
     }
     const before = await getMembershipForBot(
@@ -895,22 +1214,30 @@ export function registerSupportListHandlers(
         { title: before.channel.title ?? before.id },
       );
     }
-    await context.answerCallbackQuery({
-      text: translate(language, rejected ? "supportList.rejectedNotice" : "management.notFound", {
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, rejected ? "supportList.rejectedNotice" : "management.notFound", {
         title: before?.channel.title ?? "",
       }),
-      show_alert: true,
-    });
+      "sl:reqs:0",
+      Boolean(rejected),
+    );
   });
 
   const ownerOnly = async (context: Context): Promise<boolean> => {
     if (!context.from) return false;
     if (await isOwner(bound, context.from.id)) return true;
     const language = await languageOf(bound, context.from.id);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.notAllowed"),
-      show_alert: true,
-    });
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.notAllowed"),
+      "sl:home",
+      false,
+    );
     return false;
   };
 
@@ -921,7 +1248,12 @@ export function registerSupportListHandlers(
     const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
     await bound.editDashboard(
       context,
-      buildAdminHome(language, settings, await acceptedCount(bound)),
+      buildAdminHome(
+        language,
+        settings,
+        await acceptedCount(bound),
+        await countUnconfirmedPublications(bound.prisma, bound.getRecord().id),
+      ),
     );
     await context.answerCallbackQuery();
   });
@@ -934,6 +1266,7 @@ export function registerSupportListHandlers(
       return;
     }
     const language = await languageOf(bound, context.from.id);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
     await clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id);
     await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
       kind: "listName",
@@ -942,7 +1275,7 @@ export function registerSupportListHandlers(
     });
     await bound.editDashboard(
       context,
-      buildPrompt(language, translate(language, "supportList.sendListName"), "sl:admin"),
+      buildListNamePrompt(language, settings.listName),
     );
     await context.answerCallbackQuery();
   });
@@ -965,14 +1298,13 @@ export function registerSupportListHandlers(
       data: { acceptanceMode: mode },
     });
     const language = await languageOf(bound, context.from.id);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
-    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
-    await bound.editDashboard(
+    await showNotice(
       context,
-      buildAdminHome(language, settings, await acceptedCount(bound)),
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:admin",
+      true,
     );
   });
 
@@ -995,14 +1327,13 @@ export function registerSupportListHandlers(
       },
     });
     const language = await languageOf(bound, context.from.id);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
-      show_alert: true,
-    });
-    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
-    await bound.editDashboard(
+    await showNotice(
       context,
-      buildAdminHome(language, settings, await acceptedCount(bound)),
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:admin",
+      true,
     );
   });
 
@@ -1010,84 +1341,77 @@ export function registerSupportListHandlers(
     if (!(await ownerOnly(context)) || !context.from) return;
     const language = await languageOf(bound, context.from.id);
     const built = await previewSupportList(bound.prisma, bot, bound.getRecord().id);
-    if (built.kind === "empty") {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.previewEmpty"),
-        show_alert: true,
-      });
+    if (built.kind !== "ready") {
+      const key: TranslationKey =
+        built.kind === "empty"
+          ? "supportList.previewEmpty"
+          : built.kind === "unfit"
+            ? "supportList.previewUnfit"
+            : "supportList.unavailable";
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, key),
+        "sl:admin",
+        false,
+      );
       return;
     }
-    if (built.kind === "unfit") {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.previewUnfit"),
-        show_alert: true,
-      });
-      return;
-    }
-    if (built.kind === "unavailable") {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.unavailable"),
-        show_alert: true,
-      });
-      return;
-    }
-    const keyboard = built.rendered.buttons
-      ? {
-          inline_keyboard: built.rendered.buttons.map((button) => [
-            { text: button.label, url: button.url },
-          ]),
-        }
-      : undefined;
+    await bound.editDashboard(
+      context,
+      buildListPreview(language, built.rendered),
+    );
     await context.answerCallbackQuery();
-    await bot.api
-      .sendMessage(context.from.id, built.rendered.text, {
-        reply_markup: keyboard,
-        link_preview_options: { is_disabled: true },
-      })
-      .catch(() => undefined);
   });
 
   bot.callbackQuery("sl:sched", async (context) => {
-    if (!(await ownerOnly(context))) return;
+    if (!(await ownerOnly(context)) || !context.from) return;
+    await clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id);
     await showSchedule(context, bound);
     await context.answerCallbackQuery();
   });
 
   bot.callbackQuery("sl:pause", async (context) => {
     if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
     await bound.prisma.supportListSettings.update({
       where: { botId: bound.getRecord().id },
       data: { publishingEnabled: false },
     });
-    await showSchedule(context, bound);
-    await context.answerCallbackQuery();
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:sched",
+      true,
+    );
   });
 
   bot.callbackQuery("sl:resume", async (context) => {
     if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
+    await skipOverduePendingCycles(bound.prisma, bound.getRecord().id);
     await bound.prisma.supportListSettings.update({
       where: { botId: bound.getRecord().id },
       data: { publishingEnabled: true },
     });
-    await showSchedule(context, bound);
-    await context.answerCallbackQuery();
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:sched",
+      true,
+    );
   });
 
-  bot.callbackQuery("sl:default", async (context) => {
-    if (!(await ownerOnly(context))) return;
-    await bound.prisma.supportListSettings.update({
-      where: { botId: bound.getRecord().id },
-      data: {
-        scheduleMode: SupportListScheduleMode.DEFAULT,
-        retentionMinutes: 180,
-      },
-    });
-    await skipFuturePendingCycles(bound.prisma, bound.getRecord().id);
-    await showSchedule(context, bound);
-    await context.answerCallbackQuery();
-  });
-
-  bot.callbackQuery("sl:times", async (context) => {
+  bot.callbackQuery("sl:addslot", async (context) => {
     if (!(await ownerOnly(context)) || !context.from || !context.chat) return;
     const message = context.callbackQuery?.message;
     if (!message || !("message_id" in message)) {
@@ -1095,17 +1419,208 @@ export function registerSupportListHandlers(
       return;
     }
     const language = await languageOf(bound, context.from.id);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    if (
+      settings.scheduleMode === SupportListScheduleMode.CUSTOM &&
+      slots.length >= MAX_CUSTOM_TIMES
+    ) {
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.maxSlots"),
+        "sl:sched",
+        false,
+      );
+      return;
+    }
     await clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id);
     await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
-      kind: "times",
+      kind: "slotTime",
       chatId: context.chat.id,
       dashboardMessageId: message.message_id,
+      index: null,
     });
     await bound.editDashboard(
       context,
-      buildPrompt(language, translate(language, "supportList.sendTimes"), "sl:sched"),
+      buildPrompt(language, translate(language, "supportList.sendOneTime"), "sl:sched"),
     );
     await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("sl:slots", async (context) => {
+    if (!(await ownerOnly(context)) || !context.from) return;
+    const language = await languageOf(bound, context.from.id);
+    await clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id);
+    await bound.editDashboard(context, await slotsView(bound, language));
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("sl:default", async (context) => {
+    if (!(await ownerOnly(context)) || !context.from) return;
+    const language = await languageOf(bound, context.from.id);
+    await bound.editDashboard(context, buildResetSlotsConfirm(language));
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("sl:default:yes", async (context) => {
+    if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
+    await bound.prisma.supportListSettings.update({
+      where: { botId: bound.getRecord().id },
+      data: {
+        scheduleMode: SupportListScheduleMode.DEFAULT,
+        retentionMinutes: DEFAULT_RETENTION_MINUTES,
+        customTimes: [],
+      },
+    });
+    await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:sched",
+      true,
+    );
+  });
+
+  bot.callbackQuery(/^sl:slot:time:(\d+)$/, async (context) => {
+    if (!(await ownerOnly(context)) || !context.from || !context.chat) return;
+    const message = context.callbackQuery?.message;
+    if (!message || !("message_id" in message)) {
+      await context.answerCallbackQuery();
+      return;
+    }
+    const language = await languageOf(bound, context.from.id);
+    const index = Number(context.match[1]);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    if (!Number.isInteger(index) || index < 0 || index >= slots.length) {
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        "sl:slots",
+        false,
+      );
+      return;
+    }
+    await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
+      kind: "slotTime",
+      chatId: context.chat.id,
+      dashboardMessageId: message.message_id,
+      index,
+    });
+    await bound.editDashboard(
+      context,
+      buildPrompt(language, translate(language, "supportList.sendOneTime"), "sl:slots"),
+    );
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^sl:slot:keep:(\d+)$/, async (context) => {
+    if (!(await ownerOnly(context)) || !context.from || !context.chat) return;
+    const message = context.callbackQuery?.message;
+    if (!message || !("message_id" in message)) {
+      await context.answerCallbackQuery();
+      return;
+    }
+    const language = await languageOf(bound, context.from.id);
+    const index = Number(context.match[1]);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    const slot = slots[index];
+    if (!slot) {
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        "sl:slots",
+        false,
+      );
+      return;
+    }
+    await saveSupportListDraft(bound.redis, bound.getRecord().id, context.from.id, {
+      kind: "slotKeep",
+      chatId: context.chat.id,
+      dashboardMessageId: message.message_id,
+      index,
+      time: formatClock(slot.time),
+    });
+    await bound.editDashboard(
+      context,
+      buildPrompt(language, translate(language, "supportList.sendRetention"), "sl:slots"),
+    );
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^sl:slot:del:(\d+)$/, async (context) => {
+    if (!(await ownerOnly(context)) || !context.from) return;
+    const language = await languageOf(bound, context.from.id);
+    const index = Number(context.match[1]);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    const slot = slots[index];
+    if (!slot) {
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        "sl:slots",
+        false,
+      );
+      return;
+    }
+    await bound.editDashboard(
+      context,
+      buildSlotDeleteConfirm(language, formatClock(slot.time), index),
+    );
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^sl:slot:yes:(\d+)$/, async (context) => {
+    if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
+    const index = Number(context.match[1]);
+    const settings = await ensureSettings(bound.prisma, bound.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    if (!slots[index]) {
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "management.notFound"),
+        "sl:slots",
+        false,
+      );
+      return;
+    }
+    const next = slots.filter((_, slotIndex) => slotIndex !== index);
+    await bound.prisma.supportListSettings.update({
+      where: { botId: bound.getRecord().id },
+      data: {
+        scheduleMode: SupportListScheduleMode.CUSTOM,
+        customTimes: serializeCustomSlots(next) as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:slots",
+      true,
+    );
   });
 
   bot.callbackQuery("sl:tz", async (context) => {
@@ -1120,21 +1635,65 @@ export function registerSupportListHandlers(
     const zone = context.match[1] ?? "";
     const language = await languageOf(bound, context.from.id);
     if (!isValidTimeZone(zone)) {
-      await context.answerCallbackQuery({
-        text: translate(language, "supportList.invalidTimeZone"),
-        show_alert: true,
-      });
+      await showNotice(
+        context,
+        bound,
+        language,
+        translate(language, "supportList.invalidTimeZone"),
+        "sl:tz",
+        false,
+      );
       return;
     }
     await bound.prisma.supportListSettings.update({
       where: { botId: bound.getRecord().id },
       data: { timeZone: zone },
     });
-    await skipFuturePendingCycles(bound.prisma, bound.getRecord().id);
-    await showSchedule(context, bound);
-    await context.answerCallbackQuery({
-      text: translate(language, "supportList.saved"),
+    await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:sched",
+      true,
+    );
+  });
+
+  bot.callbackQuery("sl:reset", async (context) => {
+    if (!(await ownerOnly(context)) || !context.from) return;
+    const language = await languageOf(bound, context.from.id);
+    await bound.editDashboard(context, buildResetSettingsConfirm(language));
+    await context.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("sl:reset:yes", async (context) => {
+    if (!(await ownerOnly(context))) return;
+    const language = context.from
+      ? await languageOf(bound, context.from.id)
+      : SupportedLanguage.EN;
+    await bound.prisma.supportListSettings.update({
+      where: { botId: bound.getRecord().id },
+      data: {
+        acceptanceMode: SupportListAcceptanceMode.AUTO,
+        format: SupportListFormat.BUTTONS,
+        timeZone: DEFAULT_TIME_ZONE,
+        publishingEnabled: true,
+        scheduleMode: SupportListScheduleMode.DEFAULT,
+        retentionMinutes: DEFAULT_RETENTION_MINUTES,
+        customTimes: [],
+        contactUrl: null,
+      },
     });
+    await replaceUnstartedCycles(bound.prisma, bound.getRecord().id);
+    await showNotice(
+      context,
+      bound,
+      language,
+      translate(language, "supportList.saved"),
+      "sl:admin",
+      true,
+    );
   });
 
   bot.callbackQuery("sl:link", async (context) => {
@@ -1213,16 +1772,83 @@ export async function handleSupportListPrivateMessage(
   }
 }
 
+async function draftPromptView(
+  deps: SupportListRuntime,
+  language: SupportedLanguage,
+  draft: SupportListDraft,
+): Promise<DashboardView> {
+  if (draft.kind === "listName") {
+    const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+    return buildListNamePrompt(language, settings.listName);
+  }
+  if (draft.kind === "contactUrl") {
+    return buildPrompt(
+      language,
+      `${translate(language, "supportList.sendContact")}\n\n${translate(language, "supportList.contactHint")}`,
+      "sl:admin",
+    );
+  }
+  if (draft.kind === "slotTime") {
+    return buildPrompt(
+      language,
+      translate(language, "supportList.sendOneTime"),
+      draft.index === null ? "sl:sched" : "sl:slots",
+    );
+  }
+  if (draft.kind === "slotKeep") {
+    return buildPrompt(
+      language,
+      translate(language, "supportList.sendRetention"),
+      draft.index === null ? "sl:sched" : "sl:slots",
+    );
+  }
+  if (draft.kind === "timeZone") {
+    return buildPrompt(
+      language,
+      translate(language, "supportList.sendTimeZone"),
+      "sl:sched",
+    );
+  }
+  return buildPrompt(
+    language,
+    translate(language, "supportList.adminReasonPrompt"),
+    "sl:admin",
+  );
+}
+
 async function handleDraft(
   context: Context,
   deps: SupportListRuntime & { bot: TelegramBot },
   draft: NonNullable<Awaited<ReturnType<typeof getSupportListDraft>>>,
 ): Promise<void> {
-  if (!context.from || !context.message?.text) return;
+  if (!context.from || !context.chat || !context.message?.text) return;
   const language = await languageOf(deps, context.from.id);
   const text = context.message.text.trim();
+  const userMessageId = context.message.message_id;
   const fail = async (key: TranslationKey) => {
-    await context.reply(translate(language, key));
+    dismissLater(deps.bot, context.chat!.id, userMessageId);
+    await editStoredPanel(
+      deps,
+      draft.chatId,
+      draft.dashboardMessageId,
+      buildNotice(language, translate(language, key), {
+        ok: false,
+        callback: "sl:draft",
+      }),
+    );
+  };
+  const saved = async (callback: string) => {
+    await clearSupportListDraft(deps.redis, deps.getRecord().id, context.from!.id);
+    dismissLater(deps.bot, context.chat!.id, userMessageId);
+    await editStoredPanel(
+      deps,
+      draft.chatId,
+      draft.dashboardMessageId,
+      buildNotice(language, translate(language, "supportList.saved"), {
+        ok: true,
+        callback,
+      }),
+    );
   };
   if (draft.kind === "listName") {
     const name = parseListName(text);
@@ -1234,7 +1860,10 @@ async function handleDraft(
       where: { botId: deps.getRecord().id },
       data: { listName: name },
     });
-  } else if (draft.kind === "contactUrl") {
+    await saved("sl:admin");
+    return;
+  }
+  if (draft.kind === "contactUrl") {
     const url = parseContactUrl(text);
     if (!url) {
       await fail("supportList.invalidContact");
@@ -1244,49 +1873,94 @@ async function handleDraft(
       where: { botId: deps.getRecord().id },
       data: { contactUrl: url },
     });
-  } else if (draft.kind === "times") {
-    const times = parseClockList(text);
-    if (!times) {
+    await saved("sl:admin");
+    return;
+  }
+  if (draft.kind === "slotTime") {
+    const time = parseClock(text);
+    if (!time) {
       await fail("supportList.invalidTimes");
       return;
     }
-    await saveSupportListDraft(deps.redis, deps.getRecord().id, context.from.id, {
-      kind: "retention",
-      chatId: draft.chatId,
-      dashboardMessageId: draft.dashboardMessageId,
-      times: times.map(formatClock),
-    });
-    await context.reply(translate(language, "supportList.sendRetention"));
-    await context.deleteMessage().catch(() => undefined);
-    return;
-  } else if (draft.kind === "retention") {
-    const minutes = Number(text);
-    const times = draft.times
-      .map((value) => parseClockList(value)?.[0])
-      .filter((value): value is NonNullable<typeof value> => Boolean(value));
-    const parsed = parseClockList(draft.times.join(" "));
-    const clocks = parsed ?? times;
-    const check = validateCustomSchedule(clocks, minutes);
+    const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    if (draft.index === null) {
+      await saveSupportListDraft(deps.redis, deps.getRecord().id, context.from.id, {
+        kind: "slotKeep",
+        chatId: draft.chatId,
+        dashboardMessageId: draft.dashboardMessageId,
+        index: null,
+        time: formatClock(time),
+      });
+      dismissLater(deps.bot, context.chat.id, userMessageId);
+      await editStoredPanel(
+        deps,
+        draft.chatId,
+        draft.dashboardMessageId,
+        buildPrompt(language, translate(language, "supportList.sendRetention"), "sl:sched"),
+      );
+      return;
+    }
+    const current = slots[draft.index];
+    if (!current) {
+      await fail("management.notFound");
+      return;
+    }
+    const next = slots.map((slot, index) =>
+      index === draft.index ? { time, retentionMinutes: slot.retentionMinutes } : slot,
+    );
+    const check = validateCustomSlots(next);
     if (!check.ok) {
       await fail(
         check.reason === "overlap"
           ? "supportList.overlap"
-          : check.reason === "retention"
-            ? "supportList.retentionLimit"
-            : "supportList.invalidTimes",
+          : check.reason === "duplicate"
+            ? "supportList.invalidTimes"
+            : "supportList.retentionLimit",
       );
       return;
     }
-    await deps.prisma.supportListSettings.update({
-      where: { botId: deps.getRecord().id },
-      data: {
-        scheduleMode: SupportListScheduleMode.CUSTOM,
-        customTimes: clocks.map(formatClock),
-        retentionMinutes: minutes,
-      },
-    });
-    await skipFuturePendingCycles(deps.prisma, deps.getRecord().id);
-  } else if (draft.kind === "timeZone") {
+    await saveCustomSlots(deps, next);
+    await saved("sl:slots");
+    return;
+  }
+  if (draft.kind === "slotKeep") {
+    const minutes = parseRetentionMinutes(text);
+    if (minutes === null) {
+      await fail("supportList.retentionLimit");
+      return;
+    }
+    const time = parseClock(draft.time);
+    if (!time) {
+      await fail("supportList.invalidTimes");
+      return;
+    }
+    const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
+    const slots = readCustomSlots(settings.customTimes, settings.retentionMinutes);
+    const next =
+      draft.index === null
+        ? [...slots, { time, retentionMinutes: minutes }]
+        : slots.map((slot, index) =>
+            index === draft.index ? { time, retentionMinutes: minutes } : slot,
+          );
+    const check = validateCustomSlots(next);
+    if (!check.ok) {
+      await fail(
+        check.reason === "overlap"
+          ? "supportList.overlap"
+          : check.reason === "duplicate"
+            ? "supportList.invalidTimes"
+            : check.reason === "count"
+              ? "supportList.maxSlots"
+              : "supportList.retentionLimit",
+      );
+      return;
+    }
+    await saveCustomSlots(deps, next);
+    await saved("sl:slots");
+    return;
+  }
+  if (draft.kind === "timeZone") {
     if (!isValidTimeZone(text)) {
       await fail("supportList.invalidTimeZone");
       return;
@@ -1295,36 +1969,44 @@ async function handleDraft(
       where: { botId: deps.getRecord().id },
       data: { timeZone: text },
     });
-    await skipFuturePendingCycles(deps.prisma, deps.getRecord().id);
-  } else if (draft.kind === "adminReason") {
-    const reason = text.replace(/\s+/g, " ").trim();
-    if (reason.length < 1 || reason.length > ADMIN_REASON_LIMIT) {
-      await fail("supportList.invalidReason");
-      return;
-    }
-    const before = await getMembershipForBot(
-      deps.prisma,
-      deps.getRecord().id,
-      draft.membershipId,
-    );
-    const updated = await disableByAdmin(
-      deps.prisma,
-      deps.getRecord().id,
-      draft.membershipId,
-      reason,
-    );
-    if (updated && before && Number(before.addedBy.telegramId) !== context.from.id) {
-      await notifyUser(
-        deps,
-        Number(before.addedBy.telegramId),
-        before.addedByUserId,
-        "supportList.adminDisabledNotice",
-        { title: before.channel.title ?? before.id, reason },
-      );
-    }
+    await replaceUnstartedCycles(deps.prisma, deps.getRecord().id);
+    await saved("sl:sched");
+    return;
   }
-  await clearSupportListDraft(deps.redis, deps.getRecord().id, context.from.id);
-  await context.deleteMessage().catch(() => undefined);
-  await context.reply(translate(language, "supportList.saved"));
-  await showHome(context, deps, context.from.id);
+  if (draft.kind !== "adminReason") {
+    return;
+  }
+  const reason = text.replace(/\s+/g, " ").trim();
+  if (reason.length < 1 || reason.length > ADMIN_REASON_LIMIT) {
+    await fail("supportList.invalidReason");
+    return;
+  }
+  const before = await getMembershipForBot(
+    deps.prisma,
+    deps.getRecord().id,
+    draft.membershipId,
+  );
+  const updated = await disableByAdmin(
+    deps.prisma,
+    deps.getRecord().id,
+    draft.membershipId,
+    reason,
+  );
+  if (updated && before && Number(before.addedBy.telegramId) !== context.from.id) {
+    await notifyUser(
+      deps,
+      Number(before.addedBy.telegramId),
+      before.addedByUserId,
+      "supportList.adminDisabledNotice",
+      { title: before.channel.title ?? before.id, reason },
+    );
+  }
+  const scope = (["m", "a", "p", "r"] as const).includes(draft.scope as ListScope)
+    ? (draft.scope as ListScope)
+    : "a";
+  await saved(
+    updated && before
+      ? `sl:item:${updated.id}:${draft.page}:${scope}`
+      : "sl:admin",
+  );
 }

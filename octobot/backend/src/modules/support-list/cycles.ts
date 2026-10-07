@@ -3,19 +3,35 @@ import {
   SupportListScheduleMode,
   type PrismaClient,
 } from "@prisma/client";
-import { HORIZON_DAYS } from "./constants.js";
+import { DEFAULT_RETENTION_MINUTES, HORIZON_DAYS } from "./constants.js";
 import {
   addLocalDays,
   civilParts,
   defaultDayClocks,
+  deleteAtFromSuccessfulSend,
   isValidTimeZone,
   localDateKey,
-  readCustomTimes,
-  validateCustomSchedule,
+  readCustomSlots,
+  shouldSkipBacklog,
+  validateCustomSlots,
   zonedTimeToUtc,
+  type CustomSlot,
 } from "./schedule.js";
 
-export async function skipFuturePendingCycles(
+export async function replaceUnstartedCycles(
+  prisma: PrismaClient,
+  botId: string,
+): Promise<void> {
+  await prisma.supportListCycle.deleteMany({
+    where: {
+      botId,
+      status: SupportListCycleStatus.PENDING,
+      publications: { none: {} },
+    },
+  });
+}
+
+export async function skipOverduePendingCycles(
   prisma: PrismaClient,
   botId: string,
   now = new Date(),
@@ -24,7 +40,7 @@ export async function skipFuturePendingCycles(
     where: {
       botId,
       status: SupportListCycleStatus.PENDING,
-      scheduledAt: { gt: now },
+      scheduledAt: { lte: now },
     },
     data: { status: SupportListCycleStatus.SKIPPED },
   });
@@ -49,9 +65,12 @@ export async function ensureSupportListHorizon(
     if (!settings || !isValidTimeZone(settings.timeZone)) {
       continue;
     }
-    const customTimes = readCustomTimes(settings.customTimes);
+    const customSlots = readCustomSlots(
+      settings.customTimes,
+      settings.retentionMinutes,
+    );
     if (settings.scheduleMode === SupportListScheduleMode.CUSTOM) {
-      if (!validateCustomSchedule(customTimes, settings.retentionMinutes).ok) {
+      if (!validateCustomSlots(customSlots).ok) {
         continue;
       }
     }
@@ -66,9 +85,20 @@ export async function ensureSupportListHorizon(
       },
     });
     for (const cycle of existing) {
-      if (cycle.status === SupportListCycleStatus.PENDING) {
-        cycles.push({ id: cycle.id, scheduledAt: cycle.scheduledAt });
+      if (cycle.status !== SupportListCycleStatus.PENDING) {
+        continue;
       }
+      if (shouldSkipBacklog(cycle.scheduledAt, now)) {
+        await prisma.supportListCycle.updateMany({
+          where: {
+            id: cycle.id,
+            status: SupportListCycleStatus.PENDING,
+          },
+          data: { status: SupportListCycleStatus.SKIPPED },
+        });
+        continue;
+      }
+      cycles.push({ id: cycle.id, scheduledAt: cycle.scheduledAt });
     }
     const covered = new Set(
       existing
@@ -93,17 +123,20 @@ export async function ensureSupportListHorizon(
       if (covered.has(dayKey)) {
         continue;
       }
-      const clocks =
+      const daySlots: CustomSlot[] =
         settings.scheduleMode === SupportListScheduleMode.CUSTOM
-          ? customTimes
-          : defaultDayClocks(Math.random);
-      for (const clock of clocks) {
+          ? customSlots
+          : defaultDayClocks(Math.random).map((time) => ({
+              time,
+              retentionMinutes: DEFAULT_RETENTION_MINUTES,
+            }));
+      for (const slot of daySlots) {
         const scheduledAt = zonedTimeToUtc(
           cursor.year,
           cursor.month,
           cursor.day,
-          clock.hour,
-          clock.minute,
+          slot.time.hour,
+          slot.time.minute,
           settings.timeZone,
         );
         if (scheduledAt.getTime() <= now.getTime()) {
@@ -118,8 +151,9 @@ export async function ensureSupportListHorizon(
               settingsId: settings.id,
               botId: bot.id,
               scheduledAt,
-              deleteAt: new Date(
-                scheduledAt.getTime() + settings.retentionMinutes * 60_000,
+              deleteAt: deleteAtFromSuccessfulSend(
+                scheduledAt,
+                slot.retentionMinutes,
               ),
               rotationOffset: settings.rotationOffset,
               status: SupportListCycleStatus.PENDING,

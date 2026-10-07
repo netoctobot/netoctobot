@@ -4,6 +4,7 @@ const STATE_TTL_SECONDS = 10 * 60;
 
 export interface ChannelLinkState {
   chatId: number;
+  dashboardMessageId?: number;
 }
 
 export function channelLinkStateKey(
@@ -44,8 +45,20 @@ export async function getChannelLinkState(
     await clearChannelLinkState(redis, botId, telegramUserId);
     return null;
   }
+  if (
+    parsed.dashboardMessageId !== undefined &&
+    typeof parsed.dashboardMessageId !== "number"
+  ) {
+    await clearChannelLinkState(redis, botId, telegramUserId);
+    return null;
+  }
 
-  return parsed as ChannelLinkState;
+  return {
+    chatId: parsed.chatId,
+    ...(typeof parsed.dashboardMessageId === "number"
+      ? { dashboardMessageId: parsed.dashboardMessageId }
+      : {}),
+  };
 }
 
 export async function clearChannelLinkState(

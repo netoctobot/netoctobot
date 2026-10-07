@@ -53,12 +53,13 @@ test("stores state with a ten-minute expiry and clears it", async () => {
 
   await saveChannelLinkState(redis(fake), "bot-a", 123, {
     chatId: 123,
+    dashboardMessageId: 40,
   });
 
   assert.equal(fake.lastExpiry, 600);
   assert.deepEqual(
     await getChannelLinkState(redis(fake), "bot-a", 123),
-    { chatId: 123 },
+    { chatId: 123, dashboardMessageId: 40 },
   );
 
   await clearChannelLinkState(redis(fake), "bot-a", 123);

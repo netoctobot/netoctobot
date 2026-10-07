@@ -292,7 +292,9 @@ enum SupportListCycleStatus {
 
 enum SupportListPublicationStatus {
   PENDING
+  SENDING
   SENT
+  UNCONFIRMED
   SKIPPED
   FAILED
   DELETED
@@ -302,9 +304,9 @@ enum SupportListPublicationStatus {
 model SupportListSettings {
   id                String                    @id @default(cuid())
   botId             String                    @unique
-  listName          String                    @default("Support list")
-  acceptanceMode    SupportListAcceptanceMode @default(MANUAL)
-  format            SupportListFormat         @default(TEXT)
+  listName          String                    @default("اشترك في القنوات التالية")
+  acceptanceMode    SupportListAcceptanceMode @default(AUTO)
+  format            SupportListFormat         @default(BUTTONS)
   timeZone          String                    @default("UTC")
   publishingEnabled Boolean                   @default(true)
   scheduleMode      SupportListScheduleMode   @default(DEFAULT)
@@ -335,6 +337,7 @@ model SupportListMembership {
   adminDisableReason   String?
   permissionsLost      Boolean                      @default(false)
   inviteUnavailable    Boolean                      @default(false)
+  inviteUrl            String?
   deletedAt            DateTime?
   createdAt            DateTime                     @default(now())
   updatedAt            DateTime                     @updatedAt
@@ -381,6 +384,8 @@ model SupportListPublication {
   messageId           BigInt?
   status              SupportListPublicationStatus @default(PENDING)
   deleteAt            DateTime
+  sendAttemptedAt     DateTime?
+  ownerNotified       Boolean                      @default(false)
   createdAt           DateTime                     @default(now())
   updatedAt           DateTime                     @updatedAt
 

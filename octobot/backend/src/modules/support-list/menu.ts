@@ -4,6 +4,8 @@ import { InlineKeyboard } from "grammy";
 import { buildChannelAddLink } from "../channels/channel-add-link.js";
 import { translate } from "../localization/localization.service.js";
 import type { DashboardView } from "../bots/platform-menu.js";
+import type { RenderedList } from "./render.js";
+import { displayedListName } from "./contact-url.js";
 import { MAX_ACCEPTED_CHANNELS, TIME_ZONE_PRESETS } from "./constants.js";
 import type { DisableFlags, DisableReasonCode } from "./eligibility.js";
 import { disableReasonCodes } from "./eligibility.js";
@@ -18,11 +20,26 @@ function back(language: SupportedLanguage, data: string): InlineKeyboard {
   );
 }
 
+function appendUnconfirmed(
+  language: SupportedLanguage,
+  text: string,
+  unconfirmedCount: number,
+): string {
+  if (unconfirmedCount < 1) {
+    return text;
+  }
+  return `${text}\n\n${translate(language, "supportList.unconfirmedHome", {
+    count: unconfirmedCount,
+  })}`;
+}
+
 export function buildSupportListHome(
   settings: Pick<SupportListSettings, "listName" | "contactUrl">,
   language: SupportedLanguage,
   isOwner: boolean,
   acceptedCount: number,
+  unconfirmedCount = 0,
+  platformBotUsername: string | null = null,
 ): DashboardView {
   const keyboard = new InlineKeyboard()
     .text(translate(language, "supportList.addChannel"), "sl:add")
@@ -42,17 +59,27 @@ export function buildSupportListHome(
       "sl:contact",
     );
   }
+  if (!isOwner && platformBotUsername) {
+    keyboard.row().url(
+      translate(language, "supportList.createOwnBot"),
+      `https://t.me/${platformBotUsername}`,
+    );
+  }
   if (isOwner) {
     keyboard.row().text(translate(language, "supportList.admin"), "sl:admin");
   }
   return {
-    text: `${translate(language, "supportList.welcome", {
-      listName: settings.listName,
-    })}\n\n${translate(language, "supportList.home", {
-      listName: settings.listName,
-      count: acceptedCount,
-      max: MAX_ACCEPTED_CHANNELS,
-    })}`,
+    text: appendUnconfirmed(
+      language,
+      `${translate(language, "supportList.welcome", {
+        listName: displayedListName(settings.listName),
+      })}\n\n${translate(language, "supportList.home", {
+        listName: displayedListName(settings.listName),
+        count: acceptedCount,
+        max: MAX_ACCEPTED_CHANNELS,
+      })}`,
+      isOwner ? unconfirmedCount : 0,
+    ),
     keyboard,
   };
 }
@@ -95,6 +122,18 @@ export function buildPrompt(
     text,
     keyboard: back(language, backCallback),
   };
+}
+
+export function buildListNamePrompt(
+  language: SupportedLanguage,
+  storedName: string,
+): DashboardView {
+  const listName = displayedListName(storedName);
+  return buildPrompt(
+    language,
+    `${translate(language, "supportList.currentListName", { listName })}\n\n${translate(language, "supportList.sendListName")}`,
+    "sl:admin",
+  );
 }
 
 function statusLabel(
@@ -163,6 +202,7 @@ export function buildMembershipDetail(input: {
   scope: ListScope;
   flags: DisableFlags;
   pendingReview: boolean;
+  viewUrl: string;
 }): DashboardView {
   const keyboard = new InlineKeyboard();
   const suffix = `${input.membershipId}:${input.page}:${input.scope}`;
@@ -172,7 +212,7 @@ export function buildMembershipDetail(input: {
       .text(translate(input.language, "supportList.reject"), `sl:rej:${input.membershipId}`)
       .row();
   }
-  keyboard.text(translate(input.language, "supportList.view"), `sl:view:${suffix}`).row();
+  keyboard.url(translate(input.language, "supportList.view"), input.viewUrl).row();
   if (!input.pendingReview) {
     keyboard
       .text(translate(input.language, "supportList.activate"), `sl:on:${suffix}`)
@@ -250,17 +290,52 @@ export function buildReasonView(input: {
   };
 }
 
+export function buildNotice(
+  language: SupportedLanguage,
+  text: string,
+  action: { ok: boolean; callback: string },
+): DashboardView {
+  return {
+    text,
+    keyboard: new InlineKeyboard().text(
+      translate(language, action.ok ? "supportList.ok" : "menu.back"),
+      action.callback,
+    ),
+  };
+}
+
+export function buildListPreview(
+  language: SupportedLanguage,
+  rendered: RenderedList,
+): DashboardView {
+  const keyboard = new InlineKeyboard();
+  for (const button of rendered.buttons ?? []) {
+    keyboard.url(button.label, button.url).row();
+  }
+  keyboard.text(translate(language, "menu.back"), "sl:admin");
+  return {
+    text: rendered.text,
+    keyboard,
+    ...(rendered.parseMode ? { parseMode: rendered.parseMode } : {}),
+  };
+}
+
 export function buildAdminHome(
   language: SupportedLanguage,
   settings: SupportListSettings,
   acceptedCount: number,
+  unconfirmedCount = 0,
 ): DashboardView {
   return {
-    text: translate(language, "supportList.home", {
-      listName: settings.listName,
-      count: acceptedCount,
-      max: MAX_ACCEPTED_CHANNELS,
-    }),
+    text: appendUnconfirmed(
+      language,
+      translate(language, "supportList.home", {
+        listName: displayedListName(settings.listName),
+        count: acceptedCount,
+        max: MAX_ACCEPTED_CHANNELS,
+      }),
+      unconfirmedCount,
+    ),
     keyboard: new InlineKeyboard()
       .text(translate(language, "supportList.listName"), "sl:name")
       .text(translate(language, "supportList.acceptance"), "sl:mode")
@@ -273,6 +348,8 @@ export function buildAdminHome(
       .row()
       .text(translate(language, "supportList.schedule"), "sl:sched")
       .text(translate(language, "supportList.contactLink"), "sl:link")
+      .row()
+      .text(translate(language, "supportList.resetSettings"), "sl:reset")
       .row()
       .text(translate(language, "menu.back"), "sl:home"),
   };
@@ -308,7 +385,6 @@ export function buildScheduleMenu(input: {
   language: SupportedLanguage;
   timeZone: string;
   modeLabel: string;
-  retention: number;
   publishing: boolean;
   next: string;
 }): DashboardView {
@@ -316,7 +392,6 @@ export function buildScheduleMenu(input: {
     text: translate(input.language, "supportList.scheduleTitle", {
       timeZone: input.timeZone,
       mode: input.modeLabel,
-      retention: input.retention,
       state: translate(
         input.language,
         input.publishing
@@ -334,12 +409,89 @@ export function buildScheduleMenu(input: {
         input.publishing ? "sl:pause" : "sl:resume",
       )
       .row()
-      .text(translate(input.language, "supportList.schedule"), "sl:times")
+      .text(translate(input.language, "supportList.addSlot"), "sl:addslot")
+      .row()
+      .text(translate(input.language, "supportList.slots"), "sl:slots")
+      .row()
+      .text(translate(input.language, "supportList.resetSlots"), "sl:default")
+      .row()
       .text(translate(input.language, "supportList.timeZone"), "sl:tz")
       .row()
-      .text(translate(input.language, "supportList.defaultMode"), "sl:default")
-      .row()
       .text(translate(input.language, "menu.back"), "sl:admin"),
+  };
+}
+
+export function buildSlotsMenu(
+  language: SupportedLanguage,
+  mode: "DEFAULT" | "CUSTOM",
+  slots: { time: string; retentionMinutes: number }[],
+): DashboardView {
+  if (mode === "DEFAULT") {
+    return {
+      text: translate(language, "supportList.defaultSlots"),
+      keyboard: back(language, "sl:sched"),
+    };
+  }
+  const keyboard = new InlineKeyboard();
+  slots.forEach((slot, index) => {
+    keyboard
+      .text(slot.time, `sl:slot:time:${index}`)
+      .text(
+        translate(language, "supportList.slotKeep", {
+          minutes: slot.retentionMinutes,
+        }),
+        `sl:slot:keep:${index}`,
+      )
+      .text(translate(language, "supportList.delete"), `sl:slot:del:${index}`)
+      .row();
+  });
+  keyboard.text(translate(language, "menu.back"), "sl:sched");
+  return {
+    text: translate(
+      language,
+      slots.length === 0
+        ? "supportList.customSlotsEmpty"
+        : "supportList.customSlots",
+    ),
+    keyboard,
+  };
+}
+
+export function buildSlotDeleteConfirm(
+  language: SupportedLanguage,
+  time: string,
+  index: number,
+): DashboardView {
+  return {
+    text: translate(language, "supportList.confirmDeleteSlot", { time }),
+    keyboard: new InlineKeyboard()
+      .text(translate(language, "management.confirm"), `sl:slot:yes:${index}`)
+      .row()
+      .text(translate(language, "menu.back"), "sl:slots"),
+  };
+}
+
+export function buildResetSlotsConfirm(
+  language: SupportedLanguage,
+): DashboardView {
+  return {
+    text: translate(language, "supportList.confirmResetSlots"),
+    keyboard: new InlineKeyboard()
+      .text(translate(language, "management.confirm"), "sl:default:yes")
+      .row()
+      .text(translate(language, "menu.back"), "sl:sched"),
+  };
+}
+
+export function buildResetSettingsConfirm(
+  language: SupportedLanguage,
+): DashboardView {
+  return {
+    text: translate(language, "supportList.confirmResetSettings"),
+    keyboard: new InlineKeyboard()
+      .text(translate(language, "management.confirm"), "sl:reset:yes")
+      .row()
+      .text(translate(language, "menu.back"), "sl:admin"),
   };
 }
 

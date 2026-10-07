@@ -5,6 +5,8 @@ import {
   MAX_CUSTOM_TIMES,
   MAX_RETENTION_MINUTES,
   MIN_RETENTION_MINUTES,
+  PUBLISH_GRACE_MINUTES,
+  SEND_DELAY_ALLOWANCE_MINUTES,
 } from "./constants.js";
 
 export interface CivilTime {
@@ -176,55 +178,176 @@ export function parseClockList(text: string): CivilTime[] | null {
   return times;
 }
 
-export function readCustomTimes(value: unknown): CivilTime[] {
+export interface CustomSlot {
+  time: CivilTime;
+  retentionMinutes: number;
+}
+
+export interface StoredCustomSlot {
+  time: string;
+  retentionMinutes: number;
+}
+
+export function readCustomSlots(
+  value: unknown,
+  fallbackRetention = DEFAULT_RETENTION_MINUTES,
+): CustomSlot[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  const times: CivilTime[] = [];
+  const slots: CustomSlot[] = [];
   for (const item of value) {
-    if (typeof item !== "string") {
+    if (typeof item === "string") {
+      const time = parseClock(item);
+      if (time) {
+        slots.push({ time, retentionMinutes: fallbackRetention });
+      }
       continue;
     }
-    const parsed = parseClock(item);
-    if (parsed) {
-      times.push(parsed);
+    if (!item || typeof item !== "object") {
+      continue;
     }
+    const record = item as { time?: unknown; retentionMinutes?: unknown };
+    if (typeof record.time !== "string") {
+      continue;
+    }
+    const time = parseClock(record.time);
+    if (!time || typeof record.retentionMinutes !== "number") {
+      continue;
+    }
+    slots.push({ time, retentionMinutes: record.retentionMinutes });
   }
-  return times;
+  return slots;
+}
+
+export function readCustomTimes(value: unknown): CivilTime[] {
+  return readCustomSlots(value).map((slot) => slot.time);
+}
+
+export function sortCustomSlots(slots: CustomSlot[]): CustomSlot[] {
+  return [...slots].sort(
+    (left, right) => minutesOfDay(left.time) - minutesOfDay(right.time),
+  );
+}
+
+export function serializeCustomSlots(slots: CustomSlot[]): StoredCustomSlot[] {
+  return sortCustomSlots(slots).map((slot) => ({
+    time: formatClock(slot.time),
+    retentionMinutes: slot.retentionMinutes,
+  }));
+}
+
+export function savedCustomSchedule(slots: CustomSlot[]): {
+  scheduleMode: "CUSTOM";
+  customTimes: StoredCustomSlot[];
+} {
+  return {
+    scheduleMode: "CUSTOM",
+    customTimes: serializeCustomSlots(slots),
+  };
+}
+
+export function parseRetentionMinutes(text: string): number | null {
+  if (!/^\d+$/.test(text.trim())) {
+    return null;
+  }
+  const minutes = Number(text.trim());
+  if (
+    !Number.isInteger(minutes) ||
+    minutes < MIN_RETENTION_MINUTES ||
+    minutes > MAX_RETENTION_MINUTES
+  ) {
+    return null;
+  }
+  return minutes;
 }
 
 function minutesOfDay(time: CivilTime): number {
   return time.hour * 60 + time.minute;
 }
 
-export function validateCustomSchedule(
-  times: CivilTime[],
+export function minimumSlotGapMinutes(retentionMinutes: number): number {
+  return (
+    retentionMinutes + SEND_DELAY_ALLOWANCE_MINUTES + CYCLE_GAP_MINUTES
+  );
+}
+
+export function deleteAtFromSuccessfulSend(
+  sentAt: Date,
   retentionMinutes: number,
+): Date {
+  return new Date(sentAt.getTime() + retentionMinutes * 60_000);
+}
+
+export function shouldSkipBacklog(
+  scheduledAt: Date,
+  now: Date,
+  graceMinutes = PUBLISH_GRACE_MINUTES,
+): boolean {
+  return scheduledAt.getTime() + graceMinutes * 60_000 < now.getTime();
+}
+
+export function isOverdueForResume(scheduledAt: Date, now: Date): boolean {
+  return scheduledAt.getTime() <= now.getTime();
+}
+
+export function capturedRetentionMinutes(
+  scheduledAt: Date,
+  deleteAt: Date,
+): number {
+  return Math.round((deleteAt.getTime() - scheduledAt.getTime()) / 60_000);
+}
+
+export function validateCustomSlots(
+  slots: CustomSlot[],
 ): { ok: true } | { ok: false; reason: ScheduleRejection } {
-  if (times.length < 1 || times.length > MAX_CUSTOM_TIMES) {
+  if (slots.length < 1 || slots.length > MAX_CUSTOM_TIMES) {
     return { ok: false, reason: "count" };
   }
-  if (
-    !Number.isInteger(retentionMinutes) ||
-    retentionMinutes < MIN_RETENTION_MINUTES ||
-    retentionMinutes > MAX_RETENTION_MINUTES
-  ) {
-    return { ok: false, reason: "retention" };
+  for (const slot of slots) {
+    if (
+      !Number.isInteger(slot.retentionMinutes) ||
+      slot.retentionMinutes < MIN_RETENTION_MINUTES ||
+      slot.retentionMinutes > MAX_RETENTION_MINUTES
+    ) {
+      return { ok: false, reason: "retention" };
+    }
   }
-  const minutes = times.map(minutesOfDay).sort((left, right) => left - right);
+  const ordered = sortCustomSlots(slots);
+  const minutes = ordered.map((slot) => minutesOfDay(slot.time));
   for (let index = 1; index < minutes.length; index += 1) {
     if (minutes[index] === minutes[index - 1]) {
       return { ok: false, reason: "duplicate" };
     }
   }
-  const requiredGap = retentionMinutes + CYCLE_GAP_MINUTES;
   const points = [...minutes, (minutes[0] ?? 0) + 24 * 60];
   for (let index = 1; index < points.length; index += 1) {
-    if ((points[index] ?? 0) - (points[index - 1] ?? 0) < requiredGap) {
+    const slot = ordered[index - 1];
+    if (!slot) {
+      continue;
+    }
+    const gap = (points[index] ?? 0) - (points[index - 1] ?? 0);
+    if (gap < minimumSlotGapMinutes(slot.retentionMinutes)) {
       return { ok: false, reason: "overlap" };
     }
   }
   return { ok: true };
+}
+
+export function validateCustomSchedule(
+  times: CivilTime[],
+  retentionMinutes: number,
+): { ok: true } | { ok: false; reason: ScheduleRejection } {
+  return validateCustomSlots(
+    times.map((time) => ({ time, retentionMinutes })),
+  );
+}
+
+export function pendingCycleCanBeReplaced(input: {
+  status: string;
+  publicationCount: number;
+}): boolean {
+  return input.status === "PENDING" && input.publicationCount === 0;
 }
 
 export function defaultDayClocks(
@@ -272,7 +395,7 @@ export function slotsForHorizon(input: {
       }
       slots.push({
         scheduledAt,
-        deleteAt: new Date(scheduledAt.getTime() + retention * 60_000),
+        deleteAt: deleteAtFromSuccessfulSend(scheduledAt, retention),
       });
     }
   }

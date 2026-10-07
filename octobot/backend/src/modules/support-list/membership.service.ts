@@ -10,6 +10,7 @@ import {
   checkBotChannelRights,
   inspectSupportChannel,
   resolveChannelOpenUrl,
+  selectChannelUrl,
   type OpenUrlResult,
 } from "./access.js";
 import { PAGE_SIZE } from "./constants.js";
@@ -368,6 +369,51 @@ export async function activateMembership(input: {
     : { kind: "still_blocked", reasons };
 }
 
+export async function persistChannelOpen(
+  prisma: PrismaClient,
+  membership: {
+    id: string;
+    inviteUnavailable: boolean;
+    username: string | null;
+  },
+  opened: OpenUrlResult,
+): Promise<void> {
+  if (opened.kind === "unavailable") {
+    return;
+  }
+  if (opened.kind === "url" && opened.created) {
+    await prisma.supportListMembership.update({
+      where: { id: membership.id },
+      data: { inviteUrl: opened.url },
+    });
+    return;
+  }
+  if (
+    opened.kind === "url" &&
+    membership.username &&
+    membership.inviteUnavailable
+  ) {
+    await prisma.supportListMembership.update({
+      where: { id: membership.id },
+      data: { inviteUnavailable: false },
+    });
+    return;
+  }
+  if (opened.kind === "invite_disabled") {
+    await prisma.supportListMembership.update({
+      where: { id: membership.id },
+      data: { inviteUnavailable: true },
+    });
+    return;
+  }
+  if (opened.kind === "permissions_lost") {
+    await prisma.supportListMembership.update({
+      where: { id: membership.id },
+      data: { permissionsLost: true },
+    });
+  }
+}
+
 export async function openMembership(input: {
   prisma: PrismaClient;
   telegramBot: TelegramBot;
@@ -376,6 +422,7 @@ export async function openMembership(input: {
 }): Promise<
   | { kind: "url"; url: string; title: string }
   | { kind: "invite_disabled" }
+  | { kind: "permissions_lost" }
   | { kind: "unavailable" }
   | { kind: "missing" }
 > {
@@ -386,28 +433,34 @@ export async function openMembership(input: {
   if (!membership) {
     return { kind: "missing" };
   }
+  if (
+    membership.inviteUnavailable &&
+    selectChannelUrl({
+      username: membership.channel.username,
+      storedInviteUrl: membership.inviteUrl,
+    }).kind === "create"
+  ) {
+    return { kind: "invite_disabled" };
+  }
   const opened: OpenUrlResult = await resolveChannelOpenUrl(
     input.telegramBot,
     {
       channelTelegramId: membership.channelTelegramId,
       username: membership.channel.username,
+      storedInviteUrl: membership.inviteUrl,
     },
   );
-  if (opened.kind === "invite_disabled") {
-    await input.prisma.supportListMembership.update({
-      where: { id: membership.id },
-      data: { inviteUnavailable: true },
-    });
-    return { kind: "invite_disabled" };
-  }
-  if (opened.kind === "url" && membership.inviteUnavailable && membership.channel.username) {
-    await input.prisma.supportListMembership.update({
-      where: { id: membership.id },
-      data: { inviteUnavailable: false },
-    });
-  }
-  if (opened.kind === "unavailable") {
-    return { kind: "unavailable" };
+  await persistChannelOpen(
+    input.prisma,
+    {
+      id: membership.id,
+      inviteUnavailable: membership.inviteUnavailable,
+      username: membership.channel.username,
+    },
+    opened,
+  );
+  if (opened.kind !== "url") {
+    return { kind: opened.kind };
   }
   return {
     kind: "url",

@@ -7,10 +7,25 @@ import {
 } from "@prisma/client";
 import { GrammyError, InlineKeyboard, type Bot as TelegramBot } from "grammy";
 import { TelegramUnavailableError, checkBotChannelRights, resolveChannelOpenUrl, retryAfterMs } from "./access.js";
+import {
+  classifySendFailure,
+  occupiedUntil,
+  PublishDeferredError,
+} from "./delivery.js";
 import { isPublishable } from "./eligibility.js";
-import { channelDisplayName, nextRotationOffset, parseRenderedList, renderSupportList, rotateEntries, type RenderedList } from "./render.js";
-import { isStaleCycle } from "./schedule.js";
+import { appendListJoinButton, channelDisplayName, nextRotationOffset, parseRenderedList, renderSupportList, rotateEntries, type RenderedList } from "./render.js";
+import {
+  capturedRetentionMinutes,
+  deleteAtFromSuccessfulSend,
+  shouldSkipBacklog,
+} from "./schedule.js";
+import { displayedListName } from "./contact-url.js";
+import {
+  MAX_RETENTION_MINUTES,
+  MIN_RETENTION_MINUTES,
+} from "./constants.js";
 import { translate } from "../localization/localization.service.js";
+import { persistChannelOpen } from "./membership.service.js";
 
 export interface PublishDeps {
   prisma: PrismaClient;
@@ -46,15 +61,23 @@ async function buildCurrentList(
     const opened = await resolveChannelOpenUrl(telegram, {
       channelTelegramId: membership.channelTelegramId,
       username: membership.channel.username,
+      storedInviteUrl: membership.inviteUrl,
     });
     if (opened.kind === "unavailable") {
       return { kind: "unavailable" };
     }
-    if (opened.kind === "invite_disabled") {
-      await prisma.supportListMembership.update({
-        where: { id: membership.id },
-        data: { inviteUnavailable: true },
-      });
+    if (opened.kind !== "url" || opened.created) {
+      await persistChannelOpen(
+        prisma,
+        {
+          id: membership.id,
+          inviteUnavailable: membership.inviteUnavailable,
+          username: membership.channel.username,
+        },
+        opened,
+      );
+    }
+    if (opened.kind !== "url") {
       continue;
     }
     entries.push({
@@ -67,9 +90,16 @@ async function buildCurrentList(
   if (!rendered.ok) {
     return { kind: rendered.reason === "empty" ? "empty" : "unfit" };
   }
+  const bot = await prisma.bot.findUnique({
+    where: { id: botId },
+    select: { botUsername: true },
+  });
   return {
     kind: "ready",
-    rendered: rendered.rendered,
+    rendered: appendListJoinButton(
+      rendered.rendered,
+      bot?.botUsername ?? "",
+    ),
     rotationCount: entries.length,
   };
 }
@@ -97,7 +127,7 @@ export async function previewSupportList(
     prisma,
     telegram,
     botId,
-    settings.listName,
+    displayedListName(settings.listName),
     settings.format,
     settings.rotationOffset,
   );
@@ -109,6 +139,92 @@ async function notifyOwner(
   text: string,
 ): Promise<void> {
   await telegram.api.sendMessage(Number(ownerTelegramId), text).catch(() => undefined);
+}
+
+async function persistSentPublication(
+  prisma: PrismaClient,
+  publicationId: string,
+  data: {
+    messageId: bigint;
+    deleteAt: Date;
+    channelTelegramId: bigint;
+  },
+): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const saved = await prisma.supportListPublication.updateMany({
+        where: {
+          id: publicationId,
+          status: SupportListPublicationStatus.SENDING,
+          messageId: null,
+        },
+        data: {
+          messageId: data.messageId,
+          status: SupportListPublicationStatus.SENT,
+          deleteAt: data.deleteAt,
+          channelTelegramId: data.channelTelegramId,
+        },
+      });
+      return saved.count === 1;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+  return false;
+}
+
+async function recordUnconfirmedDelivery(
+  deps: PublishDeps,
+  telegram: TelegramBot,
+  input: {
+    publicationId: string;
+    ownerTelegramId: bigint;
+    language: SupportedLanguage;
+    listName: string;
+    channelLabel: string;
+    alreadyNotified: boolean;
+  },
+): Promise<void> {
+  await deps.prisma.supportListPublication.updateMany({
+    where: {
+      id: input.publicationId,
+      messageId: null,
+      status: {
+        in: [
+          SupportListPublicationStatus.SENDING,
+          SupportListPublicationStatus.PENDING,
+        ],
+      },
+    },
+    data: { status: SupportListPublicationStatus.UNCONFIRMED },
+  });
+  if (input.alreadyNotified) {
+    return;
+  }
+  await notifyOwner(
+    telegram,
+    input.ownerTelegramId,
+    translate(input.language, "supportList.unconfirmedDelivery", {
+      listName: input.listName,
+      channel: input.channelLabel,
+    }),
+  );
+  await deps.prisma.supportListPublication.updateMany({
+    where: { id: input.publicationId, ownerNotified: false },
+    data: { ownerNotified: true },
+  });
+}
+
+export async function countUnconfirmedPublications(
+  prisma: PrismaClient,
+  botId: string,
+): Promise<number> {
+  return prisma.supportListPublication.count({
+    where: {
+      status: SupportListPublicationStatus.UNCONFIRMED,
+      cycle: { botId },
+    },
+  });
 }
 
 export async function publishCycle(
@@ -133,19 +249,63 @@ export async function publishCycle(
     return;
   }
   const { settings } = cycle;
+  const listName = displayedListName(settings.listName);
   const bot = settings.bot;
   if (
     cycle.status === SupportListCycleStatus.PENDING &&
-    (isStaleCycle(cycle.scheduledAt, cycle.deleteAt, now) ||
+    (shouldSkipBacklog(cycle.scheduledAt, now) ||
       !bot.isActive ||
       bot.deletedAt ||
       !settings.publishingEnabled)
   ) {
-    await deps.prisma.supportListCycle.update({
-      where: { id: cycle.id },
+    await deps.prisma.supportListCycle.updateMany({
+      where: {
+        id: cycle.id,
+        status: SupportListCycleStatus.PENDING,
+      },
       data: { status: SupportListCycleStatus.SKIPPED },
     });
     return;
+  }
+
+  if (cycle.status === SupportListCycleStatus.PENDING) {
+    const live = await deps.prisma.supportListPublication.findMany({
+      where: {
+        status: {
+          in: [
+            SupportListPublicationStatus.SENT,
+            SupportListPublicationStatus.SENDING,
+            SupportListPublicationStatus.UNCONFIRMED,
+          ],
+        },
+        cycle: { botId: bot.id },
+      },
+      select: {
+        cycleId: true,
+        status: true,
+        deleteAt: true,
+        sendAttemptedAt: true,
+        cycle: { select: { scheduledAt: true, deleteAt: true } },
+      },
+    });
+    const resumeAt = occupiedUntil({
+      publications: live.map((publication) => ({
+        cycleId: publication.cycleId,
+        status: publication.status,
+        deleteAt: publication.deleteAt,
+        sendAttemptedAt: publication.sendAttemptedAt,
+        retentionMinutes: capturedRetentionMinutes(
+          publication.cycle.scheduledAt,
+          publication.cycle.deleteAt,
+        ),
+      })),
+      currentCycleId: cycle.id,
+      retentionMinutes: settings.retentionMinutes,
+      now,
+    });
+    if (resumeAt) {
+      throw new PublishDeferredError(resumeAt);
+    }
   }
 
   const telegram = await deps.openTelegram(bot.tokenEncrypted);
@@ -155,7 +315,7 @@ export async function publishCycle(
       deps.prisma,
       telegram,
       bot.id,
-      settings.listName,
+      listName,
       settings.format,
       settings.rotationOffset,
     );
@@ -183,7 +343,7 @@ export async function publishCycle(
           translate(
             preference?.language ?? SupportedLanguage.EN,
             "supportList.publishUnfit",
-            { listName: settings.listName },
+            { listName },
           ),
         );
       }
@@ -205,21 +365,27 @@ export async function publishCycle(
         sealedAt: now,
       },
     });
-    if (claimed.count === 1) {
-      await deps.prisma.supportListSettings.update({
-        where: { id: settings.id },
-        data: {
-          rotationOffset: nextRotationOffset(
-            settings.rotationOffset,
-            built.rotationCount,
-          ),
-        },
-      });
+    if (claimed.count !== 1) {
+      return;
     }
+    await deps.prisma.supportListSettings.update({
+      where: { id: settings.id },
+      data: {
+        rotationOffset: nextRotationOffset(
+          settings.rotationOffset,
+          built.rotationCount,
+        ),
+      },
+    });
     rendered = built.rendered;
   }
 
   const markup = keyboardFor(rendered);
+  const preference = await deps.prisma.userBotPreference.findUnique({
+    where: { userId_botId: { userId: bot.ownerId, botId: bot.id } },
+    select: { language: true },
+  });
+  const ownerLanguage = preference?.language ?? SupportedLanguage.EN;
   for (const membershipId of rendered.memberIds) {
     const publication = await deps.prisma.supportListPublication.upsert({
       where: {
@@ -235,15 +401,43 @@ export async function publishCycle(
       update: {},
     });
     if (
-      publication.messageId ||
-      publication.status === SupportListPublicationStatus.SENT ||
-      publication.status === SupportListPublicationStatus.SKIPPED ||
-      publication.status === SupportListPublicationStatus.DELETED
+      publication.status === SupportListPublicationStatus.SENT &&
+      publication.messageId
     ) {
+      await deps.enqueueDelete(publication.id, publication.deleteAt);
+      continue;
+    }
+    if (
+      publication.status === SupportListPublicationStatus.SKIPPED ||
+      publication.status === SupportListPublicationStatus.DELETED ||
+      publication.status === SupportListPublicationStatus.FAILED ||
+      publication.status === SupportListPublicationStatus.DELETE_FAILED
+    ) {
+      continue;
+    }
+    if (
+      publication.status === SupportListPublicationStatus.UNCONFIRMED ||
+      publication.status === SupportListPublicationStatus.SENDING
+    ) {
+      const known = await deps.prisma.supportListMembership.findUnique({
+        where: { id: membershipId },
+        include: { channel: true },
+      });
+      await recordUnconfirmedDelivery(deps, telegram, {
+        publicationId: publication.id,
+        ownerTelegramId: bot.owner.telegramId,
+        language: ownerLanguage,
+        listName,
+        channelLabel: known
+          ? channelDisplayName(known.channel)
+          : String(publication.channelTelegramId),
+        alreadyNotified: publication.ownerNotified,
+      });
       continue;
     }
     const membership = await deps.prisma.supportListMembership.findUnique({
       where: { id: membershipId },
+      include: { channel: true },
     });
     if (!membership || !isPublishable(membership)) {
       await deps.prisma.supportListPublication.update({
@@ -252,6 +446,7 @@ export async function publishCycle(
       });
       continue;
     }
+    const channelLabel = channelDisplayName(membership.channel);
     if (publication.channelTelegramId !== membership.channelTelegramId) {
       await deps.prisma.supportListPublication.update({
         where: { id: publication.id },
@@ -276,40 +471,113 @@ export async function publishCycle(
       });
       continue;
     }
+    const claimedSend = await deps.prisma.supportListPublication.updateMany({
+      where: {
+        id: publication.id,
+        status: SupportListPublicationStatus.PENDING,
+        messageId: null,
+      },
+      data: {
+        status: SupportListPublicationStatus.SENDING,
+        sendAttemptedAt: new Date(),
+        channelTelegramId: membership.channelTelegramId,
+      },
+    });
+    if (claimedSend.count !== 1) {
+      const fresh = await deps.prisma.supportListPublication.findUnique({
+        where: { id: publication.id },
+      });
+      if (
+        fresh &&
+        !fresh.messageId &&
+        (fresh.status === SupportListPublicationStatus.SENDING ||
+          fresh.status === SupportListPublicationStatus.UNCONFIRMED)
+      ) {
+        await recordUnconfirmedDelivery(deps, telegram, {
+          publicationId: publication.id,
+          ownerTelegramId: bot.owner.telegramId,
+          language: ownerLanguage,
+          listName,
+          channelLabel,
+          alreadyNotified: fresh.ownerNotified,
+        });
+      }
+      continue;
+    }
+    let messageId: number;
     try {
       const message = await telegram.api.sendMessage(
         Number(membership.channelTelegramId),
         rendered.text,
-        markup
-          ? { reply_markup: markup }
-          : { link_preview_options: { is_disabled: true } },
-      );
-      await deps.prisma.supportListPublication.update({
-        where: { id: publication.id },
-        data: {
-          messageId: BigInt(message.message_id),
-          status: SupportListPublicationStatus.SENT,
-          channelTelegramId: membership.channelTelegramId,
+        {
+          ...(rendered.parseMode
+            ? {
+                parse_mode: rendered.parseMode,
+                link_preview_options: { is_disabled: true },
+              }
+            : {}),
+          ...(markup
+            ? { reply_markup: markup }
+            : { link_preview_options: { is_disabled: true } }),
         },
-      });
-      await deps.enqueueDelete(publication.id, cycle.deleteAt);
+      );
+      messageId = message.message_id;
     } catch (error) {
-      if (retryAfterMs(error) !== null) {
+      const failure = classifySendFailure(error);
+      if (failure === "retry") {
+        await deps.prisma.supportListPublication.updateMany({
+          where: {
+            id: publication.id,
+            status: SupportListPublicationStatus.SENDING,
+            messageId: null,
+          },
+          data: {
+            status: SupportListPublicationStatus.PENDING,
+            sendAttemptedAt: null,
+          },
+        });
         throw error;
       }
-      if (
-        error instanceof GrammyError &&
-        error.error_code < 500 &&
-        error.error_code !== 429
-      ) {
-        await deps.prisma.supportListPublication.update({
-          where: { id: publication.id },
+      if (failure === "rejected") {
+        await deps.prisma.supportListPublication.updateMany({
+          where: {
+            id: publication.id,
+            status: SupportListPublicationStatus.SENDING,
+            messageId: null,
+          },
           data: { status: SupportListPublicationStatus.FAILED },
         });
         continue;
       }
-      throw error;
+      await recordUnconfirmedDelivery(deps, telegram, {
+        publicationId: publication.id,
+        ownerTelegramId: bot.owner.telegramId,
+        language: ownerLanguage,
+        listName,
+        channelLabel,
+        alreadyNotified: false,
+      });
+      continue;
     }
+    const sentAt = new Date();
+    const captured = capturedRetentionMinutes(cycle.scheduledAt, cycle.deleteAt);
+    const deleteAt = deleteAtFromSuccessfulSend(
+      sentAt,
+      captured >= MIN_RETENTION_MINUTES && captured <= MAX_RETENTION_MINUTES
+        ? captured
+        : settings.retentionMinutes,
+    );
+    const saved = await persistSentPublication(deps.prisma, publication.id, {
+      messageId: BigInt(messageId),
+      deleteAt,
+      channelTelegramId: membership.channelTelegramId,
+    });
+    if (!saved) {
+      throw new Error(
+        "Telegram accepted the list post before its message id was stored",
+      );
+    }
+    await deps.enqueueDelete(publication.id, deleteAt);
   }
 
   await deps.prisma.supportListCycle.updateMany({
