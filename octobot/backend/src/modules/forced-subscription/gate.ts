@@ -16,7 +16,7 @@ const OK_TTL_SECONDS = 45;
 
 export interface GateMemberApi {
   getChatMember(
-    chatId: number,
+    chatId: number | string,
     userId: number,
   ): Promise<{ status: string; is_member?: boolean }>;
 }
@@ -121,7 +121,7 @@ export async function evaluateSubscription(
   const missing: GateChannel[] = [];
   for (const channel of channels) {
     try {
-      const member = await api.getChatMember(Number(channel.telegramId), telegramUserId);
+      const member = await api.getChatMember(channel.telegramId, telegramUserId);
       if (!isSubscribedStatus(member.status, member.is_member)) {
         missing.push(channel);
       }
@@ -204,14 +204,21 @@ async function replyGate(
   language: SupportedLanguage,
   decision: Exclude<GateDecision, { kind: "pass" }>,
 ): Promise<void> {
-  if (decision.kind === "retry") {
-    await context.reply(translate(language, "subscription.retry")).catch(() => undefined);
-  } else {
-    await context
-      .reply(subscriptionText(language, decision.channels), {
+  const text = decision.kind === "retry"
+    ? translate(language, "subscription.retry")
+    : subscriptionText(language, decision.channels);
+  try {
+    if (decision.kind === "retry") {
+      await context.reply(text);
+    } else {
+      await context.reply(text, {
         reply_markup: subscriptionKeyboard(language, decision.channels),
-      })
-      .catch(() => undefined);
+      });
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Subscription prompt could not be sent: ${reason}`);
+    await context.reply(text).catch(() => undefined);
   }
   if (context.callbackQuery) {
     await context.answerCallbackQuery().catch(() => undefined);

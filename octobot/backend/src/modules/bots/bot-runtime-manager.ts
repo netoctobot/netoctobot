@@ -148,6 +148,7 @@ function defaultMessages(botType: BotType): {
 
 export class BotRuntimeManager {
   readonly #runtimes = new Map<string, ManagedBotRuntime>();
+  #shuttingDown = false;
   readonly #contactRelays = new Map<string, ContactBotRelay>();
   readonly #ownerTelegramIds = new Map<string, number>();
 
@@ -182,21 +183,37 @@ export class BotRuntimeManager {
     ) {
       return;
     }
-    void runtime.bot
-      .start({
-        allowed_updates: [
-          "message",
-          "callback_query",
-          "my_chat_member",
-        ],
-      })
-      .catch((error: unknown) => {
+    void this.keepPolling(runtime);
+  }
+
+  private async keepPolling(runtime: ManagedBotRuntime): Promise<void> {
+    let delayMs = 1000;
+    while (!this.#shuttingDown) {
+      if (this.#runtimes.get(runtime.botRecord.id) !== runtime) {
+        return;
+      }
+      try {
+        await runtime.bot.start({
+          allowed_updates: [
+            "message",
+            "callback_query",
+            "my_chat_member",
+          ],
+        });
+        return;
+      } catch (error) {
         const reason =
           error instanceof Error ? error.message : "Unknown error";
         console.error(
           `Polling stopped for bot ${runtime.botRecord.id}: ${reason}`,
         );
-      });
+        if (this.#shuttingDown) {
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        delayMs = Math.min(delayMs * 2, 15000);
+      }
+    }
   }
 
   private async stopPollingIfNeeded(
@@ -209,6 +226,7 @@ export class BotRuntimeManager {
   }
 
   async shutdown(): Promise<void> {
+    this.#shuttingDown = true;
     await Promise.all(
       [...this.#runtimes.values()].map((runtime) =>
         this.stopPollingIfNeeded(runtime),

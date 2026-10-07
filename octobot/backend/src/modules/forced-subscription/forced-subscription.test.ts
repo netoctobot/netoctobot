@@ -1,17 +1,103 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PrismaClient } from "@prisma/client";
+import { Bot } from "grammy";
+import type { Redis } from "ioredis";
 import {
   activateCatalogChannel,
   addCatalogChannel,
   type CatalogTelegram,
 } from "./catalog-admin.js";
+import { attachSubscriptionGate } from "./gate.js";
 import {
   classifyMembershipError,
   isChannelAdministrator,
   isSubscribedStatus,
   isSubscriptionExempt,
 } from "./membership.js";
+
+test("an unsubscribed /start receives the join prompt and does not open the menu", async () => {
+  const sent: Array<{ text?: string; reply_markup?: { inline_keyboard?: Array<Array<{ text?: string; callback_data?: string; url?: string }>> } }> = [];
+  const bot = new Bot("123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", {
+    botInfo: {
+      id: 1,
+      is_bot: true,
+      first_name: "Octobot",
+      username: "octobot",
+      can_join_groups: true,
+      can_read_all_group_messages: false,
+      supports_inline_queries: false,
+    },
+  });
+  bot.api.config.use(async (_previous, method, payload) => {
+    if (method === "sendMessage") {
+      sent.push(payload as (typeof sent)[number]);
+    }
+    return { ok: true, result: true };
+  });
+  const redis = {
+    async get() {
+      return null;
+    },
+    async set() {
+      return "OK";
+    },
+    async del() {
+      return 1;
+    },
+  } as unknown as Redis;
+  const prisma = {
+    platformForcedChannel: {
+      async findMany() {
+        return [
+          {
+            joinUrl: "https://t.me/example",
+            channel: {
+              title: "News",
+              username: "example",
+              channelTelegramId: -1001234567890n,
+            },
+          },
+        ];
+      },
+    },
+  } as unknown as PrismaClient;
+  attachSubscriptionGate(bot, {
+    prisma,
+    redis,
+    api: {
+      async getChatMember() {
+        throw {
+          error_code: 400,
+          description: "Bad Request: PARTICIPANT_ID_INVALID",
+        };
+      },
+    },
+    botId: () => "bot-1",
+    bypass: () => false,
+  });
+  bot.command("start", async (context) => {
+    await context.reply("home");
+  });
+  await bot.handleUpdate({
+    update_id: 1,
+    message: {
+      message_id: 10,
+      date: 1,
+      text: "/start",
+      from: { id: 42, is_bot: false, first_name: "Ada" },
+      chat: { id: 42, type: "private", first_name: "Ada" },
+    },
+  });
+  assert.equal(sent.length, 1);
+  assert.match(sent[0]?.text ?? "", /required channels|القنوات المطلوبة/);
+  assert.equal(
+    sent[0]?.reply_markup?.inline_keyboard?.some((row) =>
+      row.some((button) => button.callback_data === "forced:check"),
+    ),
+    true,
+  );
+});
 
 test("subscription status ignores a stored opt-out and treats network loss as unavailable", () => {
   assert.equal(isSubscribedStatus("member"), true);
