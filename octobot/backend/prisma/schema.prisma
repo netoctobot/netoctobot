@@ -80,6 +80,8 @@ model Bot {
   paymentIntents       PaymentIntent[]
   payments             Payment[]
   supportListSettings  SupportListSettings?
+  broadcastTargets     BroadcastCampaignBot[]
+  broadcastDeliveries  BroadcastDelivery[]
 
   @@index([ownerId])
   @@index([ownerId, deletedAt])
@@ -117,8 +119,8 @@ enum SupportedLanguage {
 
 model Channel {
   id                 String    @id @default(cuid())
-  ownerId            String
-  telegramOwnerId    BigInt
+  ownerId            String?
+  telegramOwnerId    BigInt?
   channelTelegramId  BigInt    @unique
   title              String?
   username           String?
@@ -131,12 +133,13 @@ model Channel {
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
 
-  owner                 User                   @relation(fields: [ownerId], references: [id])
+  owner                 User?                  @relation(fields: [ownerId], references: [id])
   botChannelLinks       BotChannelLink[]
   adPlacements          AdPlacement[]
   forcedSubscriptions   ForcedSubscription[]
   platformForcedCatalog PlatformForcedChannel?
   supportListMemberships SupportListMembership[]
+  broadcastDeliveries    BroadcastDelivery[]
 
   @@index([ownerId])
   @@index([telegramOwnerId])
@@ -146,17 +149,90 @@ model Channel {
 }
 
 model PlatformForcedChannel {
-  id        String   @id @default(cuid())
-  channelId String   @unique
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  channelId            String   @unique
+  isActive             Boolean  @default(false)
+  sortOrder            Int      @default(0)
+  addedByAdminUsername String
+  joinUrl              String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   channel Channel @relation(fields: [channelId], references: [id])
 
   @@index([isActive, sortOrder])
   @@map("platform_forced_channels")
+}
+
+enum BroadcastCampaignStatus {
+  RUNNING
+  STOPPED
+  COMPLETED
+}
+
+enum BroadcastTargetMode {
+  ALL
+  SELECTED
+}
+
+enum BroadcastDeliveryStatus {
+  PENDING
+  SENT
+  EXCLUDED
+  UNCERTAIN
+  FAILED
+  STOPPED
+}
+
+model BroadcastCampaign {
+  id              String                  @id @default(cuid())
+  text            String
+  status          BroadcastCampaignStatus @default(RUNNING)
+  targetMode      BroadcastTargetMode
+  includeActive   Boolean                 @default(true)
+  includeInactive Boolean                 @default(false)
+  includeDeleted  Boolean                 @default(false)
+  createdByAdmin  String
+  stopRequested   Boolean                 @default(false)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  bots       BroadcastCampaignBot[]
+  deliveries BroadcastDelivery[]
+
+  @@index([status, createdAt])
+  @@map("broadcast_campaigns")
+}
+
+model BroadcastCampaignBot {
+  campaignId String
+  botId      String
+
+  campaign BroadcastCampaign @relation(fields: [campaignId], references: [id])
+  bot      Bot               @relation(fields: [botId], references: [id])
+
+  @@id([campaignId, botId])
+  @@map("broadcast_campaign_bots")
+}
+
+model BroadcastDelivery {
+  id                String                  @id @default(cuid())
+  campaignId        String
+  channelId         String
+  botId             String?
+  status            BroadcastDeliveryStatus
+  reason            String?
+  telegramMessageId BigInt?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  campaign BroadcastCampaign @relation(fields: [campaignId], references: [id])
+  channel  Channel           @relation(fields: [channelId], references: [id])
+  bot      Bot?              @relation(fields: [botId], references: [id])
+
+  @@unique([campaignId, channelId])
+  @@index([campaignId, status])
+  @@map("broadcast_deliveries")
 }
 
 model BotChannelLink {
@@ -660,6 +736,29 @@ model ForcedSubscription {
   @@index([botId])
   @@index([channelId])
   @@map("forced_subscriptions")
+}
+
+model DashboardAdmin {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  webLocalePreference WebLocalePreference?
+
+  @@map("dashboard_admins")
+}
+
+model WebLocalePreference {
+  adminId    String            @id
+  language   SupportedLanguage
+  isExplicit Boolean           @default(true)
+  updatedAt  DateTime          @updatedAt
+
+  admin DashboardAdmin @relation(fields: [adminId], references: [id])
+
+  @@map("web_locale_preferences")
 }
 
 model AdminRole {

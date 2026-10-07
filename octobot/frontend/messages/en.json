@@ -1,0 +1,318 @@
+{
+  "meta": {
+    "title": "Platform admin"
+  },
+  "brand": "Net Octo Bot",
+  "language": {
+    "label": "Language",
+    "arabic": "العربية",
+    "english": "English",
+    "switchTo": "Interface language"
+  },
+  "nav": {
+    "overview": "Overview",
+    "users": "Users",
+    "bots": "Bots",
+    "channels": "Channels",
+    "publishing": "Support lists",
+    "catalog": "Subscription catalog",
+    "broadcast": "Broadcast",
+    "audit": "Audit log",
+    "signOut": "Sign out"
+  },
+  "shell": {
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "account": "Admin account"
+  },
+  "filters": {
+    "search": "Search",
+    "status": "Status",
+    "type": "Type",
+    "catalog": "Catalog",
+    "all": "All",
+    "inCatalog": "In catalog",
+    "notInCatalog": "Outside catalog"
+  },
+  "login": {
+    "title": "Platform admin",
+    "intro": "Sign in with your username and password.",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in"
+  },
+  "errors": {
+    "unauthorized": "The session ended. Sign in again.",
+    "invalidLogin": "The username or password is incorrect.",
+    "invalidReason": "Enter a reason of up to 200 characters, then confirm.",
+    "invalidLanguage": "Choose Arabic or English, then try again.",
+    "invalidOrder": "The catalog order changed. Reload the page and arrange it again.",
+    "notFound": "That record is no longer available. Return to the list.",
+    "catalogUnresolved": "That channel reference could not be resolved. Use a channel id, @username, or t.me link.",
+    "catalogNotChannel": "That chat is not a channel.",
+    "catalogUnavailable": "Telegram could not be checked. Try again.",
+    "catalogNotAdmin": "The platform bot must be an administrator of the channel before it can be activated.",
+    "catalogJoinUnavailable": "Activation needs a join link. Make the channel public or let the platform bot create an invite.",
+    "invalidBroadcast": "Write the post, choose at least one bot scope, and select bots when the campaign is limited.",
+    "generic": "The request could not be completed. Try again."
+  },
+  "alerts": {
+    "saved": "Saved.",
+    "copied": "Copied.",
+    "copyFailed": "Could not copy."
+  },
+  "copy": {
+    "action": "Copy",
+    "actionFor": "Copy {label}",
+    "id": "identifier",
+    "username": "username",
+    "link": "link"
+  },
+  "common": {
+    "loading": "Loading…",
+    "empty": "There are no records yet.",
+    "emptyFiltered": "Nothing matches. Change the search or clear a filter.",
+    "retry": "Retry",
+    "previous": "Previous",
+    "next": "Next",
+    "pageStatus": "{page} / {pages}",
+    "yes": "Yes",
+    "no": "No",
+    "active": "Active",
+    "inactive": "Inactive",
+    "deleted": "Deleted",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "back": "Back",
+    "timezone": "Time zone",
+    "none": "None",
+    "open": "Open"
+  },
+  "overview": {
+    "title": "Overview",
+    "purpose": "Current platform figures, then a direct path into management.",
+    "users": "Users",
+    "bots": "Bots",
+    "channels": "Channels",
+    "activeCycles": "Active publish cycles",
+    "catalogChannels": "Catalog channels",
+    "cyclesActive": "{count, plural, one {# publish cycle is still active.} other {# publish cycles are still active.}}",
+    "cyclesNone": "There are no active publish cycles.",
+    "catalogCount": "{count, plural, one {# channel is in the platform catalog.} other {# channels are in the platform catalog.}}"
+  },
+  "users": {
+    "purpose": "Telegram accounts known to the platform.",
+    "title": "Users",
+    "name": "Name",
+    "username": "Username",
+    "telegramId": "Telegram ID",
+    "createdAt": "Created",
+    "status": "Status"
+  },
+  "bots": {
+    "title": "Bots",
+    "username": "Username",
+    "type": "Type",
+    "status": "Status",
+    "owner": "Owner",
+    "links": "Channel links",
+    "platformForced": "Platform forced subscription",
+    "appliesToAll": "Applies to every bot",
+    "welcome": "Welcome messages",
+    "footer": "Footer text",
+    "createdAt": "Created",
+    "purpose": "Every bot connected to the platform. Starting or deleting a bot is not available here.",
+    "identity": "Identity",
+    "messages": "Stored messages",
+    "linksHint": "Each row is this bot’s link to a channel, not the channel record itself.",
+    "supportHint": "List settings only. Memberships and publish cycles stay on the support-list page.",
+    "openList": "Open support list"
+  },
+  "channels": {
+    "title": "Channels",
+    "name": "Channel",
+    "username": "Username",
+    "telegramId": "Telegram ID",
+    "members": "Members",
+    "catalog": "Catalog",
+    "status": "Status",
+    "owner": "Added by",
+    "links": "Bot links",
+    "addedAt": "Added",
+    "reason": "Deactivation note",
+    "purpose": "Each channel is one record, even when several bots link to it.",
+    "recordHint": "This unique channel: its title, status, and who added it.",
+    "linksHint": "Bots linked to this channel. Stopping a link does not delete the channel."
+  },
+  "publishing": {
+    "title": "Publishing",
+    "listName": "List name",
+    "bot": "Bot",
+    "publishing": "Publishing",
+    "on": "On",
+    "off": "Off",
+    "schedule": "Schedule",
+    "nextSlot": "Next slot",
+    "retention": "Retention in minutes",
+    "acceptance": "Acceptance",
+    "format": "Format",
+    "contactUrl": "Contact link",
+    "memberships": "Memberships",
+    "cycles": "Cycles",
+    "publications": "Publications",
+    "disable": "Disable membership",
+    "reason": "Reason",
+    "reasonHint": "The channel owner sees this text as written.",
+    "purpose": "Support lists and scheduled publishing, separate from the unique channel record.",
+    "disableResult": "This stops publishing for this channel in this list only. The record is not deleted.",
+    "alreadyDisabled": "Disabled by an admin",
+    "scheduledAt": "Publishes",
+    "deleteAt": "Deletes",
+    "customTimes": "Custom times",
+    "participant": "Paused by participant",
+    "permissions": "Permissions lost",
+    "invite": "Invite unavailable",
+    "messageId": "Message ID"
+  },
+  "catalog": {
+    "title": "Forced subscription",
+    "catalog": "Platform catalog",
+    "sort": "Order",
+    "actions": "Actions",
+    "moveUp": "Move earlier",
+    "moveDown": "Move later",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "ownerSubs": "Owner forced subscriptions",
+    "addedBy": "Added by",
+    "bot": "Bot",
+    "channel": "Channel",
+    "createdAt": "Created",
+    "purpose": "Active catalog channels are required on every bot. Add, arrange, and activate them here. Owner subscriptions stay read-only.",
+    "catalogHint": "Activation checks that the platform bot is an administrator and that a join link is available. The channel is not copied into bot subscriptions.",
+    "subsHint": "Forced subscriptions already stored by owners. This list does not edit them and does not enforce them.",
+    "confirmActivate": "This channel becomes active in the platform catalog after the platform bot is confirmed as an administrator. It is not copied into bot subscriptions.",
+    "confirmDeactivate": "This channel becomes inactive in the platform catalog. Existing owner subscriptions stay as they are.",
+    "add": "Add channel",
+    "reference": "Channel",
+    "referenceHint": "Channel id, @username, or a t.me link. The row is added inactive.",
+    "remove": "Remove",
+    "confirmRemove": "This removes the channel from the platform catalog. The channel record stays, and owner subscriptions are not changed."
+  },
+  "audit": {
+    "purpose": "What an admin changed from the dashboard: language, catalog, and support-list membership.",
+    "title": "Audit log",
+    "when": "When",
+    "action": "Action",
+    "actor": "Actor",
+    "entity": "Record",
+    "details": "Details",
+    "language": "Language",
+    "active": "Active",
+    "actions": {
+      "webLocaleSet": "Web language saved",
+      "supportListAdminDisable": "Support-list membership disabled",
+      "catalogSetActive": "Catalog channel updated",
+      "catalogReorder": "Catalog order updated",
+      "catalogAdd": "Catalog channel added",
+      "catalogRemove": "Catalog channel removed"
+    }
+  },
+  "status": {
+    "bot": {
+      "PLATFORM_BOT": "Platform bot",
+      "CONTACT_BOT": "Contact bot",
+      "SUPPORT_LIST_BOT": "Support-list bot"
+    },
+    "link": {
+      "ACTIVE": "Active",
+      "INACTIVE": "Inactive"
+    },
+    "acceptanceMode": {
+      "MANUAL": "Manual",
+      "AUTO": "Automatic"
+    },
+    "format": {
+      "TEXT": "Text",
+      "BUTTONS": "Buttons"
+    },
+    "scheduleMode": {
+      "DEFAULT": "Default",
+      "CUSTOM": "Custom"
+    },
+    "acceptance": {
+      "PENDING": "Pending",
+      "ACCEPTED": "Accepted",
+      "REJECTED": "Rejected"
+    },
+    "cycle": {
+      "PENDING": "Waiting to publish",
+      "PUBLISHING": "Publishing",
+      "PUBLISHED": "Published",
+      "SKIPPED": "Skipped",
+      "FAILED": "Failed"
+    },
+    "publication": {
+      "PENDING": "Waiting to send",
+      "SENT": "Sent",
+      "SKIPPED": "Skipped",
+      "FAILED": "Failed",
+      "DELETED": "Deleted",
+      "DELETE_FAILED": "Delete failed"
+    },
+    "broadcast": {
+      "RUNNING": "Sending",
+      "STOPPED": "Stopped",
+      "COMPLETED": "Completed"
+    },
+    "delivery": {
+      "PENDING": "Waiting",
+      "SENT": "Sent",
+      "EXCLUDED": "Excluded",
+      "UNCERTAIN": "Uncertain",
+      "FAILED": "Failed",
+      "STOPPED": "Stopped"
+    },
+    "broadcastReason": {
+      "invalid_token": "Token cannot be decrypted",
+      "not_admin": "Bot is not an administrator",
+      "no_post_permission": "Bot cannot publish",
+      "unavailable": "Telegram could not be checked",
+      "deleted": "Channel is deleted for this scope",
+      "bot_out_of_scope": "No selected bot matches the scope",
+      "telegram_rejected": "Telegram rejected the send",
+      "uncertain": "Delivery was not confirmed"
+    }
+  },
+  "broadcast": {
+    "title": "Broadcast",
+    "purpose": "Write one post, preview who can receive it, then send in the background. A channel linked to several bots receives one copy.",
+    "text": "Post",
+    "targets": "Bots",
+    "allBots": "All registered bots",
+    "selectedBots": "Selected bots",
+    "scope": "Scope",
+    "includeActive": "Active",
+    "includeInactive": "Inactive",
+    "includeDeleted": "Soft-deleted",
+    "preview": "Preview recipients",
+    "previewHeading": "Preview",
+    "eligible": "Eligible",
+    "excluded": "Excluded",
+    "reason": "Reason",
+    "confirmSend": "Send this campaign",
+    "confirmHint": "Sending does not turn bots, channels, or links back on.",
+    "campaigns": "Campaigns",
+    "status": "Status",
+    "createdAt": "Created",
+    "progress": "Progress",
+    "stop": "Stop remaining",
+    "confirmStop": "Remaining sends stop. Messages already handed to Telegram stay as recorded.",
+    "open": "Open",
+    "channel": "Channel",
+    "messageId": "Message ID",
+    "results": "Results",
+    "noEligible": "No channel can receive this post."
+  }
+}

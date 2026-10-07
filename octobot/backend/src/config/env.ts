@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+function blankToUndefined(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
+const optionalText = z.preprocess(blankToUndefined, z.string().min(1).optional());
+
 const envSchema = z
   .object({
     DATABASE_URL: z.string().min(1),
@@ -26,6 +36,9 @@ const envSchema = z
       .default("false")
       .transform((value) => value === "true"),
     PORT: z.coerce.number().int().positive().default(3000),
+    NODE_ENV: optionalText,
+    LOCAL_ADMIN_USERNAME: optionalText,
+    LOCAL_ADMIN_PASSWORD: optionalText,
   })
   .superRefine((value, context) => {
     if (
@@ -36,6 +49,18 @@ const envSchema = z
         code: "custom",
         path: ["PUBLIC_BASE_URL"],
         message: "PUBLIC_BASE_URL must use HTTPS when webhook registration is enabled",
+      });
+    }
+    if (
+      value.NODE_ENV !== "production" &&
+      (value.LOCAL_ADMIN_USERNAME !== undefined) !==
+        (value.LOCAL_ADMIN_PASSWORD !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["LOCAL_ADMIN_PASSWORD"],
+        message:
+          "LOCAL_ADMIN_USERNAME and LOCAL_ADMIN_PASSWORD must both be set or both be omitted",
       });
     }
   });

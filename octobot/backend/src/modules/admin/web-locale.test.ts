@@ -1,0 +1,44 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { type PrismaClient, SupportedLanguage } from "@prisma/client";
+import { getWebLocale, setWebLocale } from "./web-locale.js";
+
+test("web locale is stored apart from Telegram bot preferences", async () => {
+  const rows = new Map<string, SupportedLanguage>();
+  const prisma = {
+    webLocalePreference: {
+      async findUnique({ where }: { where: { adminId: string } }) {
+        const language = rows.get(where.adminId);
+        return language ? { language, isExplicit: true, adminId: where.adminId } : null;
+      },
+      async upsert({
+        where,
+        create,
+      }: {
+        where: { adminId: string };
+        create: { language: SupportedLanguage };
+        update: { language: SupportedLanguage };
+      }) {
+        rows.set(where.adminId, create.language);
+        return { language: create.language, isExplicit: true, adminId: where.adminId };
+      },
+    },
+    userBotPreference: new Proxy(
+      {},
+      {
+        get() {
+          return () => {
+            throw new Error("bot preference touched");
+          };
+        },
+      },
+    ),
+  } as unknown as PrismaClient;
+
+  assert.equal(await getWebLocale(prisma, "owner"), null);
+  assert.equal(
+    await setWebLocale(prisma, "owner", SupportedLanguage.AR),
+    SupportedLanguage.AR,
+  );
+  assert.equal(await getWebLocale(prisma, "owner"), SupportedLanguage.AR);
+});

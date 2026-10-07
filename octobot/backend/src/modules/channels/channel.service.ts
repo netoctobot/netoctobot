@@ -62,8 +62,8 @@ export interface BotChannelLinkSnapshot {
   channelId: string;
   linkId: string;
   status: LinkStatus;
-  ownerUserId: string;
-  notificationTelegramId: number;
+  ownerUserId: string | null;
+  notificationTelegramId: number | null;
 }
 
 export function hasRequiredChannelRights(
@@ -272,14 +272,14 @@ export async function getBotChannelLinkSnapshot(
     return null;
   }
 
+  const notified =
+    link.linkedByTelegramId ?? channel.owner?.telegramId ?? null;
   return {
     channelId: channel.id,
     linkId: link.id,
     status: link.status,
     ownerUserId: channel.ownerId,
-    notificationTelegramId: Number(
-      link.linkedByTelegramId ?? channel.owner.telegramId,
-    ),
+    notificationTelegramId: notified === null ? null : Number(notified),
   };
 }
 

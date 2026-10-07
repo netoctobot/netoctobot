@@ -226,6 +226,13 @@
     "confirmResetSlots": "Replace the custom times with the default schedule? Two variable times each day, kept for 3 hours. Posts already sent are still deleted on their original time.",
     "confirmResetSettings": "Reset list settings except the list name? Acceptance becomes automatic, the format becomes buttons, the time zone returns to UTC, publishing turns on, and the schedule returns to the default with a 3 hour stay. The contact link is cleared. Channels, requests, records, and delete jobs for posts already sent stay."
   },
+  "subscription": {
+    "required": "Subscribe to the required channels, then tap Check subscription.",
+    "check": "Check subscription",
+    "join": "Join",
+    "retry": "The check could not be completed. Try again.",
+    "ready": "Subscription is complete. Repeat the action you wanted."
+  },
   "errors": {
     "privateOnly": "Use this bot in a private chat.",
     "generic": "An unexpected error occurred. Please try again."

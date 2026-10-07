@@ -209,6 +209,11 @@ export type TranslationKey =
   | "supportList.confirmDeleteSlot"
   | "supportList.confirmResetSlots"
   | "supportList.confirmResetSettings"
+  | "subscription.required"
+  | "subscription.check"
+  | "subscription.join"
+  | "subscription.retry"
+  | "subscription.ready"
   | "errors.privateOnly"
   | "errors.generic";
 

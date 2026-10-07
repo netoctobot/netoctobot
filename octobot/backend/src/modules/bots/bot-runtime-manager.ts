@@ -6,7 +6,7 @@ import {
   type Bot as DatabaseBot,
   type PrismaClient,
 } from "@prisma/client";
-import { Bot as TelegramBot, type Context } from "grammy";
+import { Api, Bot as TelegramBot, type Context } from "grammy";
 import type { User as TelegramUser } from "grammy/types";
 import type { Redis } from "ioredis";
 import type { Env } from "../../config/env.js";
@@ -23,6 +23,7 @@ import {
   isPrivateSlashCommand,
   PRIVATE_HOME_COMMAND_PATTERN,
 } from "./slash-command.js";
+import { attachSubscriptionGate } from "../forced-subscription/gate.js";
 import { reconcileBotLinksForActivation } from "./bot-link-activation.service.js";
 import { ContactBotRelay } from "./contact-bot.service.js";
 import {
@@ -148,14 +149,19 @@ function defaultMessages(botType: BotType): {
 
 export class BotRuntimeManager {
   readonly #runtimes = new Map<string, ManagedBotRuntime>();
+  #shuttingDown = false;
   readonly #contactRelays = new Map<string, ContactBotRelay>();
   readonly #ownerTelegramIds = new Map<string, number>();
+
+  readonly #platformApi: Api;
 
   constructor(
     private readonly env: Env,
     private readonly prisma: PrismaClient,
     private readonly redis: Redis,
-  ) {}
+  ) {
+    this.#platformApi = new Api(env.BOT_TOKEN);
+  }
 
   add(runtime: ManagedBotRuntime): void {
     if (!this.#runtimes.has(runtime.botRecord.id)) {
@@ -178,21 +184,37 @@ export class BotRuntimeManager {
     ) {
       return;
     }
-    void runtime.bot
-      .start({
-        allowed_updates: [
-          "message",
-          "callback_query",
-          "my_chat_member",
-        ],
-      })
-      .catch((error: unknown) => {
+    void this.keepPolling(runtime);
+  }
+
+  private async keepPolling(runtime: ManagedBotRuntime): Promise<void> {
+    let delayMs = 1000;
+    while (!this.#shuttingDown) {
+      if (this.#runtimes.get(runtime.botRecord.id) !== runtime) {
+        return;
+      }
+      try {
+        await runtime.bot.start({
+          allowed_updates: [
+            "message",
+            "callback_query",
+            "my_chat_member",
+          ],
+        });
+        return;
+      } catch (error) {
         const reason =
           error instanceof Error ? error.message : "Unknown error";
         console.error(
           `Polling stopped for bot ${runtime.botRecord.id}: ${reason}`,
         );
-      });
+        if (this.#shuttingDown) {
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        delayMs = Math.min(delayMs * 2, 15000);
+      }
+    }
   }
 
   private async stopPollingIfNeeded(
@@ -205,6 +227,7 @@ export class BotRuntimeManager {
   }
 
   async shutdown(): Promise<void> {
+    this.#shuttingDown = true;
     await Promise.all(
       [...this.#runtimes.values()].map((runtime) =>
         this.stopPollingIfNeeded(runtime),
@@ -404,6 +427,15 @@ export class BotRuntimeManager {
   }
 
   private registerUserBotHandlers(runtime: ManagedBotRuntime): void {
+    attachSubscriptionGate(runtime.bot, {
+      prisma: this.prisma,
+      redis: this.redis,
+      api: this.#platformApi,
+      botId: () => runtime.botRecord.id,
+      bypass: () =>
+        runtime.botRecord.botType === BotType.CONTACT_BOT &&
+        !runtime.botRecord.isActive,
+    });
     const supportList =
       runtime.botRecord.botType === BotType.SUPPORT_LIST_BOT
         ? bindSupportListBot(
@@ -1090,7 +1122,7 @@ export class BotRuntimeManager {
       channelTelegramId,
       reason,
     });
-    if (!link) {
+    if (!link?.ownerUserId || link.notificationTelegramId === null) {
       return;
     }
     const preference = await this.prisma.userBotPreference.findUnique({
@@ -1332,12 +1364,20 @@ export class BotRuntimeManager {
         },
       );
       if (existingLink) {
+        if (
+          existingLink.ownerUserId === null ||
+          existingLink.notificationTelegramId === null
+        ) {
+          return;
+        }
+        const ownerUserId = existingLink.ownerUserId;
+        const notificationTelegramId = existingLink.notificationTelegramId;
         if (invitePermissionOutcome !== "UNCHANGED") {
           const preference =
             await this.prisma.userBotPreference.findUnique({
               where: {
                 userId_botId: {
-                  userId: existingLink.ownerUserId,
+                  userId: ownerUserId,
                   botId: runtime.botRecord.id,
                 },
               },
@@ -1345,7 +1385,7 @@ export class BotRuntimeManager {
             });
           await runtime.bot.api
             .sendMessage(
-              existingLink.notificationTelegramId,
+              notificationTelegramId,
               translate(
                 preference?.language ?? SupportedLanguage.EN,
                 invitePermissionOutcome === "DEACTIVATED"
@@ -1361,7 +1401,7 @@ export class BotRuntimeManager {
             await this.prisma.userBotPreference.findUnique({
               where: {
                 userId_botId: {
-                  userId: existingLink.ownerUserId,
+                  userId: ownerUserId,
                   botId: runtime.botRecord.id,
                 },
               },
@@ -1369,7 +1409,7 @@ export class BotRuntimeManager {
             });
           await runtime.bot.api
             .sendMessage(
-              existingLink.notificationTelegramId,
+              notificationTelegramId,
               translate(
                 preference?.language ?? SupportedLanguage.EN,
                 "channelLink.relinkRequired",
