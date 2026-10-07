@@ -3,6 +3,7 @@ import { createPlatformBotRuntime } from "./bot.js";
 import { loadEnv } from "./config/env.js";
 import { createPrismaClient } from "./lib/prisma.js";
 import { createRedisClient } from "./lib/redis.js";
+import { bootstrapLocalDashboardAdmin } from "./modules/admin/bootstrap-admin.js";
 import { BotRuntimeManager } from "./modules/bots/bot-runtime-manager.js";
 import { SupportListScheduler } from "./modules/support-list/scheduler.js";
 
@@ -16,6 +17,9 @@ let app: ReturnType<typeof buildApp> | undefined;
 
 try {
   await redis.connect();
+  await bootstrapLocalDashboardAdmin(prisma, env, (message) => {
+    console.warn(message);
+  });
   const runtime = await createPlatformBotRuntime(
     env,
     prisma,

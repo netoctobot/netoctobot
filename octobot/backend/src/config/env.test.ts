@@ -22,6 +22,32 @@ test("loads typed environment values", () => {
   assert.equal(env.PORT, 3000);
 });
 
+test("requires both local admin variables outside production", () => {
+  const withAdmin = loadEnv({
+    ...validEnv,
+    LOCAL_ADMIN_USERNAME: "localadmin",
+    LOCAL_ADMIN_PASSWORD: "local-password",
+  });
+  assert.equal(withAdmin.LOCAL_ADMIN_USERNAME, "localadmin");
+  assert.equal(withAdmin.NODE_ENV, undefined);
+
+  assert.throws(() =>
+    loadEnv({
+      ...validEnv,
+      LOCAL_ADMIN_USERNAME: "localadmin",
+    }),
+  );
+
+  const production = loadEnv({
+    ...validEnv,
+    NODE_ENV: "production",
+    LOCAL_ADMIN_USERNAME: "localadmin",
+  });
+  assert.equal(production.NODE_ENV, "production");
+  assert.equal(production.LOCAL_ADMIN_USERNAME, "localadmin");
+  assert.equal(production.LOCAL_ADMIN_PASSWORD, undefined);
+});
+
 test("requires HTTPS when webhook registration is enabled", () => {
   assert.throws(() =>
     loadEnv({

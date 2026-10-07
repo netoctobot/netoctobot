@@ -1,4 +1,4 @@
-import { SupportedLanguage, type PrismaClient, type User } from "@prisma/client";
+import { SupportedLanguage, type PrismaClient } from "@prisma/client";
 import type { FastifyInstance } from "fastify";
 import type { Env } from "../../config/env.js";
 import { disableByAdmin } from "../support-list/membership.service.js";
@@ -26,10 +26,7 @@ import {
   readPublishingDetail,
   readUsers,
 } from "./admin-read.service.js";
-import {
-  parseTelegramLoginBody,
-  verifyTelegramLogin,
-} from "./telegram-login.js";
+import { verifyPassword } from "./password.js";
 import { getWebLocale, setWebLocale } from "./web-locale.js";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -57,14 +54,34 @@ function routeId(value: string): string | null {
   return ID_PATTERN.test(value) ? value : null;
 }
 
-function publicUser(user: User) {
+interface DashboardAdminRecord {
+  id: string;
+  username: string;
+  passwordHash: string;
+}
+
+function publicAdmin(admin: DashboardAdminRecord) {
   return {
-    id: user.id,
-    telegramId: user.telegramId.toString(),
-    username: user.username,
-    firstName: user.firstName,
-    lastName: user.lastName,
+    id: admin.id,
+    username: admin.username,
   };
+}
+
+function loginBody(
+  value: unknown,
+): { username: string; password: string } | null {
+  if (
+    !isRecord(value) ||
+    typeof value.username !== "string" ||
+    typeof value.password !== "string"
+  ) {
+    return null;
+  }
+  const username = value.username.trim();
+  if (!username || !value.password) {
+    return null;
+  }
+  return { username, password: value.password };
 }
 
 export function registerAdminRoutes(
@@ -76,10 +93,10 @@ export function registerAdminRoutes(
   const now = options.now ?? Date.now;
   const secure = new URL(env.PUBLIC_BASE_URL).protocol === "https:";
 
-  async function requireOwner(
+  async function requireAdmin(
     request: { headers: { cookie?: string | string[] }; ip: string },
     reply: { code: (status: number) => { send: (body: unknown) => unknown } },
-  ): Promise<User | null> {
+  ): Promise<DashboardAdminRecord | null> {
     const header = Array.isArray(request.headers.cookie)
       ? request.headers.cookie.join("; ")
       : request.headers.cookie;
@@ -88,66 +105,44 @@ export function registerAdminRoutes(
       env.ENCRYPTION_KEY,
       now(),
     );
-    if (!session || session.telegramId !== env.OWNER_TELEGRAM_ID.toString()) {
+    if (!session) {
       reply.code(401).send({ error: "unauthorized" });
       return null;
     }
-    const user = await prisma.user.findUnique({ where: { id: session.userId } });
-    if (
-      !user ||
-      user.deletedAt ||
-      user.telegramId !== env.OWNER_TELEGRAM_ID
-    ) {
-      reply.code(403).send({ error: "not_owner" });
+    const admin = await prisma.dashboardAdmin.findUnique({
+      where: { id: session.adminId },
+    });
+    if (!admin) {
+      reply.code(401).send({ error: "unauthorized" });
       return null;
     }
-    return user;
+    return admin;
   }
 
-  app.get("/admin/login-info", async (_request, reply) => {
-    const settings = await prisma.platformSettings.findUnique({
-      where: { id: "default" },
-      select: { platformBot: { select: { botUsername: true } } },
-    });
-    if (!settings) {
-      return reply.code(404).send({ error: "platform_bot_missing" });
-    }
-    return { botUsername: settings.platformBot.botUsername };
-  });
-
   app.post("/admin/session", async (request, reply) => {
-    const login = parseTelegramLoginBody(request.body);
-    if (!login || !verifyTelegramLogin(login, env.BOT_TOKEN, now())) {
+    const login = loginBody(request.body);
+    const admin = login
+      ? await prisma.dashboardAdmin.findUnique({
+          where: { username: login.username },
+        })
+      : null;
+    const valid = await verifyPassword(
+      login?.password ?? "",
+      admin?.passwordHash ?? null,
+    );
+    if (!login || !admin || !valid) {
       return reply.code(401).send({ error: "invalid_login" });
     }
-    if (BigInt(login.id) !== env.OWNER_TELEGRAM_ID) {
-      return reply.code(403).send({ error: "not_owner" });
-    }
-    const existing = await prisma.user.findUnique({
-      where: { telegramId: BigInt(login.id) },
-    });
-    if (!existing || existing.deletedAt) {
-      return reply.code(403).send({ error: "owner_not_registered" });
-    }
-    const user = await prisma.user.update({
-      where: { id: existing.id },
-      data: {
-        firstName: login.first_name,
-        ...(login.last_name ? { lastName: login.last_name } : {}),
-        ...(login.username ? { username: login.username } : {}),
-      },
-    });
-    const webLocale = await getWebLocale(prisma, user.id);
+    const webLocale = await getWebLocale(prisma, admin.id);
     const token = signAdminSession(
       {
-        userId: user.id,
-        telegramId: user.telegramId.toString(),
+        adminId: admin.id,
         exp: sessionExpiry(now()),
       },
       env.ENCRYPTION_KEY,
     );
     reply.header("set-cookie", sessionCookieHeader(token, secure));
-    return { user: publicUser(user), webLocale };
+    return { admin: publicAdmin(admin), webLocale };
   });
 
   app.delete("/admin/session", async (_request, reply) => {
@@ -156,19 +151,19 @@ export function registerAdminRoutes(
   });
 
   app.get("/admin/me", async (request, reply) => {
-    const user = await requireOwner(request, reply);
-    if (!user) {
+    const admin = await requireAdmin(request, reply);
+    if (!admin) {
       return;
     }
     return {
-      user: publicUser(user),
-      webLocale: await getWebLocale(prisma, user.id),
+      admin: publicAdmin(admin),
+      webLocale: await getWebLocale(prisma, admin.id),
     };
   });
 
   app.put("/admin/locale", async (request, reply) => {
-    const user = await requireOwner(request, reply);
-    if (!user) {
+    const admin = await requireAdmin(request, reply);
+    if (!admin) {
       return;
     }
     const language =
@@ -180,14 +175,13 @@ export function registerAdminRoutes(
     if (!language) {
       return reply.code(400).send({ error: "invalid_language" });
     }
-    const saved = await setWebLocale(prisma, user.id, language);
+    const saved = await setWebLocale(prisma, admin.id, language);
     await prisma.auditLog.create({
       data: {
-        userId: user.id,
         action: "web_locale.set",
         entityType: "WebLocalePreference",
-        entityId: user.id,
-        details: { language: saved },
+        entityId: admin.id,
+        details: { language: saved, adminUsername: admin.username },
         ip: request.ip,
       },
     });
@@ -195,28 +189,28 @@ export function registerAdminRoutes(
   });
 
   app.get("/admin/overview", async (request, reply) => {
-    if (!(await requireOwner(request, reply))) {
+    if (!(await requireAdmin(request, reply))) {
       return;
     }
     return readOverview(prisma);
   });
 
   app.get("/admin/users", async (request, reply) => {
-    if (!(await requireOwner(request, reply))) {
+    if (!(await requireAdmin(request, reply))) {
       return;
     }
     return readUsers(prisma, requestedPage(request.query));
   });
 
   app.get("/admin/bots", async (request, reply) => {
-    if (!(await requireOwner(request, reply))) {
+    if (!(await requireAdmin(request, reply))) {
       return;
     }
     return readBots(prisma, requestedPage(request.query));
   });
 
   app.get<{ Params: { id: string } }>("/admin/bots/:id", async (request, reply) => {
-    if (!(await requireOwner(request, reply))) {
+    if (!(await requireAdmin(request, reply))) {
       return;
     }
     const id = routeId(request.params.id);
@@ -228,7 +222,7 @@ export function registerAdminRoutes(
   });
 
   app.get("/admin/channels", async (request, reply) => {
-    if (!(await requireOwner(request, reply))) {
+    if (!(await requireAdmin(request, reply))) {
       return;
     }
     return readChannels(prisma, requestedPage(request.query));
@@ -237,7 +231,7 @@ export function registerAdminRoutes(
   app.get<{ Params: { id: string } }>(
     "/admin/channels/:id",
     async (request, reply) => {
-      if (!(await requireOwner(request, reply))) {
+      if (!(await requireAdmin(request, reply))) {
         return;
       }
       const id = routeId(request.params.id);
@@ -250,7 +244,7 @@ export function registerAdminRoutes(
   );
 
   app.get("/admin/publishing", async (request, reply) => {
-    if (!(await requireOwner(request, reply))) {
+    if (!(await requireAdmin(request, reply))) {
       return;
     }
     return readPublishing(prisma, requestedPage(request.query));
@@ -259,7 +253,7 @@ export function registerAdminRoutes(
   app.get<{ Params: { botId: string } }>(
     "/admin/publishing/:botId",
     async (request, reply) => {
-      if (!(await requireOwner(request, reply))) {
+      if (!(await requireAdmin(request, reply))) {
         return;
       }
       const botId = routeId(request.params.botId);
@@ -274,8 +268,8 @@ export function registerAdminRoutes(
   app.post<{ Params: { botId: string; membershipId: string } }>(
     "/admin/publishing/:botId/memberships/:membershipId/admin-disable",
     async (request, reply) => {
-      const user = await requireOwner(request, reply);
-      if (!user) {
+      const admin = await requireAdmin(request, reply);
+      if (!admin) {
         return;
       }
       const botId = routeId(request.params.botId);
@@ -293,11 +287,10 @@ export function registerAdminRoutes(
       }
       await prisma.auditLog.create({
         data: {
-          userId: user.id,
           action: "support_list.admin_disable",
           entityType: "SupportListMembership",
           entityId: updated.id,
-          details: { botId, reason },
+          details: { botId, reason, adminUsername: admin.username },
           ip: request.ip,
         },
       });
@@ -310,7 +303,7 @@ export function registerAdminRoutes(
   );
 
   app.get("/admin/catalog", async (request, reply) => {
-    if (!(await requireOwner(request, reply))) {
+    if (!(await requireAdmin(request, reply))) {
       return;
     }
     return readCatalog(prisma);
@@ -319,8 +312,8 @@ export function registerAdminRoutes(
   app.patch<{ Params: { id: string } }>(
     "/admin/catalog/:id",
     async (request, reply) => {
-      const user = await requireOwner(request, reply);
-      if (!user) {
+      const admin = await requireAdmin(request, reply);
+      if (!admin) {
         return;
       }
       const id = routeId(request.params.id);
@@ -333,7 +326,7 @@ export function registerAdminRoutes(
       }
       const updated = await setCatalogActive(
         prisma,
-        user.id,
+        admin.username,
         id,
         isActive,
         request.ip,
@@ -346,8 +339,8 @@ export function registerAdminRoutes(
   );
 
   app.put("/admin/catalog/order", async (request, reply) => {
-    const user = await requireOwner(request, reply);
-    if (!user) {
+    const admin = await requireAdmin(request, reply);
+    if (!admin) {
       return;
     }
     const ids =
@@ -361,7 +354,7 @@ export function registerAdminRoutes(
     if (!ids) {
       return reply.code(400).send({ error: "invalid_order" });
     }
-    const saved = await reorderCatalog(prisma, user.id, ids, request.ip);
+    const saved = await reorderCatalog(prisma, admin.username, ids, request.ip);
     if (!saved) {
       return reply.code(400).send({ error: "invalid_order" });
     }
@@ -369,14 +362,14 @@ export function registerAdminRoutes(
   });
 
   app.get("/admin/forced-subscriptions", async (request, reply) => {
-    if (!(await requireOwner(request, reply))) {
+    if (!(await requireAdmin(request, reply))) {
       return;
     }
     return readForcedSubscriptions(prisma);
   });
 
   app.get("/admin/audit", async (request, reply) => {
-    if (!(await requireOwner(request, reply))) {
+    if (!(await requireAdmin(request, reply))) {
       return;
     }
     return readAudit(prisma, requestedPage(request.query));

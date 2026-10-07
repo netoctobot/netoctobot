@@ -26,14 +26,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 const ERROR_KEYS: Record<string, string> = {
   unauthorized: "errors.unauthorized",
-  not_owner: "errors.notOwner",
-  owner_not_registered: "errors.ownerNotRegistered",
   invalid_login: "errors.invalidLogin",
   invalid_reason: "errors.invalidReason",
   invalid_language: "errors.invalidLanguage",
   invalid_order: "errors.invalidOrder",
   not_found: "errors.notFound",
-  platform_bot_missing: "errors.platformBotMissing",
 };
 
 export function errorKey(code: string): string {

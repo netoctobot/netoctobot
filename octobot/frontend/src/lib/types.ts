@@ -16,13 +16,18 @@ export interface Page<T> {
   total: number;
 }
 
+export interface DashboardAdminRef {
+  id: string;
+  username: string;
+}
+
 export interface Me {
-  user: PublicUser;
+  admin: DashboardAdminRef;
   webLocale: "AR" | "EN" | null;
 }
 
 export interface LoginResult {
-  user: PublicUser;
+  admin: DashboardAdminRef;
   webLocale: "AR" | "EN" | null;
 }
 

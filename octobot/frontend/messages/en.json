@@ -21,21 +21,18 @@
   },
   "login": {
     "title": "Platform admin",
-    "intro": "Sign in with the platform owner Telegram account.",
-    "widgetLabel": "Telegram sign-in",
-    "missingBot": "The platform bot is not ready yet.",
-    "widgetUnavailable": "The Telegram sign-in button could not be loaded."
+    "intro": "Sign in with your username and password.",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in"
   },
   "errors": {
     "unauthorized": "Sign in to continue.",
-    "notOwner": "This Telegram account is not the platform owner.",
-    "ownerNotRegistered": "Open the platform bot once before using the dashboard.",
-    "invalidLogin": "Telegram sign-in could not be verified.",
+    "invalidLogin": "The username or password is incorrect.",
     "invalidReason": "Enter a reason of up to 200 characters.",
     "invalidLanguage": "Choose Arabic or English.",
     "invalidOrder": "The catalog order is out of date. Reload and try again.",
     "notFound": "That record is no longer available.",
-    "platformBotMissing": "The platform bot is not ready yet.",
     "generic": "Something went wrong. Try again."
   },
   "alerts": {

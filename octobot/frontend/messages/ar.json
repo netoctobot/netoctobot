@@ -21,21 +21,18 @@
   },
   "login": {
     "title": "إدارة المنصة",
-    "intro": "ادخل بحساب مالك المنصة على Telegram.",
-    "widgetLabel": "الدخول عبر Telegram",
-    "missingBot": "بوت المنصة غير جاهز بعد.",
-    "widgetUnavailable": "تعذر تحميل زر الدخول عبر Telegram."
+    "intro": "ادخل باسم المستخدم وكلمة المرور.",
+    "username": "اسم المستخدم",
+    "password": "كلمة المرور",
+    "submit": "دخول"
   },
   "errors": {
     "unauthorized": "سجل الدخول للمتابعة.",
-    "notOwner": "حساب Telegram هذا ليس مالك المنصة.",
-    "ownerNotRegistered": "افتح بوت المنصة مرة واحدة قبل استخدام اللوحة.",
-    "invalidLogin": "تعذر التحقق من دخول Telegram.",
+    "invalidLogin": "اسم المستخدم أو كلمة المرور غير صحيحة",
     "invalidReason": "أدخل سببًا لا يتجاوز 200 حرف.",
     "invalidLanguage": "اختر العربية أو الإنجليزية.",
     "invalidOrder": "ترتيب الكتالوج لم يعد مطابقًا. أعد التحميل ثم حاول مرة أخرى.",
     "notFound": "هذا السجل لم يعد متاحًا.",
-    "platformBotMissing": "بوت المنصة غير جاهز بعد.",
     "generic": "حدث خطأ. حاول مرة أخرى."
   },
   "alerts": {

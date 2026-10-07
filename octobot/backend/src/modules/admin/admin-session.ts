@@ -4,8 +4,7 @@ export const ADMIN_SESSION_COOKIE = "octobot_admin_session";
 const SESSION_SECONDS = 60 * 60 * 12;
 
 export interface AdminSession {
-  userId: string;
-  telegramId: string;
+  adminId: string;
   exp: number;
 }
 
@@ -48,16 +47,15 @@ export function readAdminSession(
     if (
       !parsed ||
       typeof parsed !== "object" ||
-      !("userId" in parsed) ||
-      !("telegramId" in parsed) ||
+      !("adminId" in parsed) ||
       !("exp" in parsed)
     ) {
       return null;
     }
     const session = parsed as AdminSession;
     if (
-      typeof session.userId !== "string" ||
-      typeof session.telegramId !== "string" ||
+      typeof session.adminId !== "string" ||
+      session.adminId.length === 0 ||
       typeof session.exp !== "number" ||
       session.exp * 1000 <= nowMs
     ) {

@@ -5,15 +5,15 @@ import { type PrismaClient, SupportedLanguage } from "@prisma/client";
 import type { Env } from "../../config/env.js";
 import { ADMIN_SESSION_COOKIE } from "./admin-session.js";
 import { registerAdminRoutes } from "./admin.routes.js";
+import { hashPassword } from "./password.js";
 
 const nowMs = 1_700_000_000_000 + 5_000;
-const owner = {
-  id: "user_owner",
-  telegramId: 123456789n,
-  username: "owner",
-  firstName: "Owner",
-  lastName: null,
-  deletedAt: null,
+const password = "correct-password";
+const passwordHash = await hashPassword(password);
+const admin = {
+  id: "admin_1",
+  username: "localadmin",
+  passwordHash,
 };
 
 const env = {
@@ -31,23 +31,16 @@ function createHarness() {
   ];
   let locale: SupportedLanguage | null = null;
   const prisma = {
-    user: {
+    dashboardAdmin: {
       async findUnique({
         where,
       }: {
-        where: { id?: string; telegramId?: bigint };
+        where: { id?: string; username?: string };
       }) {
-        if (where.telegramId !== undefined) {
-          return where.telegramId === owner.telegramId ? owner : null;
+        if (where.username !== undefined) {
+          return where.username === admin.username ? admin : null;
         }
-        return where.id === owner.id ? owner : null;
-      },
-      async update({
-        data,
-      }: {
-        data: { firstName?: string; username?: string };
-      }) {
-        return { ...owner, ...data };
+        return where.id === admin.id ? admin : null;
       },
     },
     userBotPreference: new Proxy(
@@ -61,8 +54,10 @@ function createHarness() {
       },
     ),
     webLocalePreference: {
-      async findUnique() {
-        return locale ? { language: locale, isExplicit: true } : null;
+      async findUnique({ where }: { where: { adminId: string } }) {
+        return locale && where.adminId === admin.id
+          ? { language: locale, isExplicit: true }
+          : null;
       },
       async upsert({
         create,
@@ -132,8 +127,18 @@ function createHarness() {
       },
     },
     auditLog: {
-      async create({ data }: { data: { action: string } }) {
+      async create({
+        data,
+      }: {
+        data: { action: string; userId?: string | null; details?: unknown };
+      }) {
         calls.push(data.action);
+        calls.push(
+          JSON.stringify({
+            userId: data.userId ?? null,
+            details: data.details ?? null,
+          }),
+        );
         return { id: "audit" };
       },
     },
@@ -147,25 +152,28 @@ function createHarness() {
   return { app, calls };
 }
 
-test("owner session restores web language without bot preferences", async () => {
+test("password session restores web language without bot preferences", async () => {
   const { app, calls } = createHarness();
   const login = await app.inject({
     method: "POST",
     url: "/admin/session",
-    payload: {
-      id: "123456789",
-      first_name: "Owner",
-      auth_date: "1700000000",
-      hash: "446b7292f75b2f68995f9a146626d0e4b4a690b6137b7512cca49bae583c43ab",
-    },
+    payload: { username: "localadmin", password },
   });
   assert.equal(login.statusCode, 200);
   assert.equal(login.json().webLocale, null);
+  assert.deepEqual(login.json().admin, {
+    id: "admin_1",
+    username: "localadmin",
+  });
+  assert.equal(JSON.stringify(login.json()).includes(password), false);
+  assert.equal(JSON.stringify(login.json()).includes(passwordHash), false);
   assert.equal(calls.includes("web-locale"), false);
 
   const setCookie = login.headers["set-cookie"];
   assert.equal(typeof setCookie, "string");
   assert.match(String(setCookie), new RegExp(`${ADMIN_SESSION_COOKIE}=`));
+  assert.match(String(setCookie), /HttpOnly/);
+  assert.equal(String(setCookie).includes(password), false);
 
   const denied = await app.inject({ method: "GET", url: "/admin/overview" });
   assert.equal(denied.statusCode, 401);
@@ -186,6 +194,21 @@ test("owner session restores web language without bot preferences", async () => 
   });
   assert.equal(me.json().webLocale, "AR");
   assert.equal(calls.includes("web_locale.set"), true);
+  assert.equal(
+    calls.some((call) => call.includes('"adminUsername":"localadmin"')),
+    true,
+  );
+  assert.equal(calls.some((call) => call.includes('"userId":null')), true);
+
+  const logout = await app.inject({
+    method: "DELETE",
+    url: "/admin/session",
+    headers: { cookie: String(setCookie) },
+  });
+  assert.equal(logout.statusCode, 204);
+  assert.match(String(logout.headers["set-cookie"]), /Max-Age=0/);
+  const afterLogout = await app.inject({ method: "GET", url: "/admin/me" });
+  assert.equal(afterLogout.statusCode, 401);
   await app.close();
 });
 
@@ -194,12 +217,7 @@ test("catalog reorder and admin disable stay off forced subscriptions", async ()
   const login = await app.inject({
     method: "POST",
     url: "/admin/session",
-    payload: {
-      id: 123456789,
-      first_name: "Owner",
-      auth_date: 1700000000,
-      hash: "446b7292f75b2f68995f9a146626d0e4b4a690b6137b7512cca49bae583c43ab",
-    },
+    payload: { username: " localadmin ", password },
   });
   const cookie = String(login.headers["set-cookie"]);
   const reorder = await app.inject({
@@ -219,16 +237,19 @@ test("catalog reorder and admin disable stay off forced subscriptions", async ()
   assert.equal(disabled.json().adminDisableReason, "repeated spam");
   assert.equal(calls.includes("catalog.reorder"), true);
   assert.equal(calls.includes("support_list.admin_disable"), true);
-  const outsider = await app.inject({
+  const wrongPassword = await app.inject({
     method: "POST",
     url: "/admin/session",
-    payload: {
-      id: "999",
-      first_name: "Other",
-      auth_date: "1700000000",
-      hash: "446b7292f75b2f68995f9a146626d0e4b4a690b6137b7512cca49bae583c43ab",
-    },
+    payload: { username: "localadmin", password: "wrong-password" },
   });
-  assert.equal(outsider.statusCode, 401);
+  const unknownUser = await app.inject({
+    method: "POST",
+    url: "/admin/session",
+    payload: { username: "someoneelse", password },
+  });
+  assert.equal(wrongPassword.statusCode, 401);
+  assert.equal(unknownUser.statusCode, 401);
+  assert.deepEqual(wrongPassword.json(), unknownUser.json());
+  assert.deepEqual(wrongPassword.json(), { error: "invalid_login" });
   await app.close();
 });

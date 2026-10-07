@@ -1,111 +1,74 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { LocaleSwitcher } from "@/components/chrome";
 import { Alert } from "@/components/feedback";
 import { useRouter } from "@/i18n/navigation";
 import { ApiError, api } from "@/lib/api";
 import type { LoginResult } from "@/lib/types";
 
-function LoginForm() {
+export default function LoginPage() {
   const t = useTranslations("login");
   const locale = useLocale();
   const router = useRouter();
-  const params = useSearchParams();
-  const started = useRef(false);
-  const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [widgetError, setWidgetError] = useState(false);
-  const widget = useRef<HTMLDivElement>(null);
+  const [pending, setPending] = useState(false);
 
-  async function finish(result: LoginResult) {
+  function openDashboard(result: LoginResult) {
     const account =
       result.webLocale === "AR" ? "ar" : result.webLocale === "EN" ? "en" : null;
     if (!account) {
-      await api("/locale", {
-        method: "PUT",
-        body: JSON.stringify({ language: locale === "ar" ? "AR" : "EN" }),
-      });
       router.replace("/overview");
       return;
     }
     router.replace("/overview", { locale: account });
   }
 
-  async function submit(payload: Record<string, unknown>) {
+  useEffect(() => {
+    let cancelled = false;
+    api<LoginResult>("/me")
+      .then((result) => {
+        if (!cancelled) {
+          const account =
+            result.webLocale === "AR" ? "ar" : result.webLocale === "EN" ? "en" : null;
+          if (!account) {
+            router.replace("/overview");
+            return;
+          }
+          router.replace("/overview", { locale: account });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
     setError(null);
     try {
       const result = await api<LoginResult>("/session", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ username, password }),
       });
-      await finish(result);
+      if (!result.webLocale) {
+        await api("/locale", {
+          method: "PUT",
+          body: JSON.stringify({ language: locale === "ar" ? "AR" : "EN" }),
+        });
+      }
+      openDashboard(result);
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.code : "generic");
+    } finally {
+      setPending(false);
     }
   }
-
-  useEffect(() => {
-    const id = params.get("id");
-    const hash = params.get("hash");
-    const authDate = params.get("auth_date");
-    const firstName = params.get("first_name");
-    if (!id || !hash || !authDate || !firstName || started.current) {
-      return;
-    }
-    started.current = true;
-    void submit({
-      id,
-      hash,
-      auth_date: authDate,
-      first_name: firstName,
-      last_name: params.get("last_name") ?? undefined,
-      username: params.get("username") ?? undefined,
-      photo_url: params.get("photo_url") ?? undefined,
-    });
-  }, [params]);
-
-  useEffect(() => {
-    let cancelled = false;
-    api<{ botUsername: string }>("/login-info")
-      .then((info) => {
-        if (!cancelled) {
-          setBotUsername(info.botUsername);
-        }
-      })
-      .catch((caught: unknown) => {
-        if (!cancelled) {
-          setError(caught instanceof ApiError ? caught.code : "generic");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    const host = widget.current;
-    if (!botUsername || !host) {
-      return;
-    }
-    window.OctobotAdminTelegramAuth = (user) => {
-      void submit(user);
-    };
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = "https://telegram.org/js/telegram-widget.js?22";
-    script.setAttribute("data-telegram-login", botUsername);
-    script.setAttribute("data-size", "large");
-    script.setAttribute("data-userpic", "false");
-    script.setAttribute("data-onauth", "OctobotAdminTelegramAuth(user)");
-    script.onerror = () => setWidgetError(true);
-    host.replaceChildren(script);
-    return () => {
-      delete window.OctobotAdminTelegramAuth;
-    };
-  }, [botUsername]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 px-6 py-12">
@@ -116,27 +79,42 @@ function LoginForm() {
       <section className="flex flex-col gap-4 rounded-3xl border border-line bg-card p-6">
         <h1 className="text-3xl font-semibold">{t("title")}</h1>
         <p className="text-muted">{t("intro")}</p>
-        <Alert code={error} />
-        <div dir="ltr" className="[unicode-bidi:isolate]" aria-label={t("widgetLabel")}>
-          <div ref={widget} />
-        </div>
-        {widgetError ? <p role="alert">{t("widgetUnavailable")}</p> : null}
+        <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
+          <label className="flex flex-col gap-1 text-sm">
+            {t("username")}
+            <input
+              name="username"
+              autoComplete="username"
+              dir="ltr"
+              required
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              className="rounded-xl border border-line bg-paper px-3 py-2 text-base text-ink"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            {t("password")}
+            <input
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              dir="ltr"
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="rounded-xl border border-line bg-paper px-3 py-2 text-base text-ink"
+            />
+          </label>
+          <Alert code={error} />
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-full bg-accent px-4 py-2 text-sm text-card disabled:opacity-40"
+          >
+            {t("submit")}
+          </button>
+        </form>
       </section>
     </main>
   );
-}
-
-export default function LoginPage() {
-  const t = useTranslations("common");
-  return (
-    <Suspense fallback={<p className="p-6 text-muted">{t("loading")}</p>}>
-      <LoginForm />
-    </Suspense>
-  );
-}
-
-declare global {
-  interface Window {
-    OctobotAdminTelegramAuth?: (user: Record<string, unknown>) => void;
-  }
 }

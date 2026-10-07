@@ -7,20 +7,20 @@ test("web locale is stored apart from Telegram bot preferences", async () => {
   const rows = new Map<string, SupportedLanguage>();
   const prisma = {
     webLocalePreference: {
-      async findUnique({ where }: { where: { userId: string } }) {
-        const language = rows.get(where.userId);
-        return language ? { language, isExplicit: true, userId: where.userId } : null;
+      async findUnique({ where }: { where: { adminId: string } }) {
+        const language = rows.get(where.adminId);
+        return language ? { language, isExplicit: true, adminId: where.adminId } : null;
       },
       async upsert({
         where,
         create,
       }: {
-        where: { userId: string };
+        where: { adminId: string };
         create: { language: SupportedLanguage };
         update: { language: SupportedLanguage };
       }) {
-        rows.set(where.userId, create.language);
-        return { language: create.language, isExplicit: true, userId: where.userId };
+        rows.set(where.adminId, create.language);
+        return { language: create.language, isExplicit: true, adminId: where.adminId };
       },
     },
     userBotPreference: new Proxy(

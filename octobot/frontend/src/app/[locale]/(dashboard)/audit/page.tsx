@@ -101,6 +101,11 @@ export default function AuditPage() {
                       username={row.actor.username}
                       telegramId={row.actor.telegramId}
                     />
+                  ) : isRecord(row.details) &&
+                    typeof row.details.adminUsername === "string" ? (
+                    <span dir="ltr" className="[unicode-bidi:isolate]">
+                      {row.details.adminUsername}
+                    </span>
                   ) : (
                     <UserContent value={null} />
                   )}

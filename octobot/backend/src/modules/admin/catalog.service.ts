@@ -2,7 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 export async function setCatalogActive(
   prisma: PrismaClient,
-  actorId: string,
+  adminUsername: string,
   id: string,
   isActive: boolean,
   ip: string | undefined,
@@ -21,11 +21,10 @@ export async function setCatalogActive(
   });
   await prisma.auditLog.create({
     data: {
-      userId: actorId,
       action: "catalog.set_active",
       entityType: "PlatformForcedChannel",
       entityId: id,
-      details: { isActive },
+      details: { isActive, adminUsername },
       ip,
     },
   });
@@ -34,7 +33,7 @@ export async function setCatalogActive(
 
 export async function reorderCatalog(
   prisma: PrismaClient,
-  actorId: string,
+  adminUsername: string,
   ids: string[],
   ip: string | undefined,
 ): Promise<boolean> {
@@ -58,11 +57,10 @@ export async function reorderCatalog(
   await prisma.$transaction(updates);
   await prisma.auditLog.create({
     data: {
-      userId: actorId,
       action: "catalog.reorder",
       entityType: "PlatformForcedChannel",
       entityId: ids[0] ?? null,
-      details: { ids },
+      details: { ids, adminUsername },
       ip,
     },
   });
