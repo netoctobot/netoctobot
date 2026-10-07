@@ -77,7 +77,7 @@ export function UsernameValue({ username }: { username: string | null }) {
         <a
           href={link}
           dir="ltr"
-          className="[unicode-bidi:isolate] text-accent underline"
+          className="[unicode-bidi:isolate] text-action underline"
           rel="noreferrer"
         >
           {link}

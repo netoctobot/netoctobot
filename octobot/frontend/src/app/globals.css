@@ -1,13 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #1c2b29;
-  --color-paper: #efe7dc;
-  --color-card: #fffdf8;
-  --color-line: #e4d8c8;
-  --color-accent: #b5522a;
-  --color-muted: #5f574c;
-  --color-sidebar: #172421;
+  --color-ink: #123044;
+  --color-muted: #4c6470;
+  --color-paper: #f3f7f8;
+  --color-card: #ffffff;
+  --color-line: #d3e0e4;
+  --color-sidebar: #0e2433;
+  --color-accent: #14919b;
+  --color-action: #0f6e73;
+  --color-warn: #8a5a12;
+  --color-danger: #8e3b3b;
 }
 
 body {
@@ -16,21 +19,21 @@ body {
 }
 
 button:focus-visible,
-a:focus-visible {
-  outline: 2px solid var(--color-accent);
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-action);
   outline-offset: 2px;
 }
 
-dialog {
-  margin: auto;
-  width: min(32rem, calc(100vw - 2rem));
-  border: 1px solid var(--color-line);
-  border-radius: 1.25rem;
-  background: var(--color-card);
-  color: var(--color-ink);
-  padding: 0;
-}
+@media (max-width: 767px) {
+  .drawer-off {
+    visibility: hidden;
+    transform: translateX(-100%);
+  }
 
-dialog::backdrop {
-  background: rgb(23 36 33 / 0.45);
+  [dir="rtl"] .drawer-off {
+    transform: translateX(100%);
+  }
 }

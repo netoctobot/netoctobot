@@ -2,14 +2,9 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { RecordList } from "@/components/blocks";
 import { Appointment, YesNo } from "@/components/chrome";
-import {
-  DataCell,
-  DataRow,
-  DataTable,
-  PageState,
-  Pager,
-} from "@/components/feedback";
+import { PageState, Pager } from "@/components/feedback";
 import { CopyValue, Person, UserContent } from "@/components/values";
 import { useResource } from "@/lib/use-resource";
 import type { AuditRow, Page } from "@/lib/types";
@@ -57,11 +52,12 @@ export default function AuditPage() {
   const t = useTranslations("audit");
   const copy = useTranslations("copy");
   const [page, setPage] = useState(1);
-  const { data, error, loading, reload } = useResource<Page<AuditRow>>(
-    `/audit?page=${page}`,
-  );
+  const { data, error, loading, reload } = useResource<Page<AuditRow>>(`/audit?page=${page}`);
   const actions = useTranslations("audit.actions");
-  const actionKey: Record<string, "webLocaleSet" | "supportListAdminDisable" | "catalogSetActive" | "catalogReorder"> = {
+  const actionKey: Record<
+    string,
+    "webLocaleSet" | "supportListAdminDisable" | "catalogSetActive" | "catalogReorder"
+  > = {
     "web_locale.set": "webLocaleSet",
     "support_list.admin_disable": "supportListAdminDisable",
     "catalog.set_active": "catalogSetActive",
@@ -69,60 +65,66 @@ export default function AuditPage() {
   };
   return (
     <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted">{t("purpose")}</p>
       <PageState
         loading={loading}
         error={error}
         empty={Boolean(data && data.items.length === 0)}
         onRetry={() => void reload()}
       />
-      {data && data.items.length > 0 ? (
+      {!loading && data && data.items.length > 0 ? (
         <>
-          <DataTable
-            headers={[t("when"), t("action"), t("actor"), t("entity"), t("details")]}
-          >
-            {data.items.map((row) => (
-              <DataRow key={row.id}>
-                <DataCell>
-                  <Appointment iso={row.createdAt} timeZone="UTC" />
-                </DataCell>
-                <DataCell>
-                  {actionKey[row.action] ? (
+          <RecordList
+            rows={data.items}
+            rowKey={(row) => row.id}
+            columns={[
+              {
+                header: t("when"),
+                render: (row) => <Appointment iso={row.createdAt} timeZone="UTC" />,
+              },
+              {
+                header: t("action"),
+                render: (row) =>
+                  actionKey[row.action] ? (
                     actions(actionKey[row.action])
                   ) : (
                     <span dir="ltr" className="[unicode-bidi:isolate]">
                       {row.action}
                     </span>
-                  )}
-                </DataCell>
-                <DataCell>
-                  {row.actor ? (
+                  ),
+              },
+              {
+                header: t("actor"),
+                render: (row) =>
+                  row.actor ? (
                     <Person
                       firstName={row.actor.firstName}
                       username={row.actor.username}
                       telegramId={row.actor.telegramId}
                     />
-                  ) : isRecord(row.details) &&
-                    typeof row.details.adminUsername === "string" ? (
+                  ) : isRecord(row.details) && typeof row.details.adminUsername === "string" ? (
                     <span dir="ltr" className="[unicode-bidi:isolate]">
                       {row.details.adminUsername}
                     </span>
                   ) : (
                     <UserContent value={null} />
-                  )}
-                </DataCell>
-                <DataCell>
-                  {row.entityId ? (
+                  ),
+              },
+              {
+                header: t("entity"),
+                render: (row) =>
+                  row.entityId ? (
                     <CopyValue value={row.entityId} label={copy("id")} />
                   ) : (
                     <UserContent value={null} />
-                  )}
-                </DataCell>
-                <DataCell>
-                  <AuditDetails details={row.details} />
-                </DataCell>
-              </DataRow>
-            ))}
-          </DataTable>
+                  ),
+              },
+              {
+                header: t("details"),
+                render: (row) => <AuditDetails details={row.details} />,
+              },
+            ]}
+          />
           <Pager page={data.page} pageCount={data.pageCount} onPage={setPage} />
         </>
       ) : null}

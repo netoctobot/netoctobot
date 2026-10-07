@@ -21,7 +21,7 @@ export function Alert({
     <p
       role={tone === "error" ? "alert" : "status"}
       className={`rounded-xl px-3 py-2 text-sm ${
-        tone === "error" ? "bg-[#f6ddd4] text-ink" : "bg-[#e5efe4] text-ink"
+        tone === "error" ? "bg-[#f8e8e8] text-danger" : "bg-[#e5f3f2] text-action"
       }`}
     >
       {message}
@@ -33,16 +33,25 @@ export function PageState({
   loading,
   error,
   empty,
+  emptyMessage,
   onRetry,
 }: {
   loading: boolean;
   error: string | null;
   empty?: boolean;
+  emptyMessage?: string;
   onRetry?: () => void;
 }) {
   const t = useTranslations("common");
   if (loading) {
-    return <p className="text-muted">{t("loading")}</p>;
+    return (
+      <div aria-busy="true" className="flex flex-col gap-2">
+        <span className="sr-only">{t("loading")}</span>
+        <span className="h-8 animate-pulse rounded bg-line" />
+        <span className="h-8 animate-pulse rounded bg-line" />
+        <span className="h-8 w-2/3 animate-pulse rounded bg-line" />
+      </div>
+    );
   }
   if (error) {
     return (
@@ -52,7 +61,7 @@ export function PageState({
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-full bg-ink px-4 py-2 text-sm text-card"
+            className="rounded-lg bg-action px-3 py-1.5 text-sm text-white"
           >
             {t("retry")}
           </button>
@@ -61,7 +70,7 @@ export function PageState({
     );
   }
   if (empty) {
-    return <p className="text-muted">{t("empty")}</p>;
+    return <p className="text-sm text-muted">{emptyMessage ?? t("empty")}</p>;
   }
   return null;
 }
@@ -83,7 +92,7 @@ export function Pager({
         type="button"
         disabled={page <= 1}
         onClick={() => onPage(page - 1)}
-        className="rounded-full border border-line px-3 py-1.5 text-sm disabled:opacity-40"
+        className="rounded-lg border border-line bg-card px-3 py-1.5 text-sm disabled:opacity-40"
       >
         {t("previous")}
       </button>
@@ -97,7 +106,7 @@ export function Pager({
         type="button"
         disabled={page >= pageCount}
         onClick={() => onPage(page + 1)}
-        className="rounded-full border border-line px-3 py-1.5 text-sm disabled:opacity-40"
+        className="rounded-lg border border-line bg-card px-3 py-1.5 text-sm disabled:opacity-40"
       >
         {t("next")}
       </button>
@@ -116,7 +125,7 @@ export function DataTable({
     <div className="overflow-x-auto rounded-2xl border border-line bg-card">
       <table className="w-full border-collapse text-start text-sm">
         <thead>
-          <tr className="bg-[#f6f0e6] text-muted">
+          <tr className="bg-paper text-muted">
             {headers.map((header, index) => (
               <th
                 key={`${header}-${index}`}
@@ -173,6 +182,27 @@ export function Dialog({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !panel.current) {
+        return;
+      }
+      const items = [
+        ...panel.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((item) => !item.hasAttribute("disabled"));
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) {
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -184,14 +214,14 @@ export function Dialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#172421]/45 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"
         tabIndex={-1}
-        className="w-full max-w-lg rounded-3xl border border-line bg-card text-ink outline-none"
+        className="w-full max-w-lg rounded-lg border border-line bg-card text-ink outline-none"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
           <h2 id="dialog-title" className="text-lg font-semibold">

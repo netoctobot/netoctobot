@@ -10,6 +10,7 @@ import type { LoginResult } from "@/lib/types";
 
 export default function LoginPage() {
   const t = useTranslations("login");
+  const brand = useTranslations();
   const locale = useLocale();
   const router = useRouter();
   const [username, setUsername] = useState("");
@@ -71,14 +72,17 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 px-6 py-12">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-muted">{t("title")}</p>
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-4 py-10">
+      <header className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <img src="/brand/mark.png" alt="" width={40} height={40} className="h-10 w-10 rounded-full" />
+          <p className="text-sm font-semibold">{brand("brand")}</p>
+        </div>
         <LocaleSwitcher signedIn={false} />
       </header>
-      <section className="flex flex-col gap-4 rounded-3xl border border-line bg-card p-6">
-        <h1 className="text-3xl font-semibold">{t("title")}</h1>
-        <p className="text-muted">{t("intro")}</p>
+      <section className="flex flex-col gap-4 rounded-lg border border-line bg-card p-5">
+        <h1 className="text-2xl font-semibold">{t("title")}</h1>
+        <p className="text-sm text-muted">{t("intro")}</p>
         <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
           <label className="flex flex-col gap-1 text-sm">
             {t("username")}
@@ -89,7 +93,7 @@ export default function LoginPage() {
               required
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              className="rounded-xl border border-line bg-paper px-3 py-2 text-base text-ink"
+              className="rounded-lg border border-line bg-paper px-3 py-2 text-base text-ink"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -102,14 +106,14 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="rounded-xl border border-line bg-paper px-3 py-2 text-base text-ink"
+              className="rounded-lg border border-line bg-paper px-3 py-2 text-base text-ink"
             />
           </label>
           <Alert code={error} />
           <button
             type="submit"
             disabled={pending}
-            className="rounded-full bg-accent px-4 py-2 text-sm text-card disabled:opacity-40"
+            className="rounded-lg bg-action px-4 py-2 text-sm text-white disabled:opacity-40"
           >
             {t("submit")}
           </button>

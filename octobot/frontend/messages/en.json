@@ -2,7 +2,7 @@
   "meta": {
     "title": "Platform admin"
   },
-  "brand": "Octobot",
+  "brand": "Net Octo Bot",
   "language": {
     "label": "Language",
     "arabic": "العربية",
@@ -14,10 +14,24 @@
     "users": "Users",
     "bots": "Bots",
     "channels": "Channels",
-    "publishing": "Publishing",
-    "catalog": "Forced subscription",
+    "publishing": "Support lists",
+    "catalog": "Subscription catalog",
     "audit": "Audit log",
     "signOut": "Sign out"
+  },
+  "shell": {
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "account": "Admin account"
+  },
+  "filters": {
+    "search": "Search",
+    "status": "Status",
+    "type": "Type",
+    "catalog": "Catalog",
+    "all": "All",
+    "inCatalog": "In catalog",
+    "notInCatalog": "Outside catalog"
   },
   "login": {
     "title": "Platform admin",
@@ -27,13 +41,13 @@
     "submit": "Sign in"
   },
   "errors": {
-    "unauthorized": "Sign in to continue.",
+    "unauthorized": "The session ended. Sign in again.",
     "invalidLogin": "The username or password is incorrect.",
-    "invalidReason": "Enter a reason of up to 200 characters.",
-    "invalidLanguage": "Choose Arabic or English.",
-    "invalidOrder": "The catalog order is out of date. Reload and try again.",
-    "notFound": "That record is no longer available.",
-    "generic": "Something went wrong. Try again."
+    "invalidReason": "Enter a reason of up to 200 characters, then confirm.",
+    "invalidLanguage": "Choose Arabic or English, then try again.",
+    "invalidOrder": "The catalog order changed. Reload the page and arrange it again.",
+    "notFound": "That record is no longer available. Return to the list.",
+    "generic": "The request could not be completed. Try again."
   },
   "alerts": {
     "saved": "Saved.",
@@ -49,7 +63,8 @@
   },
   "common": {
     "loading": "Loading…",
-    "empty": "Nothing to show.",
+    "empty": "There are no records yet.",
+    "emptyFiltered": "Nothing matches. Change the search or clear a filter.",
     "retry": "Retry",
     "previous": "Previous",
     "next": "Next",
@@ -69,13 +84,18 @@
   },
   "overview": {
     "title": "Overview",
+    "purpose": "Current platform figures, then a direct path into management.",
     "users": "Users",
     "bots": "Bots",
     "channels": "Channels",
     "activeCycles": "Active publish cycles",
-    "catalogChannels": "Catalog channels"
+    "catalogChannels": "Catalog channels",
+    "cyclesActive": "{count} publish cycles are still active.",
+    "cyclesNone": "There are no active publish cycles.",
+    "catalogCount": "{count} channels are in the platform catalog."
   },
   "users": {
+    "purpose": "Telegram accounts known to the platform.",
     "title": "Users",
     "name": "Name",
     "username": "Username",
@@ -95,7 +115,13 @@
     "optedOut": "Opted out",
     "welcome": "Welcome messages",
     "footer": "Footer text",
-    "createdAt": "Created"
+    "createdAt": "Created",
+    "purpose": "Every bot connected to the platform. Starting or deleting a bot is not available here.",
+    "identity": "Identity",
+    "messages": "Stored messages",
+    "linksHint": "Each row is this bot’s link to a channel, not the channel record itself.",
+    "supportHint": "List settings only. Memberships and publish cycles stay on the support-list page.",
+    "openList": "Open support list"
   },
   "channels": {
     "title": "Channels",
@@ -108,7 +134,10 @@
     "owner": "Added by",
     "links": "Bot links",
     "addedAt": "Added",
-    "reason": "Deactivation note"
+    "reason": "Deactivation note",
+    "purpose": "Each channel is one record, even when several bots link to it.",
+    "recordHint": "This unique channel: its title, status, and who added it.",
+    "linksHint": "Bots linked to this channel. Stopping a link does not delete the channel."
   },
   "publishing": {
     "title": "Publishing",
@@ -129,6 +158,8 @@
     "disable": "Disable membership",
     "reason": "Reason",
     "reasonHint": "The channel owner sees this text as written.",
+    "purpose": "Support lists and scheduled publishing, separate from the unique channel record.",
+    "disableResult": "This stops publishing for this channel in this list only. The record is not deleted.",
     "alreadyDisabled": "Disabled by an admin",
     "scheduledAt": "Publishes",
     "deleteAt": "Deletes",
@@ -150,9 +181,15 @@
     "addedBy": "Added by",
     "bot": "Bot",
     "channel": "Channel",
-    "createdAt": "Created"
+    "createdAt": "Created",
+    "purpose": "Arrange and activate the platform catalog here. Existing bot subscriptions are read-only.",
+    "catalogHint": "Changing activity updates the catalog channel and does not copy it into bot subscriptions.",
+    "subsHint": "Forced subscriptions already stored on bots. This list does not edit them.",
+    "confirmActivate": "This channel becomes active in the platform catalog. It is not copied into bot subscriptions.",
+    "confirmDeactivate": "This channel becomes inactive in the platform catalog. Existing bot subscriptions stay as they are."
   },
   "audit": {
+    "purpose": "What an admin changed from the dashboard: language, catalog, and support-list membership.",
     "title": "Audit log",
     "when": "When",
     "action": "Action",

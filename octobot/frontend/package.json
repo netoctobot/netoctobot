@@ -7,6 +7,7 @@
     "test": "tsx --test messages.test.ts src/lib/format.test.ts src/lib/reason.test.ts"
   },
   "dependencies": {
+    "lucide-react": "^1.52.0",
     "next": "^15.5.4",
     "next-intl": "^4.3.9",
     "react": "^19.1.1",

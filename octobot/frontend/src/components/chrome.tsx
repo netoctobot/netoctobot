@@ -1,21 +1,34 @@
 "use client";
 
+import {
+  Bot,
+  LayoutDashboard,
+  Menu,
+  Megaphone,
+  Radio,
+  ScrollText,
+  ShieldCheck,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError, api, errorKey } from "@/lib/api";
 import { appointmentParts, formatNumber } from "@/lib/format";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import type { Me } from "@/lib/types";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 const NAV = [
-  ["/overview", "overview"],
-  ["/users", "users"],
-  ["/bots", "bots"],
-  ["/channels", "channels"],
-  ["/publishing", "publishing"],
-  ["/catalog", "catalog"],
-  ["/audit", "audit"],
-] as const;
+  ["/overview", "overview", LayoutDashboard],
+  ["/users", "users", Users],
+  ["/bots", "bots", Bot],
+  ["/channels", "channels", Radio],
+  ["/publishing", "publishing", Megaphone],
+  ["/catalog", "catalog", ShieldCheck],
+  ["/audit", "audit", ScrollText],
+] as const satisfies ReadonlyArray<readonly [string, string, LucideIcon]>;
 
 export function LocaleSwitcher({ signedIn }: { signedIn: boolean }) {
   const t = useTranslations("language");
@@ -49,7 +62,7 @@ export function LocaleSwitcher({ signedIn }: { signedIn: boolean }) {
       <div
         role="group"
         aria-label={t("switchTo")}
-        className="inline-flex rounded-full bg-paper p-1"
+        className="inline-flex rounded-lg border border-line bg-card p-0.5"
       >
         {(["ar", "en"] as const).map((choice) => (
           <button
@@ -57,8 +70,8 @@ export function LocaleSwitcher({ signedIn }: { signedIn: boolean }) {
             type="button"
             aria-pressed={locale === choice}
             onClick={() => void select(choice)}
-            className={`rounded-full px-3 py-1.5 text-sm ${
-              locale === choice ? "bg-accent text-card" : "text-ink"
+            className={`rounded-md px-2.5 py-1 text-sm ${
+              locale === choice ? "bg-action text-white" : "text-ink"
             }`}
           >
             {choice === "ar" ? t("arabic") : t("english")}
@@ -66,7 +79,7 @@ export function LocaleSwitcher({ signedIn }: { signedIn: boolean }) {
         ))}
       </div>
       {error ? (
-        <p role="alert" className="text-xs text-accent">
+        <p role="alert" className="text-xs text-danger">
           {errors(errorKey(error))}
         </p>
       ) : null}
@@ -77,19 +90,24 @@ export function LocaleSwitcher({ signedIn }: { signedIn: boolean }) {
 export function DashboardShell({ children }: { children: ReactNode }) {
   const t = useTranslations();
   const nav = useTranslations("nav");
+  const shell = useTranslations("shell");
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adminName, setAdminName] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [narrow, setNarrow] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    api<{ webLocale: "AR" | "EN" | null }>("/me")
+    api<Me>("/me")
       .then((me) => {
         if (cancelled) {
           return;
         }
+        setAdminName(me.admin.username);
         const account = me.webLocale === "AR" ? "ar" : me.webLocale === "EN" ? "en" : null;
         if (account && account !== locale) {
           router.replace(pathname, { locale: account });
@@ -115,6 +133,31 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     };
   }, [locale, pathname, router]);
 
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const apply = () => setNarrow(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
   async function signOut() {
     await api("/session", { method: "DELETE" });
     router.replace("/");
@@ -125,42 +168,85 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   )?.[1];
 
   return (
-    <div className="grid min-h-screen md:grid-cols-[16rem_1fr]">
-      <aside className="flex flex-col gap-6 bg-sidebar px-4 py-6 text-card">
-        <p className="text-lg font-semibold">{t("brand")}</p>
+    <div className="min-h-screen bg-paper">
+      {menuOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-ink/40 md:hidden"
+          aria-label={shell("closeMenu")}
+          onClick={() => setMenuOpen(false)}
+        />
+      ) : null}
+      <aside
+        id="admin-nav"
+        aria-hidden={narrow && !menuOpen}
+        {...(narrow && !menuOpen ? { inert: true } : {})}
+        className={`fixed inset-y-0 start-0 z-40 flex w-60 flex-col gap-6 bg-sidebar px-3 py-4 text-card ${
+          menuOpen ? "" : "drawer-off"
+        }`}
+      >
+        <div className="flex items-center gap-2 px-2">
+          <img
+            src="/brand/mark.png"
+            alt=""
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-full"
+          />
+          <p className="text-sm font-semibold">{t("brand")}</p>
+        </div>
         <nav aria-label={t("meta.title")} className="flex flex-col gap-1">
-          {NAV.map(([href, key]) => {
+          {NAV.map(([href, key, Icon]) => {
             const active = pathname === href || pathname.startsWith(`${href}/`);
             return (
               <Link
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-xl px-3 py-2 text-sm ${
-                  active ? "bg-accent text-card" : "text-card/90"
+                className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm ${
+                  active ? "bg-accent text-white" : "text-card/90"
                 }`}
               >
+                <Icon aria-hidden="true" size={16} />
                 {nav(key)}
               </Link>
             );
           })}
         </nav>
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="mt-auto rounded-full border border-white/20 px-3 py-2 text-start text-sm"
-        >
-          {nav("signOut")}
-        </button>
       </aside>
-      <div className="min-w-0">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line px-5 py-4">
-          <h1 className="text-2xl font-semibold">
+      <div className="md:ps-60">
+        <header className="flex flex-wrap items-center gap-3 border-b border-line bg-card px-4 py-3">
+          <button
+            type="button"
+            className="rounded-lg border border-line p-2 md:hidden"
+            aria-expanded={menuOpen}
+            aria-controls="admin-nav"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? <X aria-hidden="true" size={18} /> : <Menu aria-hidden="true" size={18} />}
+            <span className="sr-only">{menuOpen ? shell("closeMenu") : shell("openMenu")}</span>
+          </button>
+          <h1 className="min-w-0 flex-1 text-lg font-semibold">
             {titleKey ? nav(titleKey) : t("meta.title")}
           </h1>
           <LocaleSwitcher signedIn />
+          <div className="flex items-center gap-2">
+            <p className="text-sm">
+              <span className="text-muted">{shell("account")}</span>{" "}
+              <span dir="ltr" className="[unicode-bidi:isolate] font-medium">
+                {adminName ?? t("common.loading")}
+              </span>
+            </p>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="rounded-lg border border-line px-3 py-1.5 text-sm"
+            >
+              {nav("signOut")}
+            </button>
+          </div>
         </header>
-        <main className="flex flex-col gap-5 px-5 py-6">
+        <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-5">
           {error ? (
             <p role="alert">{t(errorKey(error))}</p>
           ) : ready ? (
@@ -187,6 +273,26 @@ export function StatusText({ group, code }: { group: string; code: string }) {
   );
 }
 
+export function StatusBadge({
+  tone,
+  children,
+}: {
+  tone: "active" | "inactive" | "deleted" | "neutral";
+  children: ReactNode;
+}) {
+  const toneClass = {
+    active: "bg-[#e5f3f2] text-action",
+    inactive: "bg-[#f6efe2] text-warn",
+    deleted: "bg-[#f8e8e8] text-danger",
+    neutral: "bg-paper text-muted",
+  }[tone];
+  return (
+    <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${toneClass}`}>
+      {children}
+    </span>
+  );
+}
+
 export function YesNo({ value }: { value: boolean }) {
   const t = useTranslations("common");
   return <span>{value ? t("yes") : t("no")}</span>;
@@ -201,9 +307,13 @@ export function ActiveState({
 }) {
   const t = useTranslations("common");
   if (deletedAt) {
-    return <span>{t("deleted")}</span>;
+    return <StatusBadge tone="deleted">{t("deleted")}</StatusBadge>;
   }
-  return <span>{isActive ? t("active") : t("inactive")}</span>;
+  return (
+    <StatusBadge tone={isActive ? "active" : "inactive"}>
+      {isActive ? t("active") : t("inactive")}
+    </StatusBadge>
+  );
 }
 
 export function Appointment({
@@ -237,7 +347,7 @@ export function Count({ value }: { value: number }) {
 export function BackLink({ href }: { href: string }) {
   const t = useTranslations("common");
   return (
-    <Link href={href} className="text-sm text-accent underline">
+    <Link href={href} className="text-sm text-action underline">
       {t("back")}
     </Link>
   );

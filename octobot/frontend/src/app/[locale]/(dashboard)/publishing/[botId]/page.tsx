@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
+import { Fields, RecordList, Section } from "@/components/blocks";
 import {
   ActiveState,
   Appointment,
@@ -11,14 +12,7 @@ import {
   StatusText,
   YesNo,
 } from "@/components/chrome";
-import {
-  Alert,
-  DataCell,
-  DataRow,
-  DataTable,
-  Dialog,
-  PageState,
-} from "@/components/feedback";
+import { Alert, Dialog, PageState } from "@/components/feedback";
 import { CopyValue, UserContent, UsernameValue } from "@/components/values";
 import { ApiError, api } from "@/lib/api";
 import { normalizeAdminReason } from "@/lib/reason";
@@ -63,163 +57,206 @@ export default function PublishingDetailPage() {
   }
 
   if (!data) {
-    return (
-      <PageState loading={loading} error={error} onRetry={() => void reload()} />
-    );
+    return <PageState loading={loading} error={error} onRetry={() => void reload()} />;
   }
   const zone = data.settings?.timeZone ?? "UTC";
   return (
-    <div className="flex flex-col gap-5">
+    <div>
       <BackLink href="/publishing" />
+      <p className="mt-3 text-sm text-muted">{t("purpose")}</p>
       <Alert code={saved ? "saved" : null} tone="saved" />
-      <section className="flex flex-col gap-2 rounded-2xl border border-line bg-card p-5">
-        <UsernameValue username={data.botUsername} />
-        <ActiveState isActive={data.isActive} deletedAt={data.deletedAt} />
+      <Section title={t("bot")}>
+        <Fields
+          items={[
+            {
+              label: t("bot"),
+              value: <UsernameValue username={data.botUsername} />,
+            },
+            {
+              label: common("active"),
+              value: <ActiveState isActive={data.isActive} deletedAt={data.deletedAt} />,
+            },
+          ]}
+        />
         {data.settings ? (
-          <>
-            <h2 className="text-xl font-semibold">
-              <UserContent value={data.settings.listName} />
-            </h2>
-            <p>
-              {t("publishing")}: {data.settings.publishingEnabled ? t("on") : t("off")}
-            </p>
-            <p>
-              {t("schedule")}:{" "}
-              <StatusText group="scheduleMode" code={data.settings.scheduleMode} />{" "}
-              <span dir="ltr" className="[unicode-bidi:isolate]">
-                {data.settings.timeZone}
-              </span>
-            </p>
-            <p>
-              {t("retention")}: <Count value={data.settings.retentionMinutes} />
-            </p>
-            <p>
-              {t("acceptance")}:{" "}
-              <StatusText group="acceptanceMode" code={data.settings.acceptanceMode} />
-            </p>
-            <p>
-              {t("format")}: <StatusText group="format" code={data.settings.format} />
-            </p>
-            <p>
-              {t("contactUrl")}:{" "}
-              {data.settings.contactUrl?.startsWith("https://") ||
-              data.settings.contactUrl?.startsWith("tg://") ? (
-                <a
-                  href={data.settings.contactUrl}
-                  dir="ltr"
-                  className="[unicode-bidi:isolate] text-accent underline"
-                  rel="noreferrer"
-                >
-                  {data.settings.contactUrl}
-                </a>
-              ) : (
-                <UserContent value={data.settings.contactUrl} />
-              )}
-            </p>
-            <p>{t("customTimes")}</p>
-            <ul className="flex flex-wrap gap-2">
-              {data.settings.customTimes.length === 0 ? (
-                <li>{common("none")}</li>
-              ) : (
-                data.settings.customTimes.map((clock) => (
-                  <li key={clock} dir="ltr" className="[unicode-bidi:isolate]">
-                    {clock}
-                  </li>
-                ))
-              )}
-            </ul>
-          </>
-        ) : (
-          <p>{common("none")}</p>
-        )}
-      </section>
-      <h2 className="text-lg font-semibold">{t("memberships")}</h2>
-      <DataTable
-        headers={[
-          t("listName"),
-          t("acceptance"),
-          t("reason"),
-          t("participant"),
-          t("permissions"),
-          t("invite"),
-          t("disable"),
-        ]}
-      >
-        {data.memberships.map((membership) => (
-          <DataRow key={membership.id}>
-            <DataCell>
-              <UserContent value={membership.channel.title} />
-              <UsernameValue username={membership.channel.username} />
-              <CopyValue value={membership.channel.telegramId} label={copy("id")} />
-            </DataCell>
-            <DataCell>
-              <StatusText group="acceptance" code={membership.acceptanceStatus} />
-              {membership.deletedAt ? <ActiveState isActive={false} deletedAt={membership.deletedAt} /> : null}
-            </DataCell>
-            <DataCell>
-              <UserContent value={membership.adminDisableReason} />
-            </DataCell>
-            <DataCell>
-              <YesNo value={membership.participantDisabled} />
-            </DataCell>
-            <DataCell>
-              <YesNo value={membership.permissionsLost} />
-            </DataCell>
-            <DataCell>
-              <YesNo value={membership.inviteUnavailable} />
-            </DataCell>
-            <DataCell>
-              {membership.adminDisabled ? (
-                t("alreadyDisabled")
-              ) : membership.acceptanceStatus === "ACCEPTED" && !membership.deletedAt ? (
-                <button
-                  type="button"
-                  className="rounded-full bg-accent px-3 py-1.5 text-sm text-card"
-                  onClick={() => {
-                    setSaved(false);
-                    setFormError(null);
-                    setMembershipId(membership.id);
-                  }}
-                >
-                  {t("disable")}
-                </button>
-              ) : (
-                common("none")
-              )}
-            </DataCell>
-          </DataRow>
-        ))}
-      </DataTable>
-      <h2 className="text-lg font-semibold">{t("cycles")}</h2>
-      {data.cycles.map((cycle) => (
-        <section key={cycle.id} className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-3">
-            <StatusText group="cycle" code={cycle.status} />
-            <Appointment iso={cycle.scheduledAt} timeZone={zone} />
-            <Appointment iso={cycle.deleteAt} timeZone={zone} />
-          </div>
-          <DataTable headers={[t("publications"), t("messageId"), t("deleteAt")]}>
-            {cycle.publications.map((publication) => (
-              <DataRow key={publication.id}>
-                <DataCell>
-                  <UserContent value={publication.channel.title} />
-                  <StatusText group="publication" code={publication.status} />
-                </DataCell>
-                <DataCell>
-                  {publication.messageId ? (
-                    <CopyValue value={publication.messageId} label={copy("id")} />
+          <Fields
+            items={[
+              {
+                label: t("listName"),
+                value: <UserContent value={data.settings.listName} />,
+              },
+              {
+                label: t("publishing"),
+                value: data.settings.publishingEnabled ? t("on") : t("off"),
+              },
+              {
+                label: t("schedule"),
+                value: (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <StatusText group="scheduleMode" code={data.settings.scheduleMode} />
+                    <span dir="ltr" className="[unicode-bidi:isolate]">
+                      {data.settings.timeZone}
+                    </span>
+                  </span>
+                ),
+              },
+              {
+                label: t("retention"),
+                value: <Count value={data.settings.retentionMinutes} />,
+              },
+              {
+                label: t("acceptance"),
+                value: <StatusText group="acceptanceMode" code={data.settings.acceptanceMode} />,
+              },
+              {
+                label: t("format"),
+                value: <StatusText group="format" code={data.settings.format} />,
+              },
+              {
+                label: t("contactUrl"),
+                value:
+                  data.settings.contactUrl?.startsWith("https://") ||
+                  data.settings.contactUrl?.startsWith("tg://") ? (
+                    <a
+                      href={data.settings.contactUrl}
+                      dir="ltr"
+                      className="[unicode-bidi:isolate] text-action underline"
+                      rel="noreferrer"
+                    >
+                      {data.settings.contactUrl}
+                    </a>
                   ) : (
+                    <UserContent value={data.settings.contactUrl} />
+                  ),
+              },
+              {
+                label: t("customTimes"),
+                value:
+                  data.settings.customTimes.length === 0 ? (
                     common("none")
-                  )}
-                </DataCell>
-                <DataCell>
-                  <Appointment iso={publication.deleteAt} timeZone={zone} />
-                </DataCell>
-              </DataRow>
-            ))}
-          </DataTable>
-        </section>
-      ))}
+                  ) : (
+                    <span className="flex flex-wrap gap-2">
+                      {data.settings.customTimes.map((clock) => (
+                        <span key={clock} dir="ltr" className="[unicode-bidi:isolate]">
+                          {clock}
+                        </span>
+                      ))}
+                    </span>
+                  ),
+              },
+            ]}
+          />
+        ) : (
+          <p className="text-sm text-muted">{common("none")}</p>
+        )}
+      </Section>
+      <Section title={t("memberships")}>
+        <RecordList
+          rows={data.memberships}
+          rowKey={(membership) => membership.id}
+          columns={[
+            {
+              header: t("listName"),
+              render: (membership) => (
+                <span className="flex flex-col items-start">
+                  <UserContent value={membership.channel.title} />
+                  <UsernameValue username={membership.channel.username} />
+                </span>
+              ),
+            },
+            {
+              header: t("acceptance"),
+              render: (membership) => (
+                <span className="flex flex-col items-start gap-1">
+                  <StatusText group="acceptance" code={membership.acceptanceStatus} />
+                  {membership.deletedAt ? (
+                    <ActiveState isActive={false} deletedAt={membership.deletedAt} />
+                  ) : null}
+                </span>
+              ),
+            },
+            {
+              header: t("reason"),
+              render: (membership) => <UserContent value={membership.adminDisableReason} />,
+            },
+            {
+              header: t("participant"),
+              render: (membership) => <YesNo value={membership.participantDisabled} />,
+            },
+            {
+              header: t("permissions"),
+              render: (membership) => <YesNo value={membership.permissionsLost} />,
+            },
+            {
+              header: t("invite"),
+              render: (membership) => <YesNo value={membership.inviteUnavailable} />,
+            },
+            {
+              header: t("disable"),
+              render: (membership) =>
+                membership.adminDisabled ? (
+                  t("alreadyDisabled")
+                ) : membership.acceptanceStatus === "ACCEPTED" && !membership.deletedAt ? (
+                  <button
+                    type="button"
+                    className="rounded-lg bg-action px-3 py-1.5 text-sm text-white"
+                    onClick={() => {
+                      setSaved(false);
+                      setFormError(null);
+                      setMembershipId(membership.id);
+                    }}
+                  >
+                    {t("disable")}
+                  </button>
+                ) : (
+                  common("none")
+                ),
+            },
+          ]}
+        />
+      </Section>
+      <Section title={t("cycles")}>
+        {data.cycles.length === 0 ? <p className="text-sm text-muted">{common("empty")}</p> : null}
+        {data.cycles.map((cycle) => (
+          <div key={cycle.id} className="flex flex-col gap-3 border-t border-line pt-3">
+            <div className="flex flex-wrap gap-3 text-sm">
+              <StatusText group="cycle" code={cycle.status} />
+              <Appointment iso={cycle.scheduledAt} timeZone={zone} />
+              <Appointment iso={cycle.deleteAt} timeZone={zone} />
+            </div>
+            <RecordList
+              rows={cycle.publications}
+              rowKey={(publication) => publication.id}
+              columns={[
+                {
+                  header: t("publications"),
+                  render: (publication) => (
+                    <span className="flex flex-col items-start gap-1">
+                      <UserContent value={publication.channel.title} />
+                      <StatusText group="publication" code={publication.status} />
+                    </span>
+                  ),
+                },
+                {
+                  header: t("messageId"),
+                  render: (publication) =>
+                    publication.messageId ? (
+                      <CopyValue value={publication.messageId} label={copy("id")} />
+                    ) : (
+                      common("none")
+                    ),
+                },
+                {
+                  header: t("deleteAt"),
+                  render: (publication) => (
+                    <Appointment iso={publication.deleteAt} timeZone={zone} />
+                  ),
+                },
+              ]}
+            />
+          </div>
+        ))}
+      </Section>
       <Dialog
         open={membershipId !== null}
         title={t("disable")}
@@ -232,27 +269,25 @@ export default function PublishingDetailPage() {
             void disableMembership();
           }}
         >
+          <p className="text-sm">{t("disableResult")}</p>
           <label className="flex flex-col gap-1 text-sm">
             {t("reason")}
             <textarea
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              className="min-h-24 rounded-xl border border-line bg-paper p-3"
+              className="min-h-24 rounded-lg border border-line bg-paper p-3"
             />
           </label>
           <p className="text-sm text-muted">{t("reasonHint")}</p>
           <Alert code={formError} />
           <div className="flex flex-wrap gap-2">
-            <button
-              type="submit"
-              className="rounded-full bg-accent px-4 py-2 text-sm text-card"
-            >
+            <button type="submit" className="rounded-lg bg-action px-4 py-2 text-sm text-white">
               {common("confirm")}
             </button>
             <button
               type="button"
               onClick={() => setMembershipId(null)}
-              className="rounded-full border border-line px-4 py-2 text-sm"
+              className="rounded-lg border border-line px-4 py-2 text-sm"
             >
               {common("cancel")}
             </button>

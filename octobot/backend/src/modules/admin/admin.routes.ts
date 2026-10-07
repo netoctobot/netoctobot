@@ -14,6 +14,7 @@ import {
 } from "./admin-session.js";
 import { reorderCatalog, setCatalogActive } from "./catalog.service.js";
 import {
+  adminListQuery,
   readAudit,
   readBot,
   readBots,
@@ -48,6 +49,10 @@ function requestedPage(query: unknown): number {
     return 1;
   }
   return value;
+}
+
+function listQuery(query: unknown) {
+  return adminListQuery(isRecord(query) ? query : {}, requestedPage(query));
 }
 
 function routeId(value: string): string | null {
@@ -199,14 +204,14 @@ export function registerAdminRoutes(
     if (!(await requireAdmin(request, reply))) {
       return;
     }
-    return readUsers(prisma, requestedPage(request.query));
+    return readUsers(prisma, listQuery(request.query));
   });
 
   app.get("/admin/bots", async (request, reply) => {
     if (!(await requireAdmin(request, reply))) {
       return;
     }
-    return readBots(prisma, requestedPage(request.query));
+    return readBots(prisma, listQuery(request.query));
   });
 
   app.get<{ Params: { id: string } }>("/admin/bots/:id", async (request, reply) => {
@@ -225,7 +230,7 @@ export function registerAdminRoutes(
     if (!(await requireAdmin(request, reply))) {
       return;
     }
-    return readChannels(prisma, requestedPage(request.query));
+    return readChannels(prisma, listQuery(request.query));
   });
 
   app.get<{ Params: { id: string } }>(

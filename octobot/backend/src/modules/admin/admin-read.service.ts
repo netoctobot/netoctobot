@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { BotType, type Prisma, type PrismaClient } from "@prisma/client";
 
 const PAGE_SIZE = 20;
 const CYCLE_STATUSES = ["PENDING", "PUBLISHING", "PUBLISHED"] as const;
@@ -8,6 +8,129 @@ export interface PageResult<T> {
   page: number;
   pageCount: number;
   total: number;
+}
+
+export type ListStatus = "active" | "inactive" | "deleted";
+
+export interface AdminListQuery {
+  page: number;
+  q?: string;
+  status?: ListStatus;
+  type?: BotType;
+  catalog?: "yes" | "no";
+}
+
+const LIST_STATUSES = new Set<ListStatus>(["active", "inactive", "deleted"]);
+
+export function adminListQuery(
+  source: Record<string, unknown>,
+  page: number,
+): AdminListQuery {
+  const rawQuery = typeof source.q === "string" ? source.q.trim().slice(0, 80) : "";
+  const status =
+    typeof source.status === "string" && LIST_STATUSES.has(source.status as ListStatus)
+      ? (source.status as ListStatus)
+      : undefined;
+  const type =
+    typeof source.type === "string" &&
+    (Object.values(BotType) as string[]).includes(source.type)
+      ? (source.type as BotType)
+      : undefined;
+  const catalog =
+    source.catalog === "yes" || source.catalog === "no" ? source.catalog : undefined;
+  return {
+    page,
+    ...(rawQuery ? { q: rawQuery } : {}),
+    ...(status ? { status } : {}),
+    ...(type ? { type } : {}),
+    ...(catalog ? { catalog } : {}),
+  };
+}
+
+function contains(value: string): Prisma.StringFilter {
+  return { contains: value, mode: "insensitive" };
+}
+
+function exactTelegramId(value: string): bigint | undefined {
+  if (!/^[1-9]\d{0,18}$/.test(value)) {
+    return undefined;
+  }
+  return BigInt(value);
+}
+
+function activityWhere(
+  status: ListStatus | undefined,
+): { isActive?: boolean; deletedAt?: null | { not: null } } {
+  if (status === "active") {
+    return { isActive: true, deletedAt: null };
+  }
+  if (status === "inactive") {
+    return { isActive: false, deletedAt: null };
+  }
+  if (status === "deleted") {
+    return { deletedAt: { not: null } };
+  }
+  return {};
+}
+
+export function userListWhere(query: AdminListQuery): Prisma.UserWhereInput {
+  const where: Prisma.UserWhereInput = {};
+  if (query.status === "active") {
+    where.deletedAt = null;
+  } else if (query.status === "deleted") {
+    where.deletedAt = { not: null };
+  }
+  if (!query.q) {
+    return where;
+  }
+  const telegramId = exactTelegramId(query.q);
+  where.OR = [
+    { username: contains(query.q) },
+    { firstName: contains(query.q) },
+    { lastName: contains(query.q) },
+    { id: query.q },
+    ...(telegramId === undefined ? [] : [{ telegramId }]),
+  ];
+  return where;
+}
+
+export function botListWhere(query: AdminListQuery): Prisma.BotWhereInput {
+  const where: Prisma.BotWhereInput = {
+    ...activityWhere(query.status),
+    ...(query.type ? { botType: query.type } : {}),
+  };
+  if (!query.q) {
+    return where;
+  }
+  where.OR = [
+    { botUsername: contains(query.q) },
+    { id: query.q },
+    { owner: { username: contains(query.q) } },
+    { owner: { firstName: contains(query.q) } },
+  ];
+  return where;
+}
+
+export function channelListWhere(query: AdminListQuery): Prisma.ChannelWhereInput {
+  const where: Prisma.ChannelWhereInput = {
+    ...activityWhere(query.status),
+    ...(query.catalog === "yes"
+      ? { isPlatformCatalog: true }
+      : query.catalog === "no"
+        ? { isPlatformCatalog: false }
+        : {}),
+  };
+  if (!query.q) {
+    return where;
+  }
+  const telegramId = exactTelegramId(query.q);
+  where.OR = [
+    { title: contains(query.q) },
+    { username: contains(query.q) },
+    { id: query.q },
+    ...(telegramId === undefined ? [] : [{ channelTelegramId: telegramId }]),
+  ];
+  return where;
 }
 
 function pageWindow(requested: number, total: number): {
@@ -78,11 +201,13 @@ export async function readOverview(prisma: PrismaClient) {
 
 export async function readUsers(
   prisma: PrismaClient,
-  requestedPage: number,
+  query: AdminListQuery,
 ): Promise<PageResult<unknown>> {
-  const total = await prisma.user.count();
-  const window = pageWindow(requestedPage, total);
+  const where = userListWhere(query);
+  const total = await prisma.user.count({ where });
+  const window = pageWindow(query.page, total);
   const rows = await prisma.user.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     skip: window.skip,
     take: window.take,
@@ -112,11 +237,13 @@ export async function readUsers(
 
 export async function readBots(
   prisma: PrismaClient,
-  requestedPage: number,
+  query: AdminListQuery,
 ): Promise<PageResult<unknown>> {
-  const total = await prisma.bot.count();
-  const window = pageWindow(requestedPage, total);
+  const where = botListWhere(query);
+  const total = await prisma.bot.count({ where });
+  const window = pageWindow(query.page, total);
   const rows = await prisma.bot.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     skip: window.skip,
     take: window.take,
@@ -241,11 +368,13 @@ export async function readBot(prisma: PrismaClient, id: string) {
 
 export async function readChannels(
   prisma: PrismaClient,
-  requestedPage: number,
+  query: AdminListQuery,
 ): Promise<PageResult<unknown>> {
-  const total = await prisma.channel.count();
-  const window = pageWindow(requestedPage, total);
+  const where = channelListWhere(query);
+  const total = await prisma.channel.count({ where });
+  const window = pageWindow(query.page, total);
   const rows = await prisma.channel.findMany({
+    where,
     orderBy: { addedAt: "desc" },
     skip: window.skip,
     take: window.take,
