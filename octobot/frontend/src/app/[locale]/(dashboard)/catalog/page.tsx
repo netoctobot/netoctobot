@@ -84,7 +84,7 @@ export default function CatalogPage() {
                 ),
               },
               {
-                header: t("moveUp"),
+                header: t("actions"),
                 render: (item) => {
                   const index = items.findIndex((entry) => entry.id === item.id);
                   return (

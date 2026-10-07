@@ -90,9 +90,9 @@
     "channels": "Channels",
     "activeCycles": "Active publish cycles",
     "catalogChannels": "Catalog channels",
-    "cyclesActive": "{count} publish cycles are still active.",
+    "cyclesActive": "{count, plural, one {# publish cycle is still active.} other {# publish cycles are still active.}}",
     "cyclesNone": "There are no active publish cycles.",
-    "catalogCount": "{count} channels are in the platform catalog."
+    "catalogCount": "{count, plural, one {# channel is in the platform catalog.} other {# channels are in the platform catalog.}}"
   },
   "users": {
     "purpose": "Telegram accounts known to the platform.",
@@ -173,6 +173,7 @@
     "title": "Forced subscription",
     "catalog": "Platform catalog",
     "sort": "Order",
+    "actions": "Actions",
     "moveUp": "Move earlier",
     "moveDown": "Move later",
     "activate": "Activate",

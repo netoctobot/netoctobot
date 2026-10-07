@@ -17,6 +17,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   function openDashboard(result: LoginResult) {
     const account =
@@ -83,7 +88,18 @@ export default function LoginPage() {
       <section className="flex flex-col gap-4 rounded-lg border border-line bg-card p-5">
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <p className="text-sm text-muted">{t("intro")}</p>
-        <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
+        <form
+          method="post"
+          action="about:blank"
+          target="octobot-login-sink"
+          data-hydrated={hydrated ? "true" : "false"}
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onSubmit(event);
+          }}
+        >
+          <iframe name="octobot-login-sink" hidden title="Login" aria-hidden="true" />
           <label className="flex flex-col gap-1 text-sm">
             {t("username")}
             <input
