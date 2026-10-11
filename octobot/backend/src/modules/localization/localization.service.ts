@@ -232,6 +232,7 @@ export type TranslationKey =
   | "ownerBroadcast.captionTooLong"
   | "ownerBroadcast.resultsTitle"
   | "ownerBroadcast.buttonHelp"
+  | "ownerBroadcast.buttonHelpRules"
   | "ownerBroadcast.invalidInput"
   | "ownerBroadcast.botInactive"
   | "ownerBroadcast.publishSucceeded"

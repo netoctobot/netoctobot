@@ -245,6 +245,7 @@
     "captionTooLong": "Caption is too long. Shorten it and try again.",
     "resultsTitle": "Broadcast status",
     "buttonHelp": "Send buttons in this format:",
+    "buttonHelpRules": "Use | to place buttons side by side; a new line starts a new row.\nColor is optional: red, blue, green. If you omit a color, the default style is used.",
     "invalidInput": "Could not use this input. Check the format and try again.",
     "botInactive": "This bot is inactive. Broadcasting is not available.",
     "publishSucceeded": "Broadcast started.",

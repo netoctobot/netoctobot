@@ -63,11 +63,14 @@ export function buildOwnerPreviewKeyboard(
   return keyboard;
 }
 
+const BUTTON_HELP_EXAMPLE: Record<SupportedLanguage, string> = {
+  AR: "قناة أولى - https://example.com | قناة ثانية - https://example.org\nموقعنا - https://example.net - style:blue",
+  EN: "Channel one - https://example.com | Channel two - https://example.org\nOur site - https://example.net - style:blue",
+};
+
 export function buildOwnerBroadcastButtonHelp(language: SupportedLanguage): DashboardView {
-  const example = escapeTelegramHtml(
-    "قناة أولى - https://example.com | قناة ثانية - https://example.org\nموقعنا - https://example.net - style:blue",
-  );
-  const text = `${translate(language, "ownerBroadcast.buttonHelp")}\n\n<pre>${example}</pre>`;
+  const example = escapeTelegramHtml(BUTTON_HELP_EXAMPLE[language]);
+  const text = `${translate(language, "ownerBroadcast.buttonHelp")}\n\n<pre>${example}</pre>\n\n${translate(language, "ownerBroadcast.buttonHelpRules")}`;
   return {
     text,
     keyboard: buildOwnerBroadcastPromptBackKeyboard(language),
