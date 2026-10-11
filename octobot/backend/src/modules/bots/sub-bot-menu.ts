@@ -90,7 +90,9 @@ export function buildSubBotHome(
       .text(
         translate(language, "menu.myChannels"),
         "owner:channel:list:0",
-      ),
+      )
+      .row()
+      .text(translate(language, "ownerBroadcast.broadcast"), "owner:bc:start"),
   };
 }
 

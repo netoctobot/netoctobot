@@ -184,6 +184,12 @@ enum BroadcastAudienceType {
   CHANNELS
   BOT_USERS
   BOT_OWNERS
+  CHANNELS_AND_USERS
+}
+
+enum BroadcastCreatedByKind {
+  ADMIN
+  BOT_OWNER
 }
 
 enum BroadcastContentKind {
@@ -228,7 +234,11 @@ model BroadcastCampaign {
   includeInactive  Boolean                 @default(false)
   includeDeleted   Boolean                 @default(false)
   includeBotOwners Boolean                 @default(true)
-  createdByAdmin   String
+  createdByAdmin   String                  @default("")
+  createdByKind    BroadcastCreatedByKind  @default(ADMIN)
+  createdByUserId  String?
+  initiatorBotId   String?
+  publishNonce     String?                 @unique
   stopRequested    Boolean                 @default(false)
   deleteRequested  Boolean                 @default(false)
   endedAt          DateTime?
@@ -240,13 +250,17 @@ model BroadcastCampaign {
   deliveries BroadcastDelivery[]
 
   @@index([status, createdAt])
+  @@index([initiatorBotId, createdAt])
   @@map("broadcast_campaigns")
 }
 
 model BroadcastMediaAsset {
-  id                 String               @id @default(cuid())
-  uploadedByAdmin    String
-  originalName       String
+  id                   String               @id @default(cuid())
+  uploadedByAdmin      String?
+  uploaderBotId        String?
+  uploaderUserId       String?
+  draftOwnerTelegramId BigInt?
+  originalName         String
   storageKey         String               @unique
   mimeTypeReported   String?
   detectedMime       String?

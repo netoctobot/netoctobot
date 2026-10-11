@@ -83,6 +83,11 @@ import {
   setWelcomeMessage,
 } from "./bot-welcome.service.js";
 import { parseSupportedLanguage } from "../localization/supported-languages.js";
+import type { BroadcastScheduler } from "../broadcast/scheduler.js";
+import {
+  registerOwnerBroadcastHandlers,
+  tryOwnerBroadcastOwnerMessage,
+} from "../broadcast/owner-bot/register-owner-broadcast.js";
 import {
   activateManagedBotChannel,
   deactivateManagedBotChannel,
@@ -160,6 +165,7 @@ export class BotRuntimeManager {
     private readonly env: Env,
     private readonly prisma: PrismaClient,
     private readonly redis: Redis,
+    private readonly broadcastScheduler: BroadcastScheduler | null = null,
   ) {
     this.#platformApi = new Api(env.BOT_TOKEN);
   }
@@ -425,6 +431,34 @@ export class BotRuntimeManager {
       error instanceof Error &&
       error.message.toLowerCase().includes("message is not modified")
     );
+  }
+
+  #ownerBroadcastDeps(
+    runtime: ManagedBotRuntime,
+    goHome: (context: Context) => Promise<void>,
+  ) {
+    if (!this.broadcastScheduler) {
+      return null;
+    }
+    return {
+      prisma: this.prisma,
+      redis: this.redis,
+      env: this.env,
+      scheduler: this.broadcastScheduler,
+      showDashboard: async (context: Context, rt: ManagedBotRuntime, view: DashboardView) => {
+        await this.showRuntimeDashboard(context, rt, view);
+      },
+      isOwner: async (context: Context, rt: ManagedBotRuntime) => {
+        if (!context.from) {
+          return false;
+        }
+        const ownerTelegramId = await this.getOwnerTelegramId(rt.botRecord);
+        return context.from.id === ownerTelegramId;
+      },
+      goHome: async (context: Context, rt: ManagedBotRuntime) => {
+        await goHome(context);
+      },
+    };
   }
 
   private registerUserBotHandlers(runtime: ManagedBotRuntime): void {
@@ -944,6 +978,17 @@ export class BotRuntimeManager {
       }
 
       if (supportList) {
+        const ownerBroadcastDeps = this.#ownerBroadcastDeps(runtime, showHome);
+        if (ownerBroadcastDeps) {
+          const consumed = await tryOwnerBroadcastOwnerMessage(
+            context,
+            runtime,
+            ownerBroadcastDeps,
+          );
+          if (consumed) {
+            return;
+          }
+        }
         await handleSupportListPrivateMessage(context, supportList);
         return;
       }
@@ -969,6 +1014,17 @@ export class BotRuntimeManager {
             language,
           );
           return;
+        }
+        const ownerBroadcastDeps = this.#ownerBroadcastDeps(runtime, showHome);
+        if (ownerBroadcastDeps) {
+          const consumed = await tryOwnerBroadcastOwnerMessage(
+            context,
+            runtime,
+            ownerBroadcastDeps,
+          );
+          if (consumed) {
+            return;
+          }
         }
         const welcomeEditState = await getWelcomeEditState(
           this.redis,
@@ -1093,6 +1149,11 @@ export class BotRuntimeManager {
         );
       }
     });
+
+    const ownerBroadcastDeps = this.#ownerBroadcastDeps(runtime, showHome);
+    if (ownerBroadcastDeps) {
+      registerOwnerBroadcastHandlers(runtime, ownerBroadcastDeps);
+    }
 
     runtime.bot.catch(async (error) => {
       const cause = error.error;
