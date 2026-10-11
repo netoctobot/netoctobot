@@ -54,6 +54,10 @@
     "catalogNotAdmin": "The platform bot must be an administrator of the channel before it can be activated.",
     "catalogJoinUnavailable": "Activation needs a join link. Make the channel public or let the platform bot create an invite.",
     "invalidBroadcast": "Write the post, choose at least one bot scope, and select bots when the campaign is limited.",
+    "invalidBroadcastMedia": "Upload a supported file for the selected media type.",
+    "mediaTooLarge": "This file exceeds the upload limit for that media type.",
+    "mediaTypeMismatch": "The file content does not match the selected media type.",
+    "mediaLinkedToCampaign": "This upload is already linked to a campaign and cannot be removed.",
     "generic": "The request could not be completed. Try again."
   },
   "alerts": {
@@ -299,6 +303,26 @@
     "title": "Broadcast",
     "purpose": "Write one post, preview who can receive it, then send in the background. A channel linked to several bots receives one copy.",
     "text": "Post",
+    "contentKindLabel": "Content type",
+    "contentKind": {
+      "TEXT": "Text only",
+      "PHOTO": "Photo",
+      "VIDEO": "Video",
+      "AUDIO": "Audio",
+      "VOICE": "Voice",
+      "DOCUMENT": "Document",
+      "ANIMATION": "Animation"
+    },
+    "caption": "Caption",
+    "captionPlaceholder": "Caption shown with the media",
+    "linkButtons": "Link buttons",
+    "addLinkButton": "Add button",
+    "buttonText": "Button label",
+    "buttonUrl": "URL",
+    "mediaUpload": "Media file",
+    "uploadMedia": "Upload",
+    "uploadedMedia": "Uploaded",
+    "openDocument": "Open document",
     "audience": "Audience",
     "audienceType": {
       "CHANNELS": "Bot channels",

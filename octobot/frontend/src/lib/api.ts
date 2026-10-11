@@ -24,6 +24,20 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+export async function apiForm<T>(path: string, formData: FormData): Promise<T> {
+  const response = await fetch(`/admin-api${path}`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+  const text = await response.text();
+  const body = text ? (JSON.parse(text) as { error?: string }) : {};
+  if (!response.ok) {
+    throw new ApiError(body.error ?? "generic", response.status);
+  }
+  return body as T;
+}
+
 const ERROR_KEYS: Record<string, string> = {
   unauthorized: "errors.unauthorized",
   invalid_login: "errors.invalidLogin",
@@ -37,6 +51,10 @@ const ERROR_KEYS: Record<string, string> = {
   catalog_not_admin: "errors.catalogNotAdmin",
   catalog_join_unavailable: "errors.catalogJoinUnavailable",
   invalid_broadcast: "errors.invalidBroadcast",
+  invalid_broadcast_media: "errors.invalidBroadcastMedia",
+  media_too_large: "errors.mediaTooLarge",
+  media_type_mismatch: "errors.mediaTypeMismatch",
+  media_linked_to_campaign: "errors.mediaLinkedToCampaign",
 };
 
 export function errorKey(code: string): string {

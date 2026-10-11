@@ -98,7 +98,7 @@ running_matches_deployed() {
 print_recovery() {
   say "استعادة التطبيق من الصور السابقة لا تعكس migrations التي طبّقها prisma migrate deploy."
   say "لا تشغّل git reset --hard ولا docker compose down -v ولا prisma migrate reset."
-  say "ملف البيئة backend/.env ومفاتيح التشفير وحجما postgres_data و redis_data لم يُستبدلا بهذا السكربت."
+  say "ملف البيئة backend/.env ومفاتيح التشفير وحجما postgres_data و redis_data و broadcast_media لم يُستبدلا بهذا السكربت."
   if [[ -n "$backup_file" ]]; then
     say "النسخة الاحتياطية لهذه المحاولة: ${backup_file}"
   else
@@ -191,14 +191,24 @@ postgres_is_running() {
 }
 
 ensure_data_services() {
-  local volume redis_volume
+  local volume redis_volume broadcast_volume
   volume="$(postgres_volume_name || true)"
   redis_volume="$(compose_volume_name redis_data || true)"
+  broadcast_volume="$(compose_volume_name broadcast_media || true)"
   if [[ -z "$volume" ]] || ! docker volume inspect "$volume" >/dev/null 2>&1; then
     fail "حجم بيانات PostgreSQL غير موجود. لم يُنشأ حجم جديد ولم تُطبَّق migrations."
   fi
   if [[ -z "$redis_volume" ]] || ! docker volume inspect "$redis_volume" >/dev/null 2>&1; then
     fail "حجم بيانات Redis غير موجود. لم يُنشأ حجم جديد."
+  fi
+  if [[ -z "$broadcast_volume" ]]; then
+    fail "تعذر قراءة اسم حجم broadcast_media من docker-compose.yml."
+  fi
+  if ! docker volume inspect "$broadcast_volume" >/dev/null 2>&1; then
+    say "حجم broadcast_media غير موجود. سيُنشأ الآن ولن يُحذف بتحديثات لاحقة (لا تستخدم down -v)."
+    if ! docker volume create "$broadcast_volume" >/dev/null 2>&1; then
+      fail "تعذر إنشاء حجم broadcast_media."
+    fi
   fi
   if [[ "$(service_health postgres)" == "healthy" && "$(service_health redis)" == "healthy" ]]; then
     say "Postgres و Redis جاهزان. لم تُسحب صور جديدة ولم تُحذف أحجام البيانات."

@@ -7,17 +7,17 @@ import { registerAdminRoutes } from "./modules/admin/admin.routes.js";
 import type { BroadcastScheduler } from "./modules/broadcast/scheduler.js";
 import { registerTelegramWebhookRoute } from "./webhook.js";
 
-export function buildApp(
+export async function buildApp(
   env: Env,
   prisma: PrismaClient,
   redis: Redis,
   runtimeManager: BotRuntimeManager,
   broadcast: BroadcastScheduler | null = null,
-): FastifyInstance {
+): Promise<FastifyInstance> {
   const app = Fastify({ logger: true });
 
   app.get("/health", async () => ({ ok: true }));
-  registerAdminRoutes(app, env, prisma, { broadcast });
+  await registerAdminRoutes(app, env, prisma, { broadcast });
   registerTelegramWebhookRoute(app, runtimeManager, env);
 
   app.addHook("onClose", async () => {

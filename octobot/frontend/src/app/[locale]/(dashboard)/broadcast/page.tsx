@@ -6,17 +6,29 @@ import { RecordList, Section } from "@/components/blocks";
 import { Appointment, Count, StatusBadge, StatusText } from "@/components/chrome";
 import { Alert, Dialog, PageState } from "@/components/feedback";
 import { UserContent, UsernameValue } from "@/components/values";
-import { ApiError, api } from "@/lib/api";
+import { BroadcastContentPreviewView } from "@/components/broadcast-content-preview";
+import { ApiError, api, apiForm } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import type {
   BroadcastAudienceType,
   BroadcastBotOption,
   BroadcastCampaign,
+  BroadcastContentKind,
   BroadcastDetail,
+  BroadcastLinkButton,
   BroadcastPreview,
   BroadcastPreviewEligible,
   BroadcastPreviewExcluded,
 } from "@/lib/types";
+
+const MEDIA_KINDS: BroadcastContentKind[] = [
+  "PHOTO",
+  "VIDEO",
+  "AUDIO",
+  "VOICE",
+  "DOCUMENT",
+  "ANIMATION",
+];
 
 function deliveryTone(status: string): "active" | "inactive" | "deleted" | "neutral" {
   if (status === "SENT" || status === "COMPLETED") {
@@ -37,6 +49,12 @@ export default function BroadcastPage() {
   const bots = useResource<{ items: BroadcastBotOption[] }>("/broadcasts/bots");
   const campaigns = useResource<{ items: BroadcastCampaign[] }>("/broadcasts");
   const [text, setText] = useState("");
+  const [contentKind, setContentKind] = useState<BroadcastContentKind>("TEXT");
+  const [caption, setCaption] = useState("");
+  const [linkButtons, setLinkButtons] = useState<BroadcastLinkButton[]>([]);
+  const [mediaUploadId, setMediaUploadId] = useState<string | null>(null);
+  const [mediaName, setMediaName] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [audienceType, setAudienceType] = useState<BroadcastAudienceType>("CHANNELS");
   const [includeBotOwners, setIncludeBotOwners] = useState(true);
   const [targetMode, setTargetMode] = useState<"ALL" | "SELECTED">("ALL");
@@ -71,8 +89,18 @@ export default function BroadcastPage() {
   }
 
   function payload() {
+    const rows =
+      linkButtons.length > 0
+        ? [linkButtons.filter((button) => button.text.trim() && button.url.trim())]
+        : null;
+    const filteredRows =
+      rows && rows[0].length > 0 ? rows : null;
     return {
-      text,
+      text: contentKind === "TEXT" ? text : "",
+      contentKind,
+      caption: contentKind === "TEXT" ? null : caption.trim() || null,
+      linkButtons: filteredRows ? { rows: filteredRows } : null,
+      mediaUploadId: contentKind === "TEXT" ? null : mediaUploadId,
       audienceType,
       targetMode,
       botIds: targetMode === "SELECTED" ? botIds : [],
@@ -81,6 +109,41 @@ export default function BroadcastPage() {
       includeDeleted,
       includeBotOwners,
     };
+  }
+
+  async function uploadMedia(file: File) {
+    setError(null);
+    setUploading(true);
+    setMediaUploadId(null);
+    setMediaName(null);
+    setPreview(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("contentKind", contentKind);
+      const result = await apiForm<{
+        mediaUploadId: string;
+        originalName: string;
+      }>("/broadcasts/media", form);
+      setMediaUploadId(result.mediaUploadId);
+      setMediaName(result.originalName);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.code : "generic");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function addLinkButton() {
+    setLinkButtons((current) => [...current, { text: "", url: "" }]);
+    setPreview(null);
+  }
+
+  function updateLinkButton(index: number, patch: Partial<BroadcastLinkButton>) {
+    setLinkButtons((current) =>
+      current.map((button, i) => (i === index ? { ...button, ...patch } : button)),
+    );
+    setPreview(null);
   }
 
   function recipientLabel(row: BroadcastPreviewEligible | BroadcastPreviewExcluded) {
@@ -149,21 +212,112 @@ export default function BroadcastPage() {
       <p className="text-sm text-muted">{t("purpose")}</p>
       <Alert code={error} />
       <Section title={t("text")}>
-        <textarea
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setPreview(null);
-          }}
-          rows={6}
-          dir="auto"
-          className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm"
-        />
-        {text.trim() ? (
-          <p dir="auto" className="mt-3 whitespace-pre-wrap rounded-lg bg-paper px-3 py-2 text-sm">
-            {text}
-          </p>
-        ) : null}
+        <div className="flex flex-wrap gap-3 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="contentKind"
+              checked={contentKind === "TEXT"}
+              onChange={() => {
+                setContentKind("TEXT");
+                setMediaUploadId(null);
+                setMediaName(null);
+                setPreview(null);
+              }}
+            />
+            {t("contentKind.TEXT")}
+          </label>
+          {MEDIA_KINDS.map((kind) => (
+            <label key={kind} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="contentKind"
+                checked={contentKind === kind}
+                onChange={() => {
+                  setContentKind(kind);
+                  setText("");
+                  setMediaUploadId(null);
+                  setMediaName(null);
+                  setPreview(null);
+                }}
+              />
+              {t(`contentKind.${kind}`)}
+            </label>
+          ))}
+        </div>
+        {contentKind === "TEXT" ? (
+          <textarea
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              setPreview(null);
+            }}
+            rows={6}
+            dir="auto"
+            className="mt-3 w-full rounded-lg border border-line bg-card px-3 py-2 text-sm"
+          />
+        ) : (
+          <div className="mt-3 flex flex-col gap-3">
+            <label className="text-sm">
+              {t("mediaUpload")}
+              <input
+                type="file"
+                className="mt-1 block text-sm"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    void uploadMedia(file);
+                  }
+                }}
+              />
+            </label>
+            {uploading ? <p className="text-sm text-muted">{common("loading")}</p> : null}
+            {mediaName ? (
+              <p className="text-sm">
+                {t("uploadedMedia")}: {mediaName}
+              </p>
+            ) : null}
+            <textarea
+              value={caption}
+              placeholder={t("captionPlaceholder")}
+              onChange={(event) => {
+                setCaption(event.target.value);
+                setPreview(null);
+              }}
+              rows={4}
+              dir="auto"
+              className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm"
+            />
+          </div>
+        )}
+        <fieldset className="mt-4 flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-medium">{t("linkButtons")}</legend>
+          {linkButtons.map((button, index) => (
+            <div key={index} className="flex flex-wrap gap-2">
+              <input
+                type="text"
+                placeholder={t("buttonText")}
+                value={button.text}
+                onChange={(event) => updateLinkButton(index, { text: event.target.value })}
+                className="min-w-[8rem] flex-1 rounded-lg border border-line bg-card px-2 py-1 text-sm"
+              />
+              <input
+                type="url"
+                placeholder={t("buttonUrl")}
+                value={button.url}
+                onChange={(event) => updateLinkButton(index, { url: event.target.value })}
+                className="min-w-[12rem] flex-[2] rounded-lg border border-line bg-card px-2 py-1 text-sm"
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            className="w-fit rounded-lg border border-line px-3 py-1 text-sm"
+            onClick={addLinkButton}
+          >
+            {t("addLinkButton")}
+          </button>
+        </fieldset>
       </Section>
       <Section title={t("audience")}>
         <div className="flex flex-col gap-2 text-sm">
@@ -304,6 +458,7 @@ export default function BroadcastPage() {
           <p className="text-sm">
             {t("excluded")}: <Count value={preview.summary.excluded} />
           </p>
+          <BroadcastContentPreviewView content={preview.content} />
           {preview.audienceType !== "CHANNELS" ? (
             <p className="text-sm text-muted">{t("dedupeHint")}</p>
           ) : null}
@@ -420,9 +575,7 @@ export default function BroadcastPage() {
           />
           {detail.data ? (
             <div className="flex flex-col gap-3">
-              <p dir="auto" className="whitespace-pre-wrap text-sm">
-                {detail.data.text}
-              </p>
+              <BroadcastContentPreviewView content={detail.data.content} />
               <StatusBadge tone={deliveryTone(detail.data.status)}>
                 <StatusText group="broadcast" code={detail.data.status} />
               </StatusBadge>
@@ -485,6 +638,7 @@ export default function BroadcastPage() {
       ) : null}
       <Dialog open={confirming} title={t("confirmSend")} onClose={() => setConfirming(false)}>
         <p className="text-sm">{t("confirmHint")}</p>
+        {preview ? <BroadcastContentPreviewView content={preview.content} /> : null}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"

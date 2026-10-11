@@ -227,6 +227,31 @@ export interface BroadcastBotOption {
 
 export type BroadcastAudienceType = "CHANNELS" | "BOT_USERS" | "BOT_OWNERS";
 
+export type BroadcastContentKind =
+  | "TEXT"
+  | "PHOTO"
+  | "VIDEO"
+  | "AUDIO"
+  | "VOICE"
+  | "DOCUMENT"
+  | "ANIMATION";
+
+export interface BroadcastLinkButton {
+  text: string;
+  url: string;
+}
+
+export interface BroadcastContentPreview {
+  contentKind: BroadcastContentKind;
+  text: string | null;
+  caption: string | null;
+  linkButtons: BroadcastLinkButton[][] | null;
+  media: {
+    mediaUploadId: string;
+    viewPath: string;
+  } | null;
+}
+
 export interface BroadcastPreviewSummary {
   uniqueTargets: number;
   preliminaryEligible: number;
@@ -270,6 +295,7 @@ export interface BroadcastPreview {
   audienceType: BroadcastAudienceType;
   preliminary: boolean;
   summary: BroadcastPreviewSummary;
+  content: BroadcastContentPreview;
   eligible: BroadcastPreviewEligible[];
   excluded: BroadcastPreviewExcluded[];
 }
@@ -277,6 +303,7 @@ export interface BroadcastPreview {
 export interface BroadcastCampaign {
   id: string;
   text: string;
+  contentKind: BroadcastContentKind;
   status: string;
   audienceType: BroadcastAudienceType;
   targetMode: string;
@@ -286,6 +313,9 @@ export interface BroadcastCampaign {
 }
 
 export interface BroadcastDetail extends BroadcastCampaign {
+  caption: string | null;
+  linkButtons: BroadcastLinkButton[][] | null;
+  content: BroadcastContentPreview;
   includeActive: boolean;
   includeInactive: boolean;
   includeDeleted: boolean;

@@ -5,6 +5,7 @@ import { createPrismaClient } from "./lib/prisma.js";
 import { createRedisClient } from "./lib/redis.js";
 import { bootstrapLocalDashboardAdmin } from "./modules/admin/bootstrap-admin.js";
 import { BotRuntimeManager } from "./modules/bots/bot-runtime-manager.js";
+import { startMediaCleanupLoop } from "./modules/broadcast/media-cleanup.js";
 import { BroadcastScheduler } from "./modules/broadcast/scheduler.js";
 import { SupportListScheduler } from "./modules/support-list/scheduler.js";
 
@@ -15,7 +16,8 @@ const runtimeManager = new BotRuntimeManager(env, prisma, redis);
 const supportListScheduler = new SupportListScheduler(env, prisma);
 const broadcastScheduler = new BroadcastScheduler(env, prisma);
 
-let app: ReturnType<typeof buildApp> | undefined;
+let app: Awaited<ReturnType<typeof buildApp>> | undefined;
+let stopMediaCleanup: (() => void) | undefined;
 
 try {
   await redis.connect();
@@ -31,7 +33,8 @@ try {
   runtimeManager.add(runtime);
   await runtimeManager.loadActiveUserBots();
 
-  app = buildApp(env, prisma, redis, runtimeManager, broadcastScheduler);
+  app = await buildApp(env, prisma, redis, runtimeManager, broadcastScheduler);
+  stopMediaCleanup = startMediaCleanupLoop(prisma, env.BROADCAST_MEDIA_DIR);
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
   await runtimeManager.registerAllWebhooks();
   await supportListScheduler.start();
@@ -45,6 +48,7 @@ try {
     "Platform bot is ready",
   );
 } catch (error) {
+  stopMediaCleanup?.();
   await supportListScheduler.stop().catch(() => undefined);
   await broadcastScheduler.stop().catch(() => undefined);
   await runtimeManager.shutdown();
@@ -59,6 +63,7 @@ try {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {
+    stopMediaCleanup?.();
     await supportListScheduler.stop().catch(() => undefined);
     await broadcastScheduler.stop().catch(() => undefined);
     await runtimeManager.shutdown();
