@@ -50,8 +50,26 @@ export interface OwnerBroadcastDeps {
     runtime: ManagedBotRuntime,
     view: DashboardView,
   ) => Promise<void>;
+  editDashboard: (
+    context: Context,
+    runtime: ManagedBotRuntime,
+    view: DashboardView,
+  ) => Promise<void>;
   isOwner: (context: Context, runtime: ManagedBotRuntime) => Promise<boolean>;
   goHome: (context: Context, runtime: ManagedBotRuntime) => Promise<void>;
+}
+
+export async function presentBroadcastPanel(
+  deps: OwnerBroadcastDeps,
+  context: Context,
+  runtime: ManagedBotRuntime,
+  view: DashboardView,
+): Promise<void> {
+  if (context.callbackQuery) {
+    await deps.editDashboard(context, runtime, view);
+    return;
+  }
+  await deps.showDashboard(context, runtime, view);
 }
 
 async function ensureDraft(
@@ -100,7 +118,7 @@ export function registerOwnerBroadcastHandlers(
     );
     await clearOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id);
     const language = normalizeTelegramLanguage(context.from.language_code);
-    await deps.showDashboard(context, runtime, buildOwnerBroadcastAudienceMenu(language));
+    await presentBroadcastPanel(deps, context, runtime, buildOwnerBroadcastAudienceMenu(language));
     await context.answerCallbackQuery();
   });
 
@@ -112,7 +130,7 @@ export function registerOwnerBroadcastHandlers(
     const draft: OwnerBroadcastDraft = { step: "contentKind", audience };
     await saveOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id, draft);
     const language = normalizeTelegramLanguage(context.from.language_code);
-    await deps.showDashboard(context, runtime, buildOwnerBroadcastKindMenu(language));
+    await presentBroadcastPanel(deps, context, runtime, buildOwnerBroadcastKindMenu(language));
     await context.answerCallbackQuery();
   });
 
@@ -136,7 +154,8 @@ export function registerOwnerBroadcastHandlers(
     const next = clearContentForKindChange(draft, kind);
     await saveOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id, next);
     const language = normalizeTelegramLanguage(context.from.language_code);
-    await deps.showDashboard(
+    await presentBroadcastPanel(
+      deps,
       context,
       runtime,
       buildOwnerBroadcastComposeMenu(language, next),
@@ -163,13 +182,14 @@ export function registerOwnerBroadcastHandlers(
     );
     const language = normalizeTelegramLanguage(context.from.language_code);
     if (!draft || draft.step === "audience") {
-      await deps.showDashboard(context, runtime, buildOwnerBroadcastAudienceMenu(language));
+      await presentBroadcastPanel(deps, context, runtime, buildOwnerBroadcastAudienceMenu(language));
     } else if (draft.step === "contentKind" || !draft.contentKind) {
-      await deps.showDashboard(context, runtime, buildOwnerBroadcastKindMenu(language));
+      await presentBroadcastPanel(deps, context, runtime, buildOwnerBroadcastKindMenu(language));
     } else {
       const cleared = { ...draft, inputMode: null };
       await saveOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id, cleared);
-      await deps.showDashboard(
+      await presentBroadcastPanel(
+        deps,
         context,
         runtime,
         buildOwnerBroadcastComposeMenu(language, cleared),
@@ -219,7 +239,8 @@ export function registerOwnerBroadcastHandlers(
     draft.step = "compose";
     await saveOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id, draft);
     const language = normalizeTelegramLanguage(context.from.language_code);
-    await deps.showDashboard(
+    await presentBroadcastPanel(
+      deps,
       context,
       runtime,
       buildOwnerBroadcastComposeMenu(language, draft),
@@ -238,7 +259,7 @@ export function registerOwnerBroadcastHandlers(
     draft.inputMode = "buttons";
     draft.step = "awaitButtons";
     const language = normalizeTelegramLanguage(context.from.language_code);
-    await deps.showDashboard(context, runtime, buildOwnerBroadcastButtonHelp(language));
+    await presentBroadcastPanel(deps, context, runtime, buildOwnerBroadcastButtonHelp(language));
     await context.answerCallbackQuery();
   });
 
@@ -255,7 +276,8 @@ export function registerOwnerBroadcastHandlers(
     draft.step = "compose";
     await saveOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id, draft);
     const language = normalizeTelegramLanguage(context.from.language_code);
-    await deps.showDashboard(
+    await presentBroadcastPanel(
+      deps,
       context,
       runtime,
       buildOwnerBroadcastComposeMenu(language, draft),
@@ -286,7 +308,8 @@ export function registerOwnerBroadcastHandlers(
     await saveOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id, draft);
     const language = normalizeTelegramLanguage(context.from.language_code);
     const counts = `${preview.summary.preliminaryEligible} eligible, ${preview.summary.excluded} excluded`;
-    await deps.showDashboard(
+    await presentBroadcastPanel(
+      deps,
       context,
       runtime,
       buildOwnerBroadcastPreviewMenu(language, counts),
@@ -314,7 +337,8 @@ export function registerOwnerBroadcastHandlers(
       if (last) {
         const language = normalizeTelegramLanguage(context.from.language_code);
         const summary = await summarizeCampaignCounts(deps.prisma, last.campaignId);
-        await deps.showDashboard(
+        await presentBroadcastPanel(
+          deps,
           context,
           runtime,
           buildOwnerBroadcastResultsMenu(language, summary),
@@ -338,7 +362,8 @@ export function registerOwnerBroadcastHandlers(
     });
     const language = normalizeTelegramLanguage(context.from.language_code);
     const summary = await summarizeCampaignCounts(deps.prisma, campaignId);
-    await deps.showDashboard(
+    await presentBroadcastPanel(
+      deps,
       context,
       runtime,
       buildOwnerBroadcastResultsMenu(language, summary),

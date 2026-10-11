@@ -448,6 +448,9 @@ export class BotRuntimeManager {
       showDashboard: async (context: Context, rt: ManagedBotRuntime, view: DashboardView) => {
         await this.showRuntimeDashboard(context, rt, view);
       },
+      editDashboard: async (context: Context, rt: ManagedBotRuntime, view: DashboardView) => {
+        await this.editRuntimeDashboard(context, rt, view);
+      },
       isOwner: async (context: Context, rt: ManagedBotRuntime) => {
         if (!context.from) {
           return false;
@@ -527,16 +530,15 @@ export class BotRuntimeManager {
             context.from.id,
           ),
         ]);
-        await this.showRuntimeDashboard(
-          context,
-          runtime,
-          buildSubBotHome(
-            runtime.botRecord,
-            normalizeTelegramLanguage(
-              context.from.language_code,
-            ),
-          ),
+        const homeView = buildSubBotHome(
+          runtime.botRecord,
+          normalizeTelegramLanguage(context.from.language_code),
         );
+        if (context.callbackQuery) {
+          await this.editRuntimeDashboard(context, runtime, homeView);
+        } else {
+          await this.showRuntimeDashboard(context, runtime, homeView);
+        }
         return;
       }
 
