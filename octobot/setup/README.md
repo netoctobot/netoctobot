@@ -37,3 +37,63 @@ bash setup/setup6.sh
 `WEBHOOK_REGISTRATION_ENABLED=false` هو الافتراضي، ويستخدم الاستطلاع ويحتاج خروجًا إلى `api.telegram.org`. تفعيل الويب هوك يحتاج `true` و`PUBLIC_BASE_URL` على HTTPS ومنفذًا عامًا.
 
 الإيقاف الآمن هو `docker compose --env-file backend/.env stop`. لا تستخدم `docker compose down -v`. ترقية PostgreSQL إلى إصدار رئيسي آخر خطة منفصلة تحفظ البيانات، وليست جزءًا من هذه السكربتات.
+
+## التحديث بعد دفع التعديلات
+
+من مجلد `octobot` على السيرفر، بعد دفع التعديلات إلى GitHub:
+
+```bash
+bash setup/update.sh
+```
+
+فرع التشغيل المعتمد هو `main`. السكربت يرفض أي فرع غيره، ويرفض التعديلات المحلية من دون مسحها، ثم يجلب بـ `git pull --ff-only`. إذا تفرع الفرع أو ظهر تعارض يتوقف. لا يشغّل `git reset --hard` ولا `docker compose down -v` ولا `prisma migrate reset`.
+
+لا تشغّل تحديثين معًا. القفل يوقف التشغيل الثاني فورًا.
+
+إذا لم يوجد التزام جديد، وكان سجل نشر سابق مطابقًا لـ HEAD، يخرج السكربت ولا يعيد تشغيل الخدمات. أول تشغيل بلا سجل نشر سابق ينشر HEAD الحالي مرة واحدة حتى لو كان الجلب بلا التزامات جديدة، لكي يُحفظ مرجع الإصدار الذي يعمل فعلًا.
+
+ترتيب النشر:
+
+1. بناء صور backend و frontend. إذا فشل البناء تبقى الحاويات الحالية تعمل.
+2. التأكد من حجمَي PostgreSQL و Redis من دون سحب صورة جديدة ومن دون حذف البيانات.
+3. نسخة احتياطية بصيغة `pg_dump -Fc` داخل `.update/backups/`. إذا فشلت يتوقف قبل migrations.
+4. `setup4.sh` أي `prisma migrate deploy`.
+5. `setup5.sh` لإعادة إنشاء backend و frontend فقط.
+6. انتظار `/health` ثم `setup6.sh`.
+
+بناء الصور يحدث والخدمة ما زالت تعمل. الانقطاع يبدأ عند إعادة إنشاء backend و frontend، ويستمر حتى ينجح `/health`. المدة المتوقعة لهذا الانقطاع غالبًا بين نصف دقيقة وبضع دقائق، وتطول إذا كان `prisma migrate deploy` ثقيلًا أو تأخر إقلاع البوت. أثناء migration غير المتوافقة قد يضطرب التطبيق القديم قبل لحظة الاستبدال. هذا ليس تحديثًا بلا انقطاع.
+
+يُحفظ مرجع صور الإصدار السابق بالوسمين `octobot-rollback/backend:previous` و `octobot-rollback/frontend:previous`، ومعه المسارات في `.update/rollback.txt`. السجل في `.update/update.log`. هذه المسارات مستثناة من Git. السكربت لا يطبع كلمات المرور ولا مفاتيح التشفير، ولا يستبدل `backend/.env`.
+
+الرجوع إلى صور التطبيق لا يعكس migrations. `prisma migrate deploy` لا يُلغى تلقائيًا عند تشغيل الصورة السابقة.
+
+### إذا فشل التحديث بعد تغيير القاعدة
+
+لا تحذف الأحجام ولا تعِد ضبط migrations. اختر واحدًا من المسارين:
+
+- المخطط الجديد ما زال يعمل مع التطبيق السابق: أعد وسم الصور السابقة فقط، ثم شغّل الحاويات من دون بناء:
+
+```bash
+cd octobot
+docker tag octobot-rollback/backend:previous octobot-backend
+docker tag octobot-rollback/frontend:previous octobot-frontend
+docker compose --env-file backend/.env up -d --no-build backend frontend
+```
+
+أسماء الصور الفعلية محفوظة في `.update/rollback.txt` تحت `backend_runtime_name` و `frontend_runtime_name`. إذا اختلفت عن `octobot-backend` و `octobot-frontend` فاستخدم الأسماء المحفوظة.
+
+- المخطط الجديد لا يعمل مع التطبيق السابق: أوقف الكتابة، استعد النسخة الاحتياطية إلى قاعدة Postgres الحالية، ثم أعد الصور السابقة. الاستعادة تستبدل كائنات القاعدة بما كان قبل هذه المحاولة، وتضيع الكتابة التي حصلت بعد النسخة:
+
+```bash
+cd octobot
+docker compose --env-file backend/.env stop backend frontend
+docker compose --env-file backend/.env exec -T postgres \
+  sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --exit-on-error' \
+  < .update/backups/<backup-file>
+docker tag octobot-rollback/backend:previous octobot-backend
+docker tag octobot-rollback/frontend:previous octobot-frontend
+docker compose --env-file backend/.env up -d --no-build backend frontend
+curl --fail --silent --show-error http://127.0.0.1:3000/health
+```
+
+اسم ملف النسخة مكتوب في `.update/rollback.txt`. Postgres نفسه يبقى يعمل لأن الاستعادة تتم داخل الحاوية الحالية وعلى الحجم نفسه.
