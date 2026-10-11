@@ -205,6 +205,15 @@ enum BroadcastDeliveryStatus {
   STOPPED
 }
 
+enum BroadcastMessageDeleteStatus {
+  NONE
+  PENDING
+  IN_PROGRESS
+  DELETED
+  GONE
+  UNAVAILABLE
+}
+
 model BroadcastCampaign {
   id               String                  @id @default(cuid())
   text             String
@@ -221,6 +230,7 @@ model BroadcastCampaign {
   includeBotOwners Boolean                 @default(true)
   createdByAdmin   String
   stopRequested    Boolean                 @default(false)
+  deleteRequested  Boolean                 @default(false)
   endedAt          DateTime?
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
@@ -270,15 +280,22 @@ model BroadcastMediaBotFile {
 }
 
 model BroadcastDeliveryMessage {
-  id                String   @id @default(cuid())
-  deliveryId        String
-  telegramMessageId BigInt
-  sortOrder         Int      @default(0)
-  createdAt         DateTime @default(now())
+  id                   String                       @id @default(cuid())
+  deliveryId           String
+  telegramMessageId    BigInt
+  sortOrder            Int                          @default(0)
+  deleteStatus         BroadcastMessageDeleteStatus @default(NONE)
+  deleteReason         String?
+  deletedAt            DateTime?
+  deleteSettledAt      DateTime?
+  deleteLeaseExpiresAt DateTime?
+  deleteAttempts       Int                          @default(0)
+  createdAt            DateTime                     @default(now())
 
   delivery BroadcastDelivery @relation(fields: [deliveryId], references: [id])
 
   @@unique([deliveryId, sortOrder])
+  @@index([deleteStatus])
   @@map("broadcast_delivery_messages")
 }
 
