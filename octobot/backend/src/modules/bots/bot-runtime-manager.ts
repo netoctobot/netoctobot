@@ -316,7 +316,14 @@ export class BotRuntimeManager {
           view.text,
           dashboardMessageOptions(view),
         );
-        await context.deleteMessage().catch(() => undefined);
+        if (
+          this.shouldDeleteCallbackAfterDashboardEdit(
+            context,
+            dashboard.messageId,
+          )
+        ) {
+          await context.deleteMessage().catch(() => undefined);
+        }
         return;
       } catch (error) {
         await clearDashboardState(
@@ -433,6 +440,25 @@ export class BotRuntimeManager {
     );
   }
 
+  private callbackMessageId(context: Context): number | null {
+    const message = context.callbackQuery?.message;
+    if (message && "message_id" in message) {
+      return message.message_id;
+    }
+    return null;
+  }
+
+  private shouldDeleteCallbackAfterDashboardEdit(
+    context: Context,
+    dashboardMessageId: number,
+  ): boolean {
+    const callbackMessageId = this.callbackMessageId(context);
+    if (callbackMessageId === null) {
+      return true;
+    }
+    return callbackMessageId !== dashboardMessageId;
+  }
+
   #ownerBroadcastDeps(
     runtime: ManagedBotRuntime,
     goHome: (context: Context) => Promise<void>,
@@ -447,6 +473,9 @@ export class BotRuntimeManager {
       scheduler: this.broadcastScheduler,
       showDashboard: async (context: Context, rt: ManagedBotRuntime, view: DashboardView) => {
         await this.showRuntimeDashboard(context, rt, view);
+      },
+      editDashboard: async (context: Context, rt: ManagedBotRuntime, view: DashboardView) => {
+        await this.editRuntimeDashboard(context, rt, view);
       },
       isOwner: async (context: Context, rt: ManagedBotRuntime) => {
         if (!context.from) {
@@ -527,16 +556,15 @@ export class BotRuntimeManager {
             context.from.id,
           ),
         ]);
-        await this.showRuntimeDashboard(
-          context,
-          runtime,
-          buildSubBotHome(
-            runtime.botRecord,
-            normalizeTelegramLanguage(
-              context.from.language_code,
-            ),
-          ),
+        const homeView = buildSubBotHome(
+          runtime.botRecord,
+          normalizeTelegramLanguage(context.from.language_code),
         );
+        if (context.callbackQuery) {
+          await this.editRuntimeDashboard(context, runtime, homeView);
+        } else {
+          await this.showRuntimeDashboard(context, runtime, homeView);
+        }
         return;
       }
 
