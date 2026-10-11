@@ -19,6 +19,17 @@ export function generateStorageKey(): string {
   return randomBytes(16).toString("hex");
 }
 
+/** Safe client-facing filename for Telegram (basename only, no path segments). */
+export function sanitizeBroadcastFilename(originalName: string): string {
+  const base = originalName.replace(/\\/g, "/").split("/").pop() ?? "";
+  const trimmed = base.trim().slice(0, 200);
+  const sanitized = trimmed.replace(/[^\w.\- ()[\]]+/gu, "_");
+  if (!sanitized || sanitized === "." || sanitized === "..") {
+    return "upload.dat";
+  }
+  return sanitized;
+}
+
 export async function ensureMediaRoot(dir: string): Promise<void> {
   await mkdir(resolveMediaRoot(dir), { recursive: true });
 }
