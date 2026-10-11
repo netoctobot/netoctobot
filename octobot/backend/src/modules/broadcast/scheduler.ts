@@ -55,6 +55,7 @@ export class BroadcastScheduler {
         botId: true,
         campaign: { select: { id: true, text: true, stopRequested: true } },
         channel: { select: { channelTelegramId: true } },
+        user: { select: { telegramId: true } },
         bot: { select: { tokenEncrypted: true } },
       },
     });
@@ -80,6 +81,19 @@ export class BroadcastScheduler {
       await this.#refresh(delivery.campaign.id, delivery.campaign.stopRequested);
       return;
     }
+    const chatId = delivery.channel
+      ? Number(delivery.channel.channelTelegramId)
+      : delivery.user
+        ? Number(delivery.user.telegramId)
+        : null;
+    if (chatId === null) {
+      await this.prisma.broadcastDelivery.update({
+        where: { id: delivery.id },
+        data: { status: "FAILED", reason: "invalid_target" },
+      });
+      await this.#refresh(delivery.campaign.id, delivery.campaign.stopRequested);
+      return;
+    }
     let token: string;
     try {
       token = decryptToken(delivery.bot.tokenEncrypted, this.env.ENCRYPTION_KEY);
@@ -94,13 +108,14 @@ export class BroadcastScheduler {
     await new Promise((resolve) => setTimeout(resolve, SEND_GAP_MS));
     try {
       const api = new Api(token);
-      const sent = await api.sendMessage(
-        Number(delivery.channel.channelTelegramId),
-        delivery.campaign.text,
-      );
+      const sent = await api.sendMessage(chatId, delivery.campaign.text);
       await this.prisma.broadcastDelivery.updateMany({
         where: { id: delivery.id, status: "PENDING" },
-        data: { status: "SENT", telegramMessageId: BigInt(sent.message_id) },
+        data: {
+          status: "SENT",
+          telegramMessageId: BigInt(sent.message_id),
+          recipientTelegramChatId: BigInt(chatId),
+        },
       });
     } catch (error) {
       const outcome = classifySendError(error);

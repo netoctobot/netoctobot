@@ -61,6 +61,63 @@ export async function syncBotUser(
   });
 }
 
+/** Records a private-chat touch without changing language preference or storing message content. */
+export async function recordPrivateBotInteraction(
+  prisma: PrismaClient,
+  profile: TelegramUserProfile,
+  botId: string,
+): Promise<void> {
+  const now = new Date();
+  await prisma.$transaction(async (transaction) => {
+    const user = await transaction.user.upsert({
+      where: { telegramId: BigInt(profile.id) },
+      create: {
+        telegramId: BigInt(profile.id),
+        username: profile.username ?? null,
+        firstName: profile.first_name,
+        lastName: profile.last_name ?? null,
+      },
+      update: {
+        username: profile.username ?? null,
+        firstName: profile.first_name,
+        lastName: profile.last_name ?? null,
+        deletedAt: null,
+      },
+    });
+
+    await transaction.userBotPreference.upsert({
+      where: {
+        userId_botId: {
+          userId: user.id,
+          botId,
+        },
+      },
+      create: {
+        userId: user.id,
+        botId,
+        language: normalizeTelegramLanguage(profile.language_code),
+        isExplicit: false,
+        privateChatEstablishedAt: now,
+        lastPrivateInteractionAt: now,
+      },
+      update: {
+        lastPrivateInteractionAt: now,
+      },
+    });
+
+    await transaction.userBotPreference.updateMany({
+      where: {
+        userId: user.id,
+        botId,
+        privateChatEstablishedAt: null,
+      },
+      data: {
+        privateChatEstablishedAt: now,
+      },
+    });
+  });
+}
+
 export async function setExplicitLanguage(
   prisma: PrismaClient,
   userId: string,

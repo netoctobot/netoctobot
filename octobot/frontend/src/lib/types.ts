@@ -225,26 +225,60 @@ export interface BroadcastBotOption {
   deletedAt: string | null;
 }
 
+export type BroadcastAudienceType = "CHANNELS" | "BOT_USERS" | "BOT_OWNERS";
+
+export interface BroadcastPreviewSummary {
+  uniqueTargets: number;
+  preliminaryEligible: number;
+  excluded: number;
+}
+
+export type BroadcastPreviewEligible =
+  | {
+      kind: "channel";
+      channelId: string;
+      title: string | null;
+      username: string | null;
+      botId: string;
+    }
+  | {
+      kind: "user";
+      userId: string;
+      displayName: string | null;
+      username: string | null;
+      botId: string;
+      senderBotId: string;
+    };
+
+export type BroadcastPreviewExcluded =
+  | {
+      kind: "channel";
+      channelId: string;
+      title: string | null;
+      reason: string;
+    }
+  | {
+      kind: "user";
+      userId: string;
+      displayName: string | null;
+      username: string | null;
+      reason: string;
+    };
+
 export interface BroadcastPreview {
   text: string;
-  eligible: Array<{
-    channelId: string;
-    title: string | null;
-    username: string | null;
-    botId: string;
-  }>;
-  excluded: Array<{
-    channelId: string;
-    title: string | null;
-    username?: string | null;
-    reason: string;
-  }>;
+  audienceType: BroadcastAudienceType;
+  preliminary: boolean;
+  summary: BroadcastPreviewSummary;
+  eligible: BroadcastPreviewEligible[];
+  excluded: BroadcastPreviewExcluded[];
 }
 
 export interface BroadcastCampaign {
   id: string;
   text: string;
   status: string;
+  audienceType: BroadcastAudienceType;
   targetMode: string;
   createdAt: string;
   stopRequested: boolean;
@@ -255,13 +289,18 @@ export interface BroadcastDetail extends BroadcastCampaign {
   includeActive: boolean;
   includeInactive: boolean;
   includeDeleted: boolean;
+  includeBotOwners: boolean;
   createdByAdmin: string;
   deliveries: Array<{
     id: string;
+    kind: "channel" | "user";
     status: string;
     reason: string | null;
     messageId: string | null;
+    chatId: string | null;
+    senderBotUsername: string | null;
     title: string | null;
     username: string | null;
+    displayName: string | null;
   }>;
 }

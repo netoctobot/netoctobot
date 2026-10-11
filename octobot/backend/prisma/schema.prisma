@@ -41,6 +41,7 @@ model User {
   payments                    Payment[]
   paymentIntents              PaymentIntent[]
   userBotPreferences          UserBotPreference[]
+  broadcastDeliveries         BroadcastDelivery[]
   referralLink                ReferralLink?
   referralRelationsAsReferrer ReferralRelation[]   @relation("Referrer")
   referralRelationsAsReferred ReferralRelation[]   @relation("Referred")
@@ -96,19 +97,22 @@ enum BotType {
 }
 
 model UserBotPreference {
-  id         String            @id @default(cuid())
-  userId     String
-  botId      String
-  language   SupportedLanguage @default(EN)
-  isExplicit Boolean           @default(false)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  id                       String            @id @default(cuid())
+  userId                   String
+  botId                    String
+  language                 SupportedLanguage @default(EN)
+  isExplicit               Boolean           @default(false)
+  privateChatEstablishedAt DateTime?
+  lastPrivateInteractionAt DateTime?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
 
   user User @relation(fields: [userId], references: [id])
   bot  Bot  @relation(fields: [botId], references: [id])
 
   @@unique([userId, botId])
   @@index([botId])
+  @@index([botId, privateChatEstablishedAt])
   @@map("user_bot_preferences")
 }
 
@@ -175,6 +179,12 @@ enum BroadcastTargetMode {
   SELECTED
 }
 
+enum BroadcastAudienceType {
+  CHANNELS
+  BOT_USERS
+  BOT_OWNERS
+}
+
 enum BroadcastDeliveryStatus {
   PENDING
   SENT
@@ -185,17 +195,19 @@ enum BroadcastDeliveryStatus {
 }
 
 model BroadcastCampaign {
-  id              String                  @id @default(cuid())
-  text            String
-  status          BroadcastCampaignStatus @default(RUNNING)
-  targetMode      BroadcastTargetMode
-  includeActive   Boolean                 @default(true)
-  includeInactive Boolean                 @default(false)
-  includeDeleted  Boolean                 @default(false)
-  createdByAdmin  String
-  stopRequested   Boolean                 @default(false)
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
+  id               String                  @id @default(cuid())
+  text             String
+  status           BroadcastCampaignStatus @default(RUNNING)
+  audienceType     BroadcastAudienceType   @default(CHANNELS)
+  targetMode       BroadcastTargetMode
+  includeActive    Boolean                 @default(true)
+  includeInactive  Boolean                 @default(false)
+  includeDeleted   Boolean                 @default(false)
+  includeBotOwners Boolean                 @default(true)
+  createdByAdmin   String
+  stopRequested    Boolean                 @default(false)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
 
   bots       BroadcastCampaignBot[]
   deliveries BroadcastDelivery[]
@@ -216,21 +228,23 @@ model BroadcastCampaignBot {
 }
 
 model BroadcastDelivery {
-  id                String                  @id @default(cuid())
-  campaignId        String
-  channelId         String
-  botId             String?
-  status            BroadcastDeliveryStatus
-  reason            String?
-  telegramMessageId BigInt?
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
+  id                      String                  @id @default(cuid())
+  campaignId              String
+  channelId               String?
+  userId                  String?
+  botId                   String?
+  status                  BroadcastDeliveryStatus
+  reason                  String?
+  recipientTelegramChatId BigInt?
+  telegramMessageId       BigInt?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
 
   campaign BroadcastCampaign @relation(fields: [campaignId], references: [id])
-  channel  Channel           @relation(fields: [channelId], references: [id])
+  channel  Channel?          @relation(fields: [channelId], references: [id])
+  user     User?             @relation(fields: [userId], references: [id])
   bot      Bot?              @relation(fields: [botId], references: [id])
 
-  @@unique([campaignId, channelId])
   @@index([campaignId, status])
   @@map("broadcast_deliveries")
 }

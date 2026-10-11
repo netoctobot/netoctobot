@@ -56,6 +56,7 @@ import {
   syncBotUser,
 } from "./modules/users/user.service.js";
 import { attachSubscriptionGate } from "./modules/forced-subscription/gate.js";
+import { attachPrivateChatRecorder } from "./modules/users/private-chat-recorder.js";
 import {
   isPrivateSlashCommand,
   PRIVATE_HOME_COMMAND_PATTERN,
@@ -139,6 +140,10 @@ function registerPlatformHandlers(
   runtimeManager: BotRuntimeManager,
   redis: Redis,
 ): void {
+  attachPrivateChatRecorder(bot, {
+    prisma,
+    botId: () => platformBotId,
+  });
   attachSubscriptionGate(bot, {
     prisma,
     redis,

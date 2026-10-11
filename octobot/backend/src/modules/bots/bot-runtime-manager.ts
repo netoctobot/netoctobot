@@ -24,6 +24,7 @@ import {
   PRIVATE_HOME_COMMAND_PATTERN,
 } from "./slash-command.js";
 import { attachSubscriptionGate } from "../forced-subscription/gate.js";
+import { attachPrivateChatRecorder } from "../users/private-chat-recorder.js";
 import { reconcileBotLinksForActivation } from "./bot-link-activation.service.js";
 import { ContactBotRelay } from "./contact-bot.service.js";
 import {
@@ -427,6 +428,10 @@ export class BotRuntimeManager {
   }
 
   private registerUserBotHandlers(runtime: ManagedBotRuntime): void {
+    attachPrivateChatRecorder(runtime.bot, {
+      prisma: this.prisma,
+      botId: () => runtime.botRecord.id,
+    });
     attachSubscriptionGate(runtime.bot, {
       prisma: this.prisma,
       redis: this.redis,

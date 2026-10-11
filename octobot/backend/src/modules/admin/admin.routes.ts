@@ -20,7 +20,7 @@ import {
   removeCatalogChannel,
   type CatalogTelegram,
 } from "../forced-subscription/catalog-admin.js";
-import { broadcastProbe } from "../broadcast/probe.js";
+import { broadcastProbe, createBotTokenValidator } from "../broadcast/probe.js";
 import {
   createBroadcast,
   listBroadcastBots,
@@ -120,6 +120,7 @@ export function registerAdminRoutes(
   const catalogTelegram =
     options.catalogTelegram ?? catalogTelegramFromToken(env.BOT_TOKEN);
   const probe = broadcastProbe(prisma, env.ENCRYPTION_KEY);
+  const tokenValid = createBotTokenValidator(prisma, env.ENCRYPTION_KEY);
 
   async function requireAdmin(
     request: { headers: { cookie?: string | string[] }; ip: string },
@@ -467,7 +468,7 @@ export function registerAdminRoutes(
     if (!parsed) {
       return reply.code(400).send({ error: "invalid_broadcast" });
     }
-    return previewBroadcast(prisma, parsed, probe);
+    return previewBroadcast(prisma, parsed, probe, tokenValid);
   });
 
   app.post("/admin/broadcasts", async (request, reply) => {
@@ -479,7 +480,7 @@ export function registerAdminRoutes(
     if (!parsed) {
       return reply.code(400).send({ error: "invalid_broadcast" });
     }
-    const created = await createBroadcast(prisma, admin.username, parsed, probe);
+    const created = await createBroadcast(prisma, admin.username, parsed, probe, tokenValid);
     if (options.broadcast) {
       for (const deliveryId of created.deliveryIds) {
         await options.broadcast.enqueue(created.id, deliveryId);
