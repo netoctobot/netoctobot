@@ -6,6 +6,7 @@ import { createRedisClient } from "./lib/redis.js";
 import { bootstrapLocalDashboardAdmin } from "./modules/admin/bootstrap-admin.js";
 import { BotRuntimeManager } from "./modules/bots/bot-runtime-manager.js";
 import { startMediaCleanupLoop } from "./modules/broadcast/media-cleanup.js";
+import { ensureMediaRoot } from "./modules/broadcast/media-storage.js";
 import { BroadcastScheduler } from "./modules/broadcast/scheduler.js";
 import { SupportListScheduler } from "./modules/support-list/scheduler.js";
 
@@ -33,6 +34,7 @@ try {
   runtimeManager.add(runtime);
   await runtimeManager.loadActiveUserBots();
 
+  await ensureMediaRoot(env.BROADCAST_MEDIA_DIR);
   app = await buildApp(env, prisma, redis, runtimeManager, broadcastScheduler);
   stopMediaCleanup = startMediaCleanupLoop(prisma, env.BROADCAST_MEDIA_DIR);
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
