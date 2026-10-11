@@ -60,10 +60,12 @@ import {
   dashboardMessageOptions,
   type DashboardView,
 } from "./platform-menu.js";
+import { ensureTelegramCommandMenu } from "./telegram-command-menu.js";
 import {
   buildContactAddChannelView,
   buildContactVisitorWelcome,
   buildDisabledContactView,
+  buildContactOwnerLanguageMenu,
   buildSubBotHome,
   buildWelcomeEditPrompt,
   buildWelcomeLanguageMenu,
@@ -72,7 +74,7 @@ import {
   CONTACT_OWNER_HOME,
   type WelcomeAction,
 } from "./sub-bot-menu.js";
-import { syncBotUser } from "../users/user.service.js";
+import { setExplicitLanguage, syncBotUser } from "../users/user.service.js";
 import {
   clearWelcomeEditState,
   getWelcomeEditState,
@@ -175,6 +177,11 @@ export class BotRuntimeManager {
       this.registerChannelMembershipHandler(runtime);
     }
     this.#runtimes.set(runtime.botRecord.id, runtime);
+    void ensureTelegramCommandMenu(runtime.bot.api, (message) => {
+      console.warn(
+        `Bot ${runtime.botRecord.id} (@${runtime.botRecord.botUsername}): ${message}`,
+      );
+    });
     this.startPollingIfNeeded(runtime);
   }
 
@@ -487,6 +494,20 @@ export class BotRuntimeManager {
       goHome: async (context: Context, rt: ManagedBotRuntime) => {
         await goHome(context);
       },
+      interfaceLanguage:
+        runtime.botRecord.botType === BotType.CONTACT_BOT
+          ? async (context: Context) => {
+              if (!context.from) {
+                return SupportedLanguage.EN;
+              }
+              const { preference } = await syncBotUser(
+                this.prisma,
+                context.from,
+                runtime.botRecord.id,
+              );
+              return preference.language;
+            }
+          : undefined,
     };
   }
 
@@ -556,9 +577,14 @@ export class BotRuntimeManager {
             context.from.id,
           ),
         ]);
+        const { preference } = await syncBotUser(
+          this.prisma,
+          context.from,
+          runtime.botRecord.id,
+        );
         const homeView = buildSubBotHome(
           runtime.botRecord,
-          normalizeTelegramLanguage(context.from.language_code),
+          preference.language,
         );
         if (context.callbackQuery) {
           await this.editRuntimeDashboard(context, runtime, homeView);
@@ -648,8 +674,19 @@ export class BotRuntimeManager {
       return true;
     };
 
-    const interfaceLanguage = (context: Context) =>
-      normalizeTelegramLanguage(context.from?.language_code);
+    const preferenceLanguage = async (
+      context: Context,
+    ): Promise<SupportedLanguage> => {
+      if (!context.from) {
+        return SupportedLanguage.EN;
+      }
+      const { preference } = await syncBotUser(
+        this.prisma,
+        context.from,
+        runtime.botRecord.id,
+      );
+      return preference.language;
+    };
 
     const clearOwnerFlows = (telegramUserId: number) =>
       Promise.all([
@@ -679,7 +716,7 @@ export class BotRuntimeManager {
         context,
         runtime,
         buildManagedBotChannelsMenu(
-          interfaceLanguage(context),
+          await preferenceLanguage(context),
           result,
         ),
       );
@@ -697,12 +734,55 @@ export class BotRuntimeManager {
           runtime,
           buildSubBotHome(
             runtime.botRecord,
-            interfaceLanguage(context),
+            await preferenceLanguage(context),
           ),
         );
         await context.answerCallbackQuery();
       },
     );
+
+    runtime.bot.callbackQuery("owner:lang", async (context) => {
+      if (!(await authorizeOwnerCallback(context))) {
+        return;
+      }
+      await clearOwnerFlows(context.from.id);
+      const language = await preferenceLanguage(context);
+      await this.editRuntimeDashboard(
+        context,
+        runtime,
+        buildContactOwnerLanguageMenu(language),
+      );
+      await context.answerCallbackQuery();
+    });
+
+    runtime.bot.callbackQuery(/^owner:lang:(AR|EN)$/, async (context) => {
+      if (!(await authorizeOwnerCallback(context))) {
+        return;
+      }
+      const selected = parseSupportedLanguage(context.match[1] ?? "");
+      if (!selected || !context.from) {
+        await context.answerCallbackQuery();
+        return;
+      }
+      const { user } = await syncBotUser(
+        this.prisma,
+        context.from,
+        runtime.botRecord.id,
+      );
+      await setExplicitLanguage(
+        this.prisma,
+        user.id,
+        runtime.botRecord.id,
+        selected,
+      );
+      await clearOwnerFlows(context.from.id);
+      await this.editRuntimeDashboard(
+        context,
+        runtime,
+        buildSubBotHome(runtime.botRecord, selected),
+      );
+      await context.answerCallbackQuery();
+    });
 
     runtime.bot.callbackQuery(
       /^owner:welcome:(edit|view|reset)$/,
@@ -716,7 +796,7 @@ export class BotRuntimeManager {
           context,
           runtime,
           buildWelcomeLanguageMenu(
-            interfaceLanguage(context),
+            await preferenceLanguage(context),
             action,
           ),
         );
@@ -737,7 +817,7 @@ export class BotRuntimeManager {
           await context.answerCallbackQuery();
           return;
         }
-        const language = interfaceLanguage(context);
+        const language = await preferenceLanguage(context);
         const action = context.match[1];
         if (action === "v") {
           await clearOwnerFlows(context.from.id);
@@ -818,7 +898,7 @@ export class BotRuntimeManager {
           context,
           runtime,
           buildContactAddChannelView(
-            interfaceLanguage(context),
+            await preferenceLanguage(context),
             runtime.botRecord.botUsername,
           ),
         );
@@ -854,7 +934,7 @@ export class BotRuntimeManager {
           context,
           runtime,
           buildManagedLinkConfirmation(
-            interfaceLanguage(context),
+            await preferenceLanguage(context),
             {
               id: link.id,
               status: link.status,
@@ -913,7 +993,7 @@ export class BotRuntimeManager {
         } catch (error) {
           await context.answerCallbackQuery({
             text: translate(
-              interfaceLanguage(context),
+              await preferenceLanguage(context),
               error instanceof InviteLinkPermissionRequiredError
                 ? "management.invitePermissionRequired"
                 : error instanceof TelegramApiUnavailableError
@@ -948,7 +1028,7 @@ export class BotRuntimeManager {
             context,
             runtime,
             buildManagedLinkDetails(
-              interfaceLanguage(context),
+              await preferenceLanguage(context),
               {
                 id: link.id,
                 status: link.status,
@@ -965,7 +1045,7 @@ export class BotRuntimeManager {
           );
           await context.answerCallbackQuery();
         } catch (error) {
-          const language = interfaceLanguage(context);
+          const language = await preferenceLanguage(context);
           if (error instanceof InviteLinkPermissionRequiredError) {
             await showLinkedChannels(
               context,
@@ -1033,16 +1113,19 @@ export class BotRuntimeManager {
         );
         contactRelay = await this.getContactRelay(runtime);
         isContactOwner = context.from.id === ownerTelegramId;
-        const language = normalizeTelegramLanguage(
-          context.from.language_code,
-        );
         if (!isContactOwner) {
           await contactRelay.handleVisitorMessage(
             context,
-            language,
+            normalizeTelegramLanguage(context.from.language_code),
           );
           return;
         }
+        const { preference: ownerPreference } = await syncBotUser(
+          this.prisma,
+          context.from,
+          runtime.botRecord.id,
+        );
+        const ownerLanguage = ownerPreference.language;
         const ownerBroadcastDeps = this.#ownerBroadcastDeps(runtime, showHome);
         if (ownerBroadcastDeps) {
           const consumed = await tryOwnerBroadcastOwnerMessage(
@@ -1066,7 +1149,7 @@ export class BotRuntimeManager {
           if (!text || text.length > 3_500) {
             await context.reply(
               translate(
-                language,
+                ownerLanguage,
                 "contactOwner.invalidWelcome",
               ),
             );
@@ -1086,7 +1169,7 @@ export class BotRuntimeManager {
           await context.deleteMessage().catch(() => undefined);
           const view = buildWelcomeView(
             runtime.botRecord,
-            language,
+            ownerLanguage,
             welcomeEditState.language,
           );
           await context.api.editMessageText(
@@ -1101,7 +1184,7 @@ export class BotRuntimeManager {
           context.message.reply_to_message ||
           context.message.media_group_id
         ) {
-          await contactRelay.handleOwnerMessage(context, language);
+          await contactRelay.handleOwnerMessage(context, ownerLanguage);
           return;
         }
       }
@@ -1113,11 +1196,14 @@ export class BotRuntimeManager {
       );
       if (!state) {
         if (contactRelay && isContactOwner) {
+          const { preference: ownerPreference } = await syncBotUser(
+            this.prisma,
+            context.from,
+            runtime.botRecord.id,
+          );
           await contactRelay.handleOwnerMessage(
             context,
-            normalizeTelegramLanguage(
-              context.from.language_code,
-            ),
+            ownerPreference.language,
           );
         }
         return;
@@ -1134,25 +1220,17 @@ export class BotRuntimeManager {
       const chatReference = resolveChannelChatReference(
         context.message,
       );
-      if (chatReference === null && contactRelay && isContactOwner) {
-        await contactRelay.handleOwnerMessage(
-          context,
-          normalizeTelegramLanguage(context.from.language_code),
-        );
-        return;
-      }
-
       const { user, preference } = await syncBotUser(
         this.prisma,
         context.from,
         runtime.botRecord.id,
       );
-      const flowLanguage =
-        runtime.botRecord.botType === BotType.CONTACT_BOT
-          ? normalizeTelegramLanguage(
-              context.from.language_code,
-            )
-          : preference.language;
+      if (chatReference === null && contactRelay && isContactOwner) {
+        await contactRelay.handleOwnerMessage(context, preference.language);
+        return;
+      }
+
+      const flowLanguage = preference.language;
       if (chatReference === null) {
         await context.reply(
           translate(flowLanguage, "channelLink.notFound"),
@@ -1194,9 +1272,26 @@ export class BotRuntimeManager {
       if (context.chat?.type !== "private") {
         return;
       }
-      const language = normalizeTelegramLanguage(
+      let language = normalizeTelegramLanguage(
         context.from?.language_code,
       );
+      if (
+        context.from &&
+        runtime.botRecord.botType === BotType.CONTACT_BOT &&
+        runtime.botRecord.isActive
+      ) {
+        const ownerTelegramId = await this.getOwnerTelegramId(
+          runtime.botRecord,
+        );
+        if (context.from.id === ownerTelegramId) {
+          const { preference } = await syncBotUser(
+            this.prisma,
+            context.from,
+            runtime.botRecord.id,
+          );
+          language = preference.language;
+        }
+      }
       await context
         .reply(translate(language, "errors.generic"))
         .catch(() => undefined);

@@ -7,14 +7,14 @@ export const OWNER_BROADCAST_DRAFT_TTL_SECONDS = 45 * 60;
 
 export type OwnerBroadcastStep =
   | "audience"
-  | "contentKind"
-  | "awaitContent"
-  | "compose"
-  | "awaitButtons"
+  | "awaitPost"
   | "preview"
-  | "awaitCaption";
+  | "awaitMedia"
+  | "awaitButtons";
 
-export type OwnerBroadcastInputMode = "caption" | "buttons" | null;
+export type OwnerBroadcastInputMode = "media" | "buttons" | null;
+
+export type OwnerBroadcastPanelSurface = "text" | "media";
 
 export interface OwnerBroadcastDraft {
   step: OwnerBroadcastStep;
@@ -26,7 +26,7 @@ export interface OwnerBroadcastDraft {
   mediaAssetId?: string | null;
   publishNonce?: string | null;
   inputMode?: OwnerBroadcastInputMode;
-  previewMessageId?: number | null;
+  panelSurface?: OwnerBroadcastPanelSurface;
 }
 
 export interface OwnerBroadcastLastResult {
@@ -39,6 +39,60 @@ function draftKey(botId: string, ownerTelegramId: number | bigint): string {
 
 function resultKey(botId: string, ownerTelegramId: number | bigint): string {
   return `bot:owner-bc-last:${botId}:${ownerTelegramId}`;
+}
+
+export function emptyOwnerBroadcastDraft(): OwnerBroadcastDraft {
+  return { step: "audience" };
+}
+
+export function hasPublishableContent(draft: OwnerBroadcastDraft): boolean {
+  if (draft.contentKind === "TEXT") {
+    return Boolean(draft.text?.trim());
+  }
+  return Boolean(draft.mediaAssetId);
+}
+
+export function cancelInputMode(draft: OwnerBroadcastDraft): OwnerBroadcastDraft {
+  const next = { ...draft, inputMode: null };
+  if (hasPublishableContent(next)) {
+    next.step = "preview";
+  }
+  return next;
+}
+
+export function applyAudienceSelection(
+  draft: OwnerBroadcastDraft,
+  audience: OwnerAudience,
+): OwnerBroadcastDraft {
+  const next: OwnerBroadcastDraft = { ...draft, audience, inputMode: null };
+  if (hasPublishableContent(next)) {
+    next.step = "preview";
+  } else {
+    next.step = "awaitPost";
+  }
+  return next;
+}
+
+export function applyBackNavigation(
+  draft: OwnerBroadcastDraft,
+): OwnerBroadcastDraft | "home" {
+  if (draft.inputMode === "media" || draft.inputMode === "buttons") {
+    return cancelInputMode(draft);
+  }
+  if (draft.step === "preview" || draft.step === "awaitPost") {
+    return { ...draft, step: "audience", inputMode: null };
+  }
+  if (draft.step === "audience") {
+    return "home";
+  }
+  return { ...draft, step: "audience", inputMode: null };
+}
+
+export function textBodyForCaptionMigration(draft: OwnerBroadcastDraft): string | null {
+  if (draft.contentKind === "TEXT" && draft.text?.trim()) {
+    return draft.text.trim();
+  }
+  return null;
 }
 
 export async function loadOwnerBroadcastDraft(
@@ -99,27 +153,4 @@ export async function loadOwnerBroadcastLastResult(
     return null;
   }
   return JSON.parse(raw) as OwnerBroadcastLastResult;
-}
-
-export function clearContentForKindChange(
-  draft: OwnerBroadcastDraft,
-  contentKind: BroadcastContentKind,
-): OwnerBroadcastDraft {
-  const next: OwnerBroadcastDraft = {
-    ...draft,
-    contentKind,
-    step: "awaitContent",
-    inputMode: null,
-    text: "",
-    caption: null,
-    mediaAssetId: null,
-    linkButtons: draft.linkButtons ?? null,
-  };
-  if (contentKind === "TEXT") {
-    next.caption = null;
-    next.mediaAssetId = null;
-  } else {
-    next.text = "";
-  }
-  return next;
 }

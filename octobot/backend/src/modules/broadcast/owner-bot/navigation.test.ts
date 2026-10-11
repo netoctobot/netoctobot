@@ -1,33 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clearContentForKindChange } from "./state.js";
+import { SupportedLanguage } from "@prisma/client";
+import { buildOwnerPreviewKeyboard } from "./menu.js";
 
-test("switching from PHOTO compose to TEXT clears media and cancels caption input mode", () => {
-  const next = clearContentForKindChange(
-    {
-      step: "compose",
-      contentKind: "PHOTO",
-      caption: "keep?",
-      mediaAssetId: "asset-1",
-      inputMode: "caption",
-      linkButtons: [[{ text: "Go", url: "https://example.com" }]],
-    },
-    "TEXT",
+test("buildOwnerPreviewKeyboard includes link rows and owner control callbacks", () => {
+  const keyboard = buildOwnerPreviewKeyboard(SupportedLanguage.EN, {
+    step: "preview",
+    contentKind: "TEXT",
+    text: "hi",
+    linkButtons: [[{ text: "Go", url: "https://example.com" }]],
+  });
+  const flat = keyboard.inline_keyboard.flat();
+  assert.ok(flat.some((button) => "url" in button && button.url === "https://example.com"));
+  assert.ok(
+    flat.some((button) => "callback_data" in button && button.callback_data === "owner:bc:publish"),
   );
-  assert.equal(next.step, "awaitContent");
-  assert.equal(next.inputMode, null);
-  assert.equal(next.mediaAssetId, null);
-  assert.equal(next.caption, null);
-  assert.ok(next.linkButtons && next.linkButtons.length > 0);
-});
-
-test("switching from TEXT to VIDEO resets text and awaits new media", () => {
-  const next = clearContentForKindChange(
-    { step: "preview", contentKind: "TEXT", text: "body", inputMode: "buttons" },
-    "VIDEO",
-  );
-  assert.equal(next.contentKind, "VIDEO");
-  assert.equal(next.text, "");
-  assert.equal(next.step, "awaitContent");
-  assert.equal(next.inputMode, null);
 });

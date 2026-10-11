@@ -8,8 +8,8 @@ import { Readable } from "node:stream";
 import {
   detectContentKindFromBuffer,
   kindMatchesDetection,
-  productMaxUploadBytes,
 } from "../content.js";
+import { ownerBroadcastMaxBytesForKind } from "./owner-media.js";
 import { PRODUCT_LIMITS } from "../content.js";
 import {
   absolutePathForKey,
@@ -81,7 +81,7 @@ export async function ingestTelegramFileForOwnerDraft(input: {
   originalName: string;
 }): Promise<{ mediaAssetId: string } | { error: string }> {
   const maxBytes = Math.min(
-    productMaxUploadBytes(input.declaredKind),
+    ownerBroadcastMaxBytesForKind(input.declaredKind),
     TELEGRAM_BOT_DOWNLOAD_LIMIT_BYTES,
   );
   const file = await input.api.getFile(input.fileId);
