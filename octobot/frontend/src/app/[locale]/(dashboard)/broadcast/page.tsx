@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { RecordList, Section } from "@/components/blocks";
 import { Appointment, Count, StatusBadge, StatusText } from "@/components/chrome";
@@ -8,6 +8,10 @@ import { Alert, Dialog, PageState } from "@/components/feedback";
 import { UserContent, UsernameValue } from "@/components/values";
 import { BroadcastContentPreviewView } from "@/components/broadcast-content-preview";
 import { ApiError, api, apiForm } from "@/lib/api";
+import {
+  buildLinkButtonRows,
+  type LinkButtonEditorEntry,
+} from "@/lib/broadcast-link-buttons";
 import { useResource } from "@/lib/use-resource";
 import type {
   BroadcastAudienceType,
@@ -15,7 +19,6 @@ import type {
   BroadcastCampaign,
   BroadcastContentKind,
   BroadcastDetail,
-  BroadcastLinkButton,
   BroadcastPreview,
   BroadcastPreviewEligible,
   BroadcastPreviewExcluded,
@@ -51,7 +54,7 @@ export default function BroadcastPage() {
   const [text, setText] = useState("");
   const [contentKind, setContentKind] = useState<BroadcastContentKind>("TEXT");
   const [caption, setCaption] = useState("");
-  const [linkButtons, setLinkButtons] = useState<BroadcastLinkButton[]>([]);
+  const [linkButtons, setLinkButtons] = useState<LinkButtonEditorEntry[]>([]);
   const [mediaUploadId, setMediaUploadId] = useState<string | null>(null);
   const [mediaName, setMediaName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -68,19 +71,21 @@ export default function BroadcastPage() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
   const detail = useResource<BroadcastDetail>(openId ? `/broadcasts/${openId}` : null);
+  const detailView = detail.data?.id === openId ? detail.data : null;
 
   const reloadDetail = detail.reload;
   const reloadCampaigns = campaigns.reload;
-  const detailStatus = detail.data?.status;
-  const deleteSummary = detail.data?.deleteSummary;
+  const detailStatus = detailView?.status;
+  const deleteSummary = detailView?.deleteSummary;
   const deletePolling =
     detailStatus === "RUNNING" ||
     Boolean(
       deleteSummary &&
         (deleteSummary.pending > 0 ||
           deleteSummary.inProgress > 0 ||
-          (detail.data?.deleteRequested && deleteSummary.none > 0)),
+          (detailView?.deleteRequested && deleteSummary.none > 0)),
     );
   useEffect(() => {
     if (!deletePolling) {
@@ -93,18 +98,25 @@ export default function BroadcastPage() {
     return () => window.clearInterval(timer);
   }, [deletePolling, reloadDetail, reloadCampaigns]);
 
+  useEffect(() => {
+    if (!openId) {
+      return;
+    }
+    resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [openId]);
+
+  function openCampaign(id: string) {
+    setError(null);
+    setOpenId(id);
+  }
+
   function botLabel(id: string) {
     const match = bots.data?.items.find((bot) => bot.id === id);
     return match ? `@${match.botUsername}` : id;
   }
 
   function payload() {
-    const rows =
-      linkButtons.length > 0
-        ? [linkButtons.filter((button) => button.text.trim() && button.url.trim())]
-        : null;
-    const filteredRows =
-      rows && rows[0].length > 0 ? rows : null;
+    const filteredRows = buildLinkButtonRows(linkButtons);
     return {
       text: contentKind === "TEXT" ? text : "",
       contentKind,
@@ -145,11 +157,14 @@ export default function BroadcastPage() {
   }
 
   function addLinkButton() {
-    setLinkButtons((current) => [...current, { text: "", url: "" }]);
+    setLinkButtons((current) => [
+      ...current,
+      { text: "", url: "", placement: "new_row", color: "default" },
+    ]);
     setPreview(null);
   }
 
-  function updateLinkButton(index: number, patch: Partial<BroadcastLinkButton>) {
+  function updateLinkButton(index: number, patch: Partial<LinkButtonEditorEntry>) {
     setLinkButtons((current) =>
       current.map((button, i) => (i === index ? { ...button, ...patch } : button)),
     );
@@ -243,6 +258,11 @@ export default function BroadcastPage() {
     <div className="flex flex-col gap-2">
       <p className="text-sm text-muted">{t("purpose")}</p>
       <Alert code={error} />
+      {openId && detail.error && !detailView ? (
+        <p role="alert" className="rounded-xl bg-[#f8e8e8] px-3 py-2 text-sm text-danger">
+          {t("detailLoadFailed")}
+        </p>
+      ) : null}
       <Section title={t("text")}>
         <div className="flex flex-wrap gap-3 text-sm">
           <label className="flex items-center gap-2">
@@ -325,21 +345,57 @@ export default function BroadcastPage() {
         <fieldset className="mt-4 flex flex-col gap-2">
           <legend className="mb-1 text-sm font-medium">{t("linkButtons")}</legend>
           {linkButtons.map((button, index) => (
-            <div key={index} className="flex flex-wrap gap-2">
-              <input
-                type="text"
-                placeholder={t("buttonText")}
-                value={button.text}
-                onChange={(event) => updateLinkButton(index, { text: event.target.value })}
-                className="min-w-[8rem] flex-1 rounded-lg border border-line bg-card px-2 py-1 text-sm"
-              />
-              <input
-                type="url"
-                placeholder={t("buttonUrl")}
-                value={button.url}
-                onChange={(event) => updateLinkButton(index, { url: event.target.value })}
-                className="min-w-[12rem] flex-[2] rounded-lg border border-line bg-card px-2 py-1 text-sm"
-              />
+            <div key={index} className="flex flex-col gap-2 rounded-lg border border-line p-2">
+              <div className="flex flex-wrap gap-2">
+                <input
+                  type="text"
+                  placeholder={t("buttonText")}
+                  value={button.text}
+                  onChange={(event) => updateLinkButton(index, { text: event.target.value })}
+                  className="min-w-[8rem] flex-1 rounded-lg border border-line bg-card px-2 py-1 text-sm"
+                />
+                <input
+                  type="url"
+                  placeholder={t("buttonUrl")}
+                  value={button.url}
+                  onChange={(event) => updateLinkButton(index, { url: event.target.value })}
+                  className="min-w-[12rem] flex-[2] rounded-lg border border-line bg-card px-2 py-1 text-sm"
+                />
+              </div>
+              <div className="flex flex-wrap gap-3 text-sm">
+                <label className="flex items-center gap-2">
+                  <span className="text-muted">{t("placementLabel")}</span>
+                  <select
+                    value={button.placement}
+                    onChange={(event) =>
+                      updateLinkButton(index, {
+                        placement: event.target.value as LinkButtonEditorEntry["placement"],
+                      })
+                    }
+                    className="rounded-lg border border-line bg-card px-2 py-1"
+                  >
+                    <option value="new_row">{t("placement.newRow")}</option>
+                    <option value="after_previous">{t("placement.afterPrevious")}</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  <span className="text-muted">{t("buttonColorLabel")}</span>
+                  <select
+                    value={button.color}
+                    onChange={(event) =>
+                      updateLinkButton(index, {
+                        color: event.target.value as LinkButtonEditorEntry["color"],
+                      })
+                    }
+                    className="rounded-lg border border-line bg-card px-2 py-1"
+                  >
+                    <option value="default">{t("buttonColor.default")}</option>
+                    <option value="blue">{t("buttonColor.blue")}</option>
+                    <option value="green">{t("buttonColor.green")}</option>
+                    <option value="red">{t("buttonColor.red")}</option>
+                  </select>
+                </label>
+              </div>
             </div>
           ))}
           <button
@@ -588,7 +644,7 @@ export default function BroadcastPage() {
                   <button
                     type="button"
                     className="rounded-lg border border-line px-2 py-1 text-sm"
-                    onClick={() => setOpenId(row.id)}
+                    onClick={() => openCampaign(row.id)}
                   >
                     {t("open")}
                   </button>
@@ -599,20 +655,21 @@ export default function BroadcastPage() {
         ) : null}
       </Section>
       {openId ? (
+        <div ref={resultsRef}>
         <Section title={t("results")}>
           <PageState
-            loading={detail.loading && !detail.data}
-            error={detail.error}
+            loading={detail.loading && !detailView}
+            error={detail.error && !detailView ? detail.error : null}
             onRetry={() => void detail.reload()}
           />
-          {detail.data ? (
+          {detailView ? (
             <div className="flex flex-col gap-3">
-              <BroadcastContentPreviewView content={detail.data.content} />
-              <StatusBadge tone={deliveryTone(detail.data.status)}>
-                <StatusText group="broadcast" code={detail.data.status} />
+              <BroadcastContentPreviewView content={detailView.content} />
+              <StatusBadge tone={deliveryTone(detailView.status)}>
+                <StatusText group="broadcast" code={detailView.status} />
               </StatusBadge>
               <div className="flex flex-wrap gap-2">
-                {detail.data.status === "RUNNING" ? (
+                {detailView.status === "RUNNING" ? (
                   <button
                     type="button"
                     className="w-fit rounded-lg border border-line px-3 py-1.5 text-sm"
@@ -621,7 +678,7 @@ export default function BroadcastPage() {
                     {t("stop")}
                   </button>
                 ) : null}
-                {canRequestTelegramDelete(detail.data) ? (
+                {canRequestTelegramDelete(detailView) ? (
                   <button
                     type="button"
                     className="w-fit rounded-lg border border-line px-3 py-1.5 text-sm"
@@ -631,19 +688,19 @@ export default function BroadcastPage() {
                   </button>
                 ) : null}
               </div>
-              {detail.data.deleteRequested && detail.data.deleteSummary ? (
+              {detailView.deleteRequested && detailView.deleteSummary ? (
                 <div className="text-sm">
                   <p className="font-medium">{t("deleteSummary")}</p>
                   <p dir="ltr" className="[unicode-bidi:isolate] text-muted">
-                    {t("deleteDeleted")}: {detail.data.deleteSummary.deleted} · {t("deleteGone")}:{" "}
-                    {detail.data.deleteSummary.gone} · {t("deleteUnavailable")}:{" "}
-                    {detail.data.deleteSummary.unavailable} · {t("deletePending")}:{" "}
-                    {detail.data.deleteSummary.pending} · {t("deleteInProgress")}:{" "}
-                    {detail.data.deleteSummary.inProgress}
+                    {t("deleteDeleted")}: {detailView.deleteSummary.deleted} · {t("deleteGone")}:{" "}
+                    {detailView.deleteSummary.gone} · {t("deleteUnavailable")}:{" "}
+                    {detailView.deleteSummary.unavailable} · {t("deletePending")}:{" "}
+                    {detailView.deleteSummary.pending} · {t("deleteInProgress")}:{" "}
+                    {detailView.deleteSummary.inProgress}
                   </p>
-                  {Object.keys(detail.data.deleteSummary.unavailableReasons).length > 0 ? (
+                  {Object.keys(detailView.deleteSummary.unavailableReasons).length > 0 ? (
                     <ul className="mt-1 list-disc ps-5 text-muted">
-                      {Object.entries(detail.data.deleteSummary.unavailableReasons).map(
+                      {Object.entries(detailView.deleteSummary.unavailableReasons).map(
                         ([reason, count]) => (
                           <li key={reason}>
                             <StatusText group="broadcastReason" code={reason} />: {count}
@@ -655,7 +712,7 @@ export default function BroadcastPage() {
                 </div>
               ) : null}
               <RecordList
-                rows={detail.data.deliveries}
+                rows={detailView.deliveries}
                 rowKey={(row) => row.id}
                 columns={[
                   {
@@ -712,6 +769,7 @@ export default function BroadcastPage() {
             </div>
           ) : null}
         </Section>
+        </div>
       ) : null}
       <Dialog open={confirming} title={t("confirmSend")} onClose={() => setConfirming(false)}>
         <p className="text-sm">{t("confirmHint")}</p>

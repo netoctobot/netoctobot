@@ -26,6 +26,26 @@ test("parseBroadcastContent requires media id for non-text kinds", () => {
   assert.equal(ok?.linkButtons?.[0][0].text, "Go");
 });
 
+test("parseLinkButtons accepts multi-row layout and optional style", () => {
+  const matrix = parseLinkButtons({
+    rows: [
+      [
+        { text: "A", url: "https://a.test" },
+        { text: "B", url: "https://b.test", style: "primary" },
+      ],
+      [{ text: "C", url: "https://c.test", style: "danger" }],
+    ],
+  });
+  assert.deepEqual(matrix, [
+    [
+      { text: "A", url: "https://a.test" },
+      { text: "B", url: "https://b.test", style: "primary" },
+    ],
+    [{ text: "C", url: "https://c.test", style: "danger" }],
+  ]);
+  assert.equal(parseLinkButtons({ rows: [[{ text: "X", url: "https://x.test", style: "transparent" }]] }), null);
+});
+
 test("parseLinkButtons validates https URLs and button text length", () => {
   assert.equal(parseLinkButtons({ rows: [[{ text: "", url: "https://x.com" }]] }), null);
   assert.equal(parseLinkButtons({ rows: [[{ text: "x", url: "ftp://x.com" }]] }), null);
