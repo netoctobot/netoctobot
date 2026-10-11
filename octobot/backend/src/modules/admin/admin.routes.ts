@@ -1,3 +1,4 @@
+import multipart from "@fastify/multipart";
 import { SupportedLanguage, type PrismaClient } from "@prisma/client";
 import type { FastifyInstance } from "fastify";
 import type { Env } from "../../config/env.js";
@@ -30,6 +31,7 @@ import {
   readBroadcast,
   stopBroadcast,
 } from "../broadcast/service.js";
+import { registerBroadcastMediaRoutes } from "../broadcast/broadcast-media.handlers.js";
 import type { BroadcastScheduler } from "../broadcast/scheduler.js";
 import {
   adminListQuery,
@@ -109,12 +111,15 @@ function loginBody(
   return { username, password: value.password };
 }
 
-export function registerAdminRoutes(
+export async function registerAdminRoutes(
   app: FastifyInstance,
   env: Env,
   prisma: PrismaClient,
   options: AdminRouteOptions = {},
-): void {
+): Promise<void> {
+  await app.register(multipart, {
+    limits: { fileSize: 50 * 1024 * 1024, files: 1 },
+  });
   const now = options.now ?? Date.now;
   const secure = new URL(env.PUBLIC_BASE_URL).protocol === "https:";
   const catalogTelegram =
@@ -147,6 +152,12 @@ export function registerAdminRoutes(
     }
     return admin;
   }
+
+  registerBroadcastMediaRoutes(app, {
+    prisma,
+    mediaRoot: env.BROADCAST_MEDIA_DIR,
+    requireAdmin,
+  });
 
   app.post("/admin/session", async (request, reply) => {
     const login = loginBody(request.body);
@@ -481,6 +492,9 @@ export function registerAdminRoutes(
       return reply.code(400).send({ error: "invalid_broadcast" });
     }
     const created = await createBroadcast(prisma, admin.username, parsed, probe, tokenValid);
+    if (!created) {
+      return reply.code(400).send({ error: "invalid_broadcast" });
+    }
     if (options.broadcast) {
       for (const deliveryId of created.deliveryIds) {
         await options.broadcast.enqueue(created.id, deliveryId);

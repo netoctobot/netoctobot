@@ -4,7 +4,9 @@ import { Redis } from "ioredis";
 import type { PrismaClient } from "@prisma/client";
 import type { Env } from "../../config/env.js";
 import { decryptToken } from "../../lib/token-crypto.js";
+import type { LinkButtonMatrix } from "./content.js";
 import { classifySendError, nextDelivery } from "./plan.js";
+import { executeBroadcastSend } from "./send-delivery.js";
 
 const QUEUE_NAME = "broadcast-send";
 const SEND_GAP_MS = 50;
@@ -53,7 +55,19 @@ export class BroadcastScheduler {
         id: true,
         status: true,
         botId: true,
-        campaign: { select: { id: true, text: true, stopRequested: true } },
+        campaign: {
+          select: {
+            id: true,
+            text: true,
+            contentKind: true,
+            caption: true,
+            linkButtons: true,
+            stopRequested: true,
+            mediaAsset: {
+              select: { id: true, storageKey: true, contentKind: true, fileDeletedAt: true },
+            },
+          },
+        },
         channel: { select: { channelTelegramId: true } },
         user: { select: { telegramId: true } },
         bot: { select: { tokenEncrypted: true } },
@@ -73,7 +87,7 @@ export class BroadcastScheduler {
       await this.#refresh(delivery.campaign.id, delivery.campaign.stopRequested);
       return;
     }
-    if (!delivery.bot?.tokenEncrypted) {
+    if (!delivery.bot?.tokenEncrypted || !delivery.botId) {
       await this.prisma.broadcastDelivery.update({
         where: { id: delivery.id },
         data: { status: "FAILED", reason: "invalid_token" },
@@ -106,31 +120,64 @@ export class BroadcastScheduler {
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, SEND_GAP_MS));
-    try {
-      const api = new Api(token);
-      const sent = await api.sendMessage(chatId, delivery.campaign.text);
-      await this.prisma.broadcastDelivery.updateMany({
-        where: { id: delivery.id, status: "PENDING" },
-        data: {
-          status: "SENT",
-          telegramMessageId: BigInt(sent.message_id),
-          recipientTelegramChatId: BigInt(chatId),
-        },
-      });
-    } catch (error) {
-      const outcome = classifySendError(error);
-      if (outcome.action === "retry") {
-        await job.moveToDelayed(Date.now() + outcome.delayMs, job.token);
-        throw new DelayedError();
-      }
-      await this.prisma.broadcastDelivery.updateMany({
-        where: { id: delivery.id, status: "PENDING" },
-        data: {
-          status: outcome.action === "uncertain" ? "UNCERTAIN" : "FAILED",
-          reason: outcome.action === "failed" ? outcome.reason : "uncertain",
-        },
-      });
+    const api = new Api(token);
+    const mediaAsset =
+      delivery.campaign.mediaAsset && !delivery.campaign.mediaAsset.fileDeletedAt
+        ? delivery.campaign.mediaAsset
+        : null;
+    const outcome = await executeBroadcastSend({
+      prisma: this.prisma,
+      api,
+      mediaRoot: this.env.BROADCAST_MEDIA_DIR,
+      deliveryId: delivery.id,
+      botId: delivery.botId,
+      chatId,
+      content: {
+        contentKind: delivery.campaign.contentKind,
+        text: delivery.campaign.text,
+        caption: delivery.campaign.caption,
+        linkButtons: delivery.campaign.linkButtons as LinkButtonMatrix | null,
+        mediaAsset: mediaAsset
+          ? {
+              id: mediaAsset.id,
+              storageKey: mediaAsset.storageKey,
+              contentKind: mediaAsset.contentKind,
+            }
+          : null,
+      },
+    });
+    if (outcome.status === "sent") {
+      await this.#refresh(delivery.campaign.id, delivery.campaign.stopRequested);
+      return;
     }
+    if (outcome.status === "uncertain") {
+      await this.prisma.broadcastDelivery.updateMany({
+        where: { id: delivery.id, status: "PENDING" },
+        data: { status: "UNCERTAIN", reason: "uncertain" },
+      });
+      await this.#refresh(delivery.campaign.id, delivery.campaign.stopRequested);
+      return;
+    }
+    const classified = classifySendError(outcome.cause ?? outcome.reason);
+    if (classified.action === "retry") {
+      await job.moveToDelayed(Date.now() + classified.delayMs, job.token);
+      throw new DelayedError();
+    }
+    if (classified.action === "uncertain") {
+      await this.prisma.broadcastDelivery.updateMany({
+        where: { id: delivery.id, status: "PENDING" },
+        data: { status: "UNCERTAIN", reason: "uncertain" },
+      });
+      await this.#refresh(delivery.campaign.id, delivery.campaign.stopRequested);
+      return;
+    }
+    await this.prisma.broadcastDelivery.updateMany({
+      where: { id: delivery.id, status: "PENDING" },
+      data: {
+        status: "FAILED",
+        reason: classified.action === "failed" ? classified.reason : outcome.reason,
+      },
+    });
     await this.#refresh(delivery.campaign.id, delivery.campaign.stopRequested);
   }
 
@@ -141,9 +188,17 @@ export class BroadcastScheduler {
     if (pending > 0) {
       return;
     }
+    const status = stopRequested ? "STOPPED" : "COMPLETED";
+    const campaign = await this.prisma.broadcastCampaign.findUnique({
+      where: { id: campaignId },
+      select: { endedAt: true },
+    });
     await this.prisma.broadcastCampaign.update({
       where: { id: campaignId },
-      data: { status: stopRequested ? "STOPPED" : "COMPLETED" },
+      data: {
+        status,
+        endedAt: campaign?.endedAt ?? new Date(),
+      },
     });
   }
 }

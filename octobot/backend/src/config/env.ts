@@ -39,6 +39,7 @@ const envSchema = z
     NODE_ENV: optionalText,
     LOCAL_ADMIN_USERNAME: optionalText,
     LOCAL_ADMIN_PASSWORD: optionalText,
+    BROADCAST_MEDIA_DIR: z.string().min(1).default("/var/lib/octobot/broadcast-media"),
   })
   .superRefine((value, context) => {
     if (

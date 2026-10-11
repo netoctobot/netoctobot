@@ -40,8 +40,12 @@ services:
       dockerfile: backend/Dockerfile
     env_file:
       - backend/.env
+    environment:
+      BROADCAST_MEDIA_DIR: /var/lib/octobot/broadcast-media
     ports:
       - "127.0.0.1:3000:3000"
+    volumes:
+      - broadcast_media:/var/lib/octobot/broadcast-media
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,3 +68,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  broadcast_media:

@@ -81,8 +81,9 @@ model Bot {
   paymentIntents       PaymentIntent[]
   payments             Payment[]
   supportListSettings  SupportListSettings?
-  broadcastTargets     BroadcastCampaignBot[]
-  broadcastDeliveries  BroadcastDelivery[]
+  broadcastTargets        BroadcastCampaignBot[]
+  broadcastDeliveries     BroadcastDelivery[]
+  broadcastMediaBotFiles  BroadcastMediaBotFile[]
 
   @@index([ownerId])
   @@index([ownerId, deletedAt])
@@ -185,6 +186,16 @@ enum BroadcastAudienceType {
   BOT_OWNERS
 }
 
+enum BroadcastContentKind {
+  TEXT
+  PHOTO
+  VIDEO
+  AUDIO
+  VOICE
+  DOCUMENT
+  ANIMATION
+}
+
 enum BroadcastDeliveryStatus {
   PENDING
   SENT
@@ -197,6 +208,10 @@ enum BroadcastDeliveryStatus {
 model BroadcastCampaign {
   id               String                  @id @default(cuid())
   text             String
+  contentKind      BroadcastContentKind    @default(TEXT)
+  caption          String?
+  linkButtons      Json?
+  mediaAssetId     String?                 @unique
   status           BroadcastCampaignStatus @default(RUNNING)
   audienceType     BroadcastAudienceType   @default(CHANNELS)
   targetMode       BroadcastTargetMode
@@ -206,14 +221,65 @@ model BroadcastCampaign {
   includeBotOwners Boolean                 @default(true)
   createdByAdmin   String
   stopRequested    Boolean                 @default(false)
+  endedAt          DateTime?
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
 
+  mediaAsset BroadcastMediaAsset? @relation(fields: [mediaAssetId], references: [id])
   bots       BroadcastCampaignBot[]
   deliveries BroadcastDelivery[]
 
   @@index([status, createdAt])
   @@map("broadcast_campaigns")
+}
+
+model BroadcastMediaAsset {
+  id                 String               @id @default(cuid())
+  uploadedByAdmin    String
+  originalName       String
+  storageKey         String               @unique
+  mimeTypeReported   String?
+  detectedMime       String?
+  contentKind        BroadcastContentKind
+  sizeBytes          BigInt
+  fileDeletedAt      DateTime?
+  createdAt          DateTime             @default(now())
+  expiresAt          DateTime?
+
+  campaign BroadcastCampaign?
+  botFiles BroadcastMediaBotFile[]
+
+  @@index([expiresAt])
+  @@index([fileDeletedAt])
+  @@map("broadcast_media_assets")
+}
+
+model BroadcastMediaBotFile {
+  id                   String   @id @default(cuid())
+  mediaAssetId         String
+  botId                String
+  telegramFileId       String
+  telegramFileUniqueId String?
+  createdAt            DateTime @default(now())
+
+  mediaAsset BroadcastMediaAsset @relation(fields: [mediaAssetId], references: [id])
+  bot        Bot                 @relation(fields: [botId], references: [id])
+
+  @@unique([mediaAssetId, botId])
+  @@map("broadcast_media_bot_files")
+}
+
+model BroadcastDeliveryMessage {
+  id                String   @id @default(cuid())
+  deliveryId        String
+  telegramMessageId BigInt
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+
+  delivery BroadcastDelivery @relation(fields: [deliveryId], references: [id])
+
+  @@unique([deliveryId, sortOrder])
+  @@map("broadcast_delivery_messages")
 }
 
 model BroadcastCampaignBot {
@@ -244,6 +310,7 @@ model BroadcastDelivery {
   channel  Channel?          @relation(fields: [channelId], references: [id])
   user     User?             @relation(fields: [userId], references: [id])
   bot      Bot?              @relation(fields: [botId], references: [id])
+  messages BroadcastDeliveryMessage[]
 
   @@index([campaignId, status])
   @@map("broadcast_deliveries")

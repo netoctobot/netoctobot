@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   assignPreliminaryUserSenders,
   assignSenders,
@@ -9,17 +9,42 @@ import {
   type BroadcastScope,
   type ProbeResult,
 } from "./plan.js";
+import type { BroadcastContentKind } from "@prisma/client";
+import { parseBroadcastContent, type LinkButtonMatrix } from "./content.js";
 import type { createBotTokenValidator } from "./probe.js";
 
 export type AudienceType = "CHANNELS" | "BOT_USERS" | "BOT_OWNERS";
 
 export interface BroadcastRequest {
   text: string;
+  contentKind: BroadcastContentKind;
+  caption: string | null;
+  linkButtons: LinkButtonMatrix | null;
+  mediaUploadId: string | null;
   audienceType: AudienceType;
   targetMode: "ALL" | "SELECTED";
   botIds: string[];
   scope: BroadcastScope;
   includeBotOwners: boolean;
+}
+
+export function buildContentPreview(
+  request: BroadcastRequest,
+  mediaUploadId: string | null,
+) {
+  const hasMedia = request.contentKind !== "TEXT" && mediaUploadId;
+  return {
+    contentKind: request.contentKind,
+    text: request.contentKind === "TEXT" ? request.text : null,
+    caption: request.contentKind === "TEXT" ? null : request.caption,
+    linkButtons: request.linkButtons,
+    media: hasMedia
+      ? {
+          mediaUploadId,
+          viewPath: `/broadcasts/media/${mediaUploadId}/content`,
+        }
+      : null,
+  };
 }
 
 type PreviewRecipient =
@@ -61,7 +86,10 @@ export function parseBroadcastRequest(
     return null;
   }
   const body = value as Record<string, unknown>;
-  const text = typeof body.text === "string" ? body.text.trim() : "";
+  const content = parseBroadcastContent(body);
+  if (!content) {
+    return null;
+  }
   const audienceType =
     body.audienceType === "CHANNELS" ||
     body.audienceType === "BOT_USERS" ||
@@ -80,7 +108,7 @@ export function parseBroadcastRequest(
     includeDeleted: body.includeDeleted === true,
   };
   const includeBotOwners = body.includeBotOwners !== false;
-  if (!text || text.length > 4096 || !targetMode || !audienceType) {
+  if (!targetMode || !audienceType) {
     return null;
   }
   if (!scope.includeActive && !scope.includeInactive && !scope.includeDeleted) {
@@ -89,7 +117,40 @@ export function parseBroadcastRequest(
   if (targetMode === "SELECTED" && botIds.length === 0) {
     return null;
   }
-  return { text, audienceType, targetMode, botIds, scope, includeBotOwners };
+  return {
+    text: content.text,
+    contentKind: content.contentKind,
+    caption: content.caption,
+    linkButtons: content.linkButtons,
+    mediaUploadId: content.mediaUploadId,
+    audienceType,
+    targetMode,
+    botIds,
+    scope,
+    includeBotOwners,
+  };
+}
+
+async function resolveMediaUpload(prisma: PrismaClient, mediaUploadId: string | null) {
+  if (!mediaUploadId) {
+    return null;
+  }
+  const asset = await prisma.broadcastMediaAsset.findUnique({
+    where: { id: mediaUploadId },
+    select: {
+      id: true,
+      contentKind: true,
+      fileDeletedAt: true,
+      campaign: { select: { id: true } },
+    },
+  });
+  if (!asset || asset.fileDeletedAt) {
+    return null;
+  }
+  if (asset.campaign) {
+    return null;
+  }
+  return asset;
 }
 
 async function loadScopedBots(prisma: PrismaClient, request: BroadcastRequest) {
@@ -261,6 +322,15 @@ export async function previewBroadcast(
   probe: (botId: string, channelId: string) => Promise<ProbeResult>,
   tokenValid: ReturnType<typeof createBotTokenValidator>,
 ) {
+  let linkedMediaId: string | null = null;
+  if (request.contentKind !== "TEXT") {
+    const asset = await resolveMediaUpload(prisma, request.mediaUploadId);
+    if (!asset || asset.contentKind !== request.contentKind) {
+      return null;
+    }
+    linkedMediaId = asset.id;
+  }
+  const content = buildContentPreview(request, linkedMediaId);
   if (request.audienceType === "CHANNELS") {
     const collected = await loadChannelPlan(prisma, request);
     const assigned = await assignSenders(collected.included, probe);
@@ -290,6 +360,7 @@ export async function previewBroadcast(
       audienceType: request.audienceType,
       preliminary: false,
       summary: summarizePlan(eligible.length, excluded.length),
+      content,
       eligible,
       excluded,
     };
@@ -346,6 +417,7 @@ export async function previewBroadcast(
     audienceType: request.audienceType,
     preliminary: true,
     summary: summarizePlan(eligible.length, excluded.length),
+    content,
     eligible,
     excluded,
   };
@@ -357,7 +429,7 @@ export async function createBroadcast(
   request: BroadcastRequest,
   probe: (botId: string, channelId: string) => Promise<ProbeResult>,
   tokenValid: ReturnType<typeof createBotTokenValidator>,
-): Promise<{ id: string; deliveryIds: string[] }> {
+): Promise<{ id: string; deliveryIds: string[] } | null> {
   const knownBots =
     request.targetMode === "SELECTED"
       ? await prisma.bot.findMany({
@@ -367,6 +439,9 @@ export async function createBroadcast(
       : [];
   const knownIds = new Set(knownBots.map((bot) => bot.id));
   const preview = await previewBroadcast(prisma, request, probe, tokenValid);
+  if (!preview) {
+    return null;
+  }
 
   const deliveryCreates =
     request.audienceType === "CHANNELS"
@@ -417,7 +492,14 @@ export async function createBroadcast(
 
   const campaign = await prisma.broadcastCampaign.create({
     data: {
-      text: request.text,
+      text: request.contentKind === "TEXT" ? request.text : "",
+      contentKind: request.contentKind,
+      caption: request.caption,
+      linkButtons:
+        request.linkButtons === null
+          ? undefined
+          : (request.linkButtons as unknown as Prisma.InputJsonValue),
+      mediaAssetId: preview.content.media?.mediaUploadId ?? null,
       audienceType: request.audienceType,
       targetMode: request.targetMode,
       includeActive: request.scope.includeActive,
@@ -437,14 +519,15 @@ export async function createBroadcast(
         create: deliveryCreates,
       },
     },
-    select: {
-      id: true,
-      deliveries: { where: { status: "PENDING" }, select: { id: true } },
-    },
+    select: { id: true },
+  });
+  const pendingDeliveries = await prisma.broadcastDelivery.findMany({
+    where: { campaignId: campaign.id, status: "PENDING" },
+    select: { id: true },
   });
   return {
     id: campaign.id,
-    deliveryIds: campaign.deliveries.map((delivery) => delivery.id),
+    deliveryIds: pendingDeliveries.map((delivery) => delivery.id),
   };
 }
 
@@ -475,6 +558,7 @@ export async function listBroadcasts(prisma: PrismaClient) {
     select: {
       id: true,
       text: true,
+      contentKind: true,
       status: true,
       audienceType: true,
       targetMode: true,
@@ -487,6 +571,7 @@ export async function listBroadcasts(prisma: PrismaClient) {
     items: rows.map((row) => ({
       id: row.id,
       text: row.text,
+      contentKind: row.contentKind,
       status: row.status,
       audienceType: row.audienceType,
       targetMode: row.targetMode,
@@ -503,6 +588,10 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
     select: {
       id: true,
       text: true,
+      contentKind: true,
+      caption: true,
+      linkButtons: true,
+      mediaAssetId: true,
       status: true,
       audienceType: true,
       targetMode: true,
@@ -533,9 +622,28 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
   if (!row) {
     return null;
   }
+  const content = buildContentPreview(
+    {
+      text: row.text,
+      contentKind: row.contentKind,
+      caption: row.caption,
+      linkButtons: row.linkButtons as LinkButtonMatrix | null,
+      mediaUploadId: row.mediaAssetId,
+      audienceType: row.audienceType,
+      targetMode: row.targetMode,
+      botIds: [],
+      scope: { includeActive: true, includeInactive: false, includeDeleted: false },
+      includeBotOwners: row.includeBotOwners,
+    },
+    row.mediaAssetId,
+  );
   return {
     id: row.id,
     text: row.text,
+    contentKind: row.contentKind,
+    caption: row.caption,
+    linkButtons: row.linkButtons,
+    content,
     status: row.status,
     audienceType: row.audienceType,
     targetMode: row.targetMode,

@@ -21,9 +21,10 @@ const env = {
   OWNER_TELEGRAM_ID: 123456789n,
   ENCRYPTION_KEY: "00".repeat(32),
   PUBLIC_BASE_URL: "http://localhost:3000",
+  BROADCAST_MEDIA_DIR: "/tmp/octobot-broadcast-media-test",
 } as Env;
 
-function createHarness() {
+async function createHarness() {
   const calls: string[] = [];
   const catalog = [
     { id: "cat_a", isActive: true, sortOrder: 0 },
@@ -148,12 +149,12 @@ function createHarness() {
   } as unknown as PrismaClient;
 
   const app = Fastify({ logger: false });
-  registerAdminRoutes(app, env, prisma, { now: () => nowMs });
+  await registerAdminRoutes(app, env, prisma, { now: () => nowMs });
   return { app, calls };
 }
 
 test("password session restores web language without bot preferences", async () => {
-  const { app, calls } = createHarness();
+  const { app, calls } = await createHarness();
   const login = await app.inject({
     method: "POST",
     url: "/admin/session",
@@ -213,7 +214,7 @@ test("password session restores web language without bot preferences", async () 
 });
 
 test("catalog reorder and admin disable stay off forced subscriptions", async () => {
-  const { app, calls } = createHarness();
+  const { app, calls } = await createHarness();
   const login = await app.inject({
     method: "POST",
     url: "/admin/session",
