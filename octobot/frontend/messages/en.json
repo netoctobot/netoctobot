@@ -282,13 +282,42 @@
       "deleted": "Channel is deleted for this scope",
       "bot_out_of_scope": "No selected bot matches the scope",
       "telegram_rejected": "Telegram rejected the send",
-      "uncertain": "Delivery was not confirmed"
+      "uncertain": "Delivery was not confirmed",
+      "no_private_relationship": "No registered private chat with the sending bot",
+      "owner_excluded": "Bot owner excluded from user audience",
+      "user_deleted": "User is soft-deleted",
+      "user_blocked": "User blocked the bot or cannot be reached",
+      "invalid_target": "Delivery target is missing"
+    },
+    "broadcastAudience": {
+      "CHANNELS": "Channels",
+      "BOT_USERS": "Bot users",
+      "BOT_OWNERS": "Bot owners"
     }
   },
   "broadcast": {
     "title": "Broadcast",
     "purpose": "Write one post, preview who can receive it, then send in the background. A channel linked to several bots receives one copy.",
     "text": "Post",
+    "audience": "Audience",
+    "audienceType": {
+      "CHANNELS": "Bot channels",
+      "BOT_USERS": "Bot users in private chat",
+      "BOT_OWNERS": "Bot owners"
+    },
+    "audienceHint": {
+      "CHANNELS": "Channels come from bot links and support-list memberships. Telegram admin rights are checked before send.",
+      "BOT_USERS": "Only users with a registered private chat on a selected bot are listed. Older users become eligible after a new private interaction. Delivery is preliminary until the actual send.",
+      "BOT_OWNERS": "Each owner receives one message. The platform bot is preferred when it has a registered private chat; otherwise a selected bot the owner actually used. No test messages are sent during preview."
+    },
+    "includeBotOwners": "Include bot owners",
+    "uniqueTargets": "Unique targets",
+    "preliminaryEligible": "Preliminary eligible",
+    "preliminaryHint": "Private audiences are preliminary. Blocked users or Telegram errors appear on each delivery after send.",
+    "dedupeHint": "One user receives one message. The sender bot is the one with the latest registered private interaction among the selected bots.",
+    "recipient": "Recipient",
+    "senderBot": "Sending bot",
+    "chatId": "Chat ID",
     "targets": "Bots",
     "allBots": "All registered bots",
     "selectedBots": "Selected bots",
@@ -313,6 +342,6 @@
     "channel": "Channel",
     "messageId": "Message ID",
     "results": "Results",
-    "noEligible": "No channel can receive this post."
+    "noEligible": "No recipient can receive this post."
   }
 }

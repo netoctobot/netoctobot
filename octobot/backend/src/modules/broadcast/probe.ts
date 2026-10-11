@@ -4,6 +4,27 @@ import { decryptToken } from "../../lib/token-crypto.js";
 import { classifyMembershipError } from "../forced-subscription/membership.js";
 import { canPublishAsAdmin, type ProbeResult } from "./plan.js";
 
+export function createBotTokenValidator(
+  prisma: PrismaClient,
+  encryptionKey: string,
+): (botId: string) => Promise<boolean> {
+  return async (botId) => {
+    const bot = await prisma.bot.findUnique({
+      where: { id: botId },
+      select: { tokenEncrypted: true },
+    });
+    if (!bot?.tokenEncrypted) {
+      return false;
+    }
+    try {
+      const token = decryptToken(bot.tokenEncrypted, encryptionKey);
+      return token.length > 0;
+    } catch {
+      return false;
+    }
+  };
+}
+
 export function broadcastProbe(
   prisma: PrismaClient,
   encryptionKey: string,

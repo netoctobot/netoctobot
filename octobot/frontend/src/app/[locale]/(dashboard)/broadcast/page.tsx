@@ -9,10 +9,13 @@ import { UserContent, UsernameValue } from "@/components/values";
 import { ApiError, api } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import type {
+  BroadcastAudienceType,
   BroadcastBotOption,
   BroadcastCampaign,
   BroadcastDetail,
   BroadcastPreview,
+  BroadcastPreviewEligible,
+  BroadcastPreviewExcluded,
 } from "@/lib/types";
 
 function deliveryTone(status: string): "active" | "inactive" | "deleted" | "neutral" {
@@ -34,6 +37,8 @@ export default function BroadcastPage() {
   const bots = useResource<{ items: BroadcastBotOption[] }>("/broadcasts/bots");
   const campaigns = useResource<{ items: BroadcastCampaign[] }>("/broadcasts");
   const [text, setText] = useState("");
+  const [audienceType, setAudienceType] = useState<BroadcastAudienceType>("CHANNELS");
+  const [includeBotOwners, setIncludeBotOwners] = useState(true);
   const [targetMode, setTargetMode] = useState<"ALL" | "SELECTED">("ALL");
   const [botIds, setBotIds] = useState<string[]>([]);
   const [includeActive, setIncludeActive] = useState(true);
@@ -60,15 +65,33 @@ export default function BroadcastPage() {
     return () => window.clearInterval(timer);
   }, [detailStatus, reloadDetail, reloadCampaigns]);
 
+  function botLabel(id: string) {
+    const match = bots.data?.items.find((bot) => bot.id === id);
+    return match ? `@${match.botUsername}` : id;
+  }
+
   function payload() {
     return {
       text,
+      audienceType,
       targetMode,
       botIds: targetMode === "SELECTED" ? botIds : [],
       includeActive,
       includeInactive,
       includeDeleted,
+      includeBotOwners,
     };
+  }
+
+  function recipientLabel(row: BroadcastPreviewEligible | BroadcastPreviewExcluded) {
+    if (row.kind === "channel") {
+      return row.title;
+    }
+    return row.displayName ?? row.username;
+  }
+
+  function recipientKey(row: BroadcastPreviewEligible | BroadcastPreviewExcluded) {
+    return row.kind === "channel" ? row.channelId : row.userId;
   }
 
   async function runPreview() {
@@ -141,6 +164,38 @@ export default function BroadcastPage() {
             {text}
           </p>
         ) : null}
+      </Section>
+      <Section title={t("audience")}>
+        <div className="flex flex-col gap-2 text-sm">
+          {(["CHANNELS", "BOT_USERS", "BOT_OWNERS"] as BroadcastAudienceType[]).map((value) => (
+            <label key={value} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="audienceType"
+                checked={audienceType === value}
+                onChange={() => {
+                  setAudienceType(value);
+                  setPreview(null);
+                }}
+              />
+              {t(`audienceType.${value}`)}
+            </label>
+          ))}
+        </div>
+        {audienceType === "BOT_USERS" ? (
+          <label className="mt-3 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={includeBotOwners}
+              onChange={(event) => {
+                setIncludeBotOwners(event.target.checked);
+                setPreview(null);
+              }}
+            />
+            {t("includeBotOwners")}
+          </label>
+        ) : null}
+        <p className="mt-3 text-sm text-muted">{t(`audienceHint.${audienceType}`)}</p>
       </Section>
       <Section title={t("targets")}>
         <div className="flex flex-col gap-2 text-sm">
@@ -235,24 +290,55 @@ export default function BroadcastPage() {
         </button>
       </Section>
       {preview ? (
-        <Section title={t("previewHeading")} hint={t("confirmHint")}>
+        <Section
+          title={t("previewHeading")}
+          hint={preview.preliminary ? t("preliminaryHint") : t("confirmHint")}
+        >
           <p className="text-sm">
-            {t("eligible")}: <Count value={preview.eligible.length} />
+            {t("uniqueTargets")}: <Count value={preview.summary.uniqueTargets} />
           </p>
           <p className="text-sm">
-            {t("excluded")}: <Count value={preview.excluded.length} />
+            {preview.preliminary ? t("preliminaryEligible") : t("eligible")}:{" "}
+            <Count value={preview.summary.preliminaryEligible} />
           </p>
+          <p className="text-sm">
+            {t("excluded")}: <Count value={preview.summary.excluded} />
+          </p>
+          {preview.audienceType !== "CHANNELS" ? (
+            <p className="text-sm text-muted">{t("dedupeHint")}</p>
+          ) : null}
           {preview.eligible.length === 0 ? (
             <p className="text-sm text-muted">{t("noEligible")}</p>
+          ) : null}
+          {preview.eligible.length > 0 && preview.audienceType !== "CHANNELS" ? (
+            <RecordList
+              rows={preview.eligible}
+              rowKey={(row) => recipientKey(row)}
+              columns={[
+                {
+                  header: t("recipient"),
+                  render: (row) => <UserContent value={recipientLabel(row)} />,
+                },
+                {
+                  header: t("senderBot"),
+                  render: (row) =>
+                    row.kind === "user" ? (
+                      <UserContent value={botLabel(row.senderBotId)} />
+                    ) : (
+                      <UserContent value={botLabel(row.botId)} />
+                    ),
+                },
+              ]}
+            />
           ) : null}
           {preview.excluded.length > 0 ? (
             <RecordList
               rows={preview.excluded}
-              rowKey={(row) => row.channelId}
+              rowKey={(row) => recipientKey(row)}
               columns={[
                 {
-                  header: t("channel"),
-                  render: (row) => <UserContent value={row.title} />,
+                  header: t("recipient"),
+                  render: (row) => <UserContent value={recipientLabel(row)} />,
                 },
                 {
                   header: t("reason"),
@@ -286,6 +372,10 @@ export default function BroadcastPage() {
               {
                 header: t("createdAt"),
                 render: (row) => <Appointment iso={row.createdAt} timeZone="UTC" />,
+              },
+              {
+                header: t("audience"),
+                render: (row) => <StatusText group="broadcastAudience" code={row.audienceType} />,
               },
               {
                 header: t("status"),
@@ -350,13 +440,17 @@ export default function BroadcastPage() {
                 rowKey={(row) => row.id}
                 columns={[
                   {
-                    header: t("channel"),
+                    header: t("recipient"),
                     render: (row) => (
                       <span className="flex flex-col items-start">
-                        <UserContent value={row.title} />
+                        <UserContent value={row.kind === "channel" ? row.title : row.displayName} />
                         <UsernameValue username={row.username} />
                       </span>
                     ),
+                  },
+                  {
+                    header: t("senderBot"),
+                    render: (row) => <UserContent value={row.senderBotUsername} />,
                   },
                   {
                     header: t("status"),
@@ -378,6 +472,10 @@ export default function BroadcastPage() {
                   {
                     header: t("messageId"),
                     render: (row) => <UserContent value={row.messageId} />,
+                  },
+                  {
+                    header: t("chatId"),
+                    render: (row) => <UserContent value={row.chatId} />,
                   },
                 ]}
               />

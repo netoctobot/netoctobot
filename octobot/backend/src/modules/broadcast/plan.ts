@@ -43,6 +43,49 @@ export interface ExcludedChannel {
   reason: string;
 }
 
+export interface PlanUser {
+  userId: string;
+  telegramId: string;
+  username: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  deletedAt: Date | null;
+}
+
+export interface PlanUserPreference {
+  userId: string;
+  botId: string;
+  privateChatEstablishedAt: Date;
+  lastPrivateInteractionAt: Date | null;
+}
+
+export interface PlanBotWithOwner extends PlanBot {
+  ownerId: string;
+  botUsername: string;
+}
+
+export interface IncludedUser {
+  userId: string;
+  username: string | null;
+  displayName: string | null;
+  telegramId: string;
+  botId: string;
+  candidateBotIds: string[];
+}
+
+export interface ExcludedUser {
+  userId: string;
+  displayName: string | null;
+  username: string | null;
+  reason: string;
+}
+
+export interface BroadcastPlanSummary {
+  uniqueTargets: number;
+  preliminaryEligible: number;
+  excluded: number;
+}
+
 export function botMatchesScope(bot: PlanBot, scope: BroadcastScope): boolean {
   if (bot.deletedAt) {
     return scope.includeDeleted;
@@ -135,6 +178,214 @@ export interface EligibleChannel extends IncludedChannel {
   botId: string;
 }
 
+function displayName(user: PlanUser): string | null {
+  const parts = [user.firstName, user.lastName].filter(Boolean);
+  if (parts.length > 0) {
+    return parts.join(" ");
+  }
+  return user.username;
+}
+
+function pickUserSenderBot(
+  preferences: PlanUserPreference[],
+  inScopeBotIds: Set<string>,
+): string | null {
+  const candidates = preferences
+    .filter(
+      (row) =>
+        inScopeBotIds.has(row.botId) && row.privateChatEstablishedAt !== null,
+    )
+    .sort((left, right) => {
+      const leftAt = left.lastPrivateInteractionAt ?? left.privateChatEstablishedAt;
+      const rightAt = right.lastPrivateInteractionAt ?? right.privateChatEstablishedAt;
+      const delta = rightAt.getTime() - leftAt.getTime();
+      if (delta !== 0) {
+        return delta;
+      }
+      return left.botId.localeCompare(right.botId);
+    });
+  return candidates[0]?.botId ?? null;
+}
+
+export function collectBroadcastUsers(input: {
+  bots: PlanBotWithOwner[];
+  selectedIds: string[] | null;
+  scope: BroadcastScope;
+  includeBotOwners: boolean;
+  users: PlanUser[];
+  preferences: PlanUserPreference[];
+}): { included: IncludedUser[]; excluded: ExcludedUser[] } {
+  const selected = new Set(input.selectedIds ?? input.bots.map((bot) => bot.id));
+  const inScope = new Set(
+    input.bots
+      .filter((bot) => selected.has(bot.id) && botMatchesScope(bot, input.scope))
+      .map((bot) => bot.id),
+  );
+  const ownerIds = new Set(
+    input.bots.filter((bot) => inScope.has(bot.id)).map((bot) => bot.ownerId),
+  );
+  const prefsByUser = new Map<string, PlanUserPreference[]>();
+  for (const preference of input.preferences) {
+    if (!inScope.has(preference.botId)) {
+      continue;
+    }
+    const rows = prefsByUser.get(preference.userId) ?? [];
+    rows.push(preference);
+    prefsByUser.set(preference.userId, rows);
+  }
+
+  const included: IncludedUser[] = [];
+  const excluded: ExcludedUser[] = [];
+  const userById = new Map(input.users.map((user) => [user.userId, user]));
+
+  for (const [userId, preferences] of prefsByUser) {
+    const user = userById.get(userId);
+    if (!user) {
+      continue;
+    }
+    const label = displayName(user);
+    if (user.deletedAt) {
+      excluded.push({ userId, displayName: label, username: user.username, reason: "user_deleted" });
+      continue;
+    }
+    if (!input.includeBotOwners && ownerIds.has(userId)) {
+      excluded.push({ userId, displayName: label, username: user.username, reason: "owner_excluded" });
+      continue;
+    }
+    const sender = pickUserSenderBot(preferences, inScope);
+    if (!sender) {
+      excluded.push({
+        userId,
+        displayName: label,
+        username: user.username,
+        reason: "no_private_relationship",
+      });
+      continue;
+    }
+    included.push({
+      userId,
+      username: user.username,
+      displayName: label,
+      telegramId: user.telegramId,
+      botId: sender,
+      candidateBotIds: preferences
+        .filter((row) => inScope.has(row.botId) && row.privateChatEstablishedAt)
+        .map((row) => row.botId)
+        .sort(),
+    });
+  }
+
+  included.sort((left, right) => left.userId.localeCompare(right.userId));
+  excluded.sort((left, right) => left.userId.localeCompare(right.userId));
+  return { included, excluded };
+}
+
+export function collectBroadcastOwners(input: {
+  bots: PlanBotWithOwner[];
+  selectedIds: string[] | null;
+  scope: BroadcastScope;
+  platformBotId: string | null;
+  users: PlanUser[];
+  preferences: PlanUserPreference[];
+}): { included: IncludedUser[]; excluded: ExcludedUser[] } {
+  const selected = new Set(input.selectedIds ?? input.bots.map((bot) => bot.id));
+  const scopedBots = input.bots.filter(
+    (bot) => selected.has(bot.id) && botMatchesScope(bot, input.scope),
+  );
+  const inScope = new Set(scopedBots.map((bot) => bot.id));
+  const prefsByUser = new Map<string, PlanUserPreference[]>();
+  for (const preference of input.preferences) {
+    const rows = prefsByUser.get(preference.userId) ?? [];
+    rows.push(preference);
+    prefsByUser.set(preference.userId, rows);
+  }
+
+  const ownerIds = [...new Set(scopedBots.map((bot) => bot.ownerId))].sort();
+  const userById = new Map(input.users.map((user) => [user.userId, user]));
+  const included: IncludedUser[] = [];
+  const excluded: ExcludedUser[] = [];
+
+  for (const ownerId of ownerIds) {
+    const user = userById.get(ownerId);
+    if (!user) {
+      excluded.push({
+        userId: ownerId,
+        displayName: null,
+        username: null,
+        reason: "no_private_relationship",
+      });
+      continue;
+    }
+    const label = displayName(user);
+    if (user.deletedAt) {
+      excluded.push({ userId: ownerId, displayName: label, username: user.username, reason: "user_deleted" });
+      continue;
+    }
+    const preferences = prefsByUser.get(ownerId) ?? [];
+    const sender =
+      (input.platformBotId &&
+        preferences.find(
+          (row) =>
+            row.botId === input.platformBotId && row.privateChatEstablishedAt,
+        )?.botId) ??
+      pickUserSenderBot(
+        preferences.filter((row) => inScope.has(row.botId)),
+        inScope,
+      );
+    if (!sender) {
+      excluded.push({
+        userId: ownerId,
+        displayName: label,
+        username: user.username,
+        reason: "no_private_relationship",
+      });
+      continue;
+    }
+    included.push({
+      userId: ownerId,
+      username: user.username,
+      displayName: label,
+      telegramId: user.telegramId,
+      botId: sender,
+      candidateBotIds: [sender],
+    });
+  }
+
+  return { included, excluded };
+}
+
+export function assignPreliminaryUserSenders(
+  users: IncludedUser[],
+  tokenValid: (botId: string) => boolean,
+): { eligible: IncludedUser[]; excluded: ExcludedUser[] } {
+  const eligible: IncludedUser[] = [];
+  const excluded: ExcludedUser[] = [];
+  for (const user of users) {
+    if (tokenValid(user.botId)) {
+      eligible.push(user);
+      continue;
+    }
+    excluded.push({
+      userId: user.userId,
+      displayName: user.displayName,
+      username: user.username,
+      reason: "invalid_token",
+    });
+  }
+  return { eligible, excluded };
+}
+
+export function summarizePlan(
+  preliminaryEligible: number,
+  excluded: number,
+): BroadcastPlanSummary {
+  return {
+    uniqueTargets: preliminaryEligible + excluded,
+    preliminaryEligible,
+    excluded,
+  };
+}
+
 export async function assignSenders(
   channels: IncludedChannel[],
   probe: (botId: string, channelId: string) => Promise<ProbeResult>,
@@ -204,7 +455,18 @@ export function classifySendError(error: unknown):
     const retryAfter = record.parameters?.retry_after;
     return { action: "retry", delayMs: (retryAfter && retryAfter > 0 ? retryAfter : 1) * 1000 };
   }
-  if (code === 400 || code === 403) {
+  if (code === 403) {
+    const description = String(record.description ?? record.message ?? "").toLowerCase();
+    if (
+      description.includes("blocked") ||
+      description.includes("deactivated") ||
+      description.includes("can't initiate conversation")
+    ) {
+      return { action: "failed", reason: "user_blocked" };
+    }
+    return { action: "failed", reason: "telegram_rejected" };
+  }
+  if (code === 400) {
     return { action: "failed", reason: "telegram_rejected" };
   }
   return { action: "uncertain" };

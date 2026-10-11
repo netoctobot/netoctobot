@@ -1,17 +1,58 @@
 import type { PrismaClient } from "@prisma/client";
 import {
+  assignPreliminaryUserSenders,
   assignSenders,
   collectBroadcastChannels,
+  collectBroadcastOwners,
+  collectBroadcastUsers,
+  summarizePlan,
   type BroadcastScope,
   type ProbeResult,
 } from "./plan.js";
+import type { createBotTokenValidator } from "./probe.js";
+
+export type AudienceType = "CHANNELS" | "BOT_USERS" | "BOT_OWNERS";
 
 export interface BroadcastRequest {
   text: string;
+  audienceType: AudienceType;
   targetMode: "ALL" | "SELECTED";
   botIds: string[];
   scope: BroadcastScope;
+  includeBotOwners: boolean;
 }
+
+type PreviewRecipient =
+  | {
+      kind: "channel";
+      channelId: string;
+      title: string | null;
+      username: string | null;
+      botId: string;
+    }
+  | {
+      kind: "user";
+      userId: string;
+      displayName: string | null;
+      username: string | null;
+      botId: string;
+      senderBotId: string;
+    };
+
+type ExcludedRecipient =
+  | {
+      kind: "channel";
+      channelId: string;
+      title: string | null;
+      reason: string;
+    }
+  | {
+      kind: "user";
+      userId: string;
+      displayName: string | null;
+      username: string | null;
+      reason: string;
+    };
 
 export function parseBroadcastRequest(
   value: unknown,
@@ -21,6 +62,14 @@ export function parseBroadcastRequest(
   }
   const body = value as Record<string, unknown>;
   const text = typeof body.text === "string" ? body.text.trim() : "";
+  const audienceType =
+    body.audienceType === "CHANNELS" ||
+    body.audienceType === "BOT_USERS" ||
+    body.audienceType === "BOT_OWNERS"
+      ? body.audienceType
+      : body.audienceType === undefined
+        ? "CHANNELS"
+        : null;
   const targetMode = body.targetMode === "ALL" || body.targetMode === "SELECTED" ? body.targetMode : null;
   const botIds = Array.isArray(body.botIds)
     ? body.botIds.filter((id): id is string => typeof id === "string")
@@ -30,7 +79,8 @@ export function parseBroadcastRequest(
     includeInactive: body.includeInactive === true,
     includeDeleted: body.includeDeleted === true,
   };
-  if (!text || text.length > 4096 || !targetMode) {
+  const includeBotOwners = body.includeBotOwners !== false;
+  if (!text || text.length > 4096 || !targetMode || !audienceType) {
     return null;
   }
   if (!scope.includeActive && !scope.includeInactive && !scope.includeDeleted) {
@@ -39,14 +89,32 @@ export function parseBroadcastRequest(
   if (targetMode === "SELECTED" && botIds.length === 0) {
     return null;
   }
-  return { text, targetMode, botIds, scope };
+  return { text, audienceType, targetMode, botIds, scope, includeBotOwners };
 }
 
-async function loadPlan(prisma: PrismaClient, request: BroadcastRequest) {
-  const bots = await prisma.bot.findMany({
+async function loadScopedBots(prisma: PrismaClient, request: BroadcastRequest) {
+  return prisma.bot.findMany({
     where: request.targetMode === "SELECTED" ? { id: { in: request.botIds } } : {},
-    select: { id: true, isActive: true, deletedAt: true, botUsername: true },
+    select: {
+      id: true,
+      isActive: true,
+      deletedAt: true,
+      botUsername: true,
+      ownerId: true,
+    },
   });
+}
+
+async function loadPlatformBotId(prisma: PrismaClient): Promise<string | null> {
+  const row = await prisma.platformSettings.findUnique({
+    where: { id: "default" },
+    select: { platformBotId: true },
+  });
+  return row?.platformBotId ?? null;
+}
+
+async function loadChannelPlan(prisma: PrismaClient, request: BroadcastRequest) {
+  const bots = await loadScopedBots(prisma, request);
   const botIds = bots.map((bot) => bot.id);
   const [links, memberships] = await Promise.all([
     prisma.botChannelLink.findMany({
@@ -92,22 +160,194 @@ async function loadPlan(prisma: PrismaClient, request: BroadcastRequest) {
   });
 }
 
+async function loadUserPreferences(prisma: PrismaClient, botIds: string[]) {
+  if (botIds.length === 0) {
+    return [];
+  }
+  return prisma.userBotPreference.findMany({
+    where: {
+      botId: { in: botIds },
+      privateChatEstablishedAt: { not: null },
+    },
+    select: {
+      userId: true,
+      botId: true,
+      privateChatEstablishedAt: true,
+      lastPrivateInteractionAt: true,
+    },
+  });
+}
+
+async function loadUsers(prisma: PrismaClient, userIds: string[]) {
+  if (userIds.length === 0) {
+    return [];
+  }
+  return prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: {
+      id: true,
+      telegramId: true,
+      username: true,
+      firstName: true,
+      lastName: true,
+      deletedAt: true,
+    },
+  });
+}
+
+async function loadUserAudiencePlan(prisma: PrismaClient, request: BroadcastRequest) {
+  const bots = await loadScopedBots(prisma, request);
+  const botIds = bots.map((bot) => bot.id);
+  const preferences = await loadUserPreferences(prisma, botIds);
+  const userIds = [...new Set(preferences.map((row) => row.userId))];
+  const users = await loadUsers(prisma, userIds);
+  return collectBroadcastUsers({
+    bots,
+    selectedIds: request.targetMode === "SELECTED" ? request.botIds : null,
+    scope: request.scope,
+    includeBotOwners: request.includeBotOwners,
+    users: users.map((user) => ({
+      userId: user.id,
+      telegramId: user.telegramId.toString(),
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      deletedAt: user.deletedAt,
+    })),
+    preferences: preferences.map((row) => ({
+      userId: row.userId,
+      botId: row.botId,
+      privateChatEstablishedAt: row.privateChatEstablishedAt!,
+      lastPrivateInteractionAt: row.lastPrivateInteractionAt,
+    })),
+  });
+}
+
+async function loadOwnerAudiencePlan(prisma: PrismaClient, request: BroadcastRequest) {
+  const bots = await loadScopedBots(prisma, request);
+  const botIds = bots.map((bot) => bot.id);
+  const ownerIds = [...new Set(bots.map((bot) => bot.ownerId))];
+  const platformBotId = await loadPlatformBotId(prisma);
+  const preferenceBotIds = [
+    ...new Set([...botIds, ...(platformBotId ? [platformBotId] : [])]),
+  ];
+  const preferences = await loadUserPreferences(prisma, preferenceBotIds);
+  const users = await loadUsers(prisma, ownerIds);
+  return collectBroadcastOwners({
+    bots,
+    selectedIds: request.targetMode === "SELECTED" ? request.botIds : null,
+    scope: request.scope,
+    platformBotId,
+    users: users.map((user) => ({
+      userId: user.id,
+      telegramId: user.telegramId.toString(),
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      deletedAt: user.deletedAt,
+    })),
+    preferences: preferences.map((row) => ({
+      userId: row.userId,
+      botId: row.botId,
+      privateChatEstablishedAt: row.privateChatEstablishedAt!,
+      lastPrivateInteractionAt: row.lastPrivateInteractionAt,
+    })),
+  });
+}
+
 export async function previewBroadcast(
   prisma: PrismaClient,
   request: BroadcastRequest,
   probe: (botId: string, channelId: string) => Promise<ProbeResult>,
+  tokenValid: ReturnType<typeof createBotTokenValidator>,
 ) {
-  const collected = await loadPlan(prisma, request);
-  const assigned = await assignSenders(collected.included, probe);
-  return {
-    text: request.text,
-    eligible: assigned.eligible.map((channel) => ({
+  if (request.audienceType === "CHANNELS") {
+    const collected = await loadChannelPlan(prisma, request);
+    const assigned = await assignSenders(collected.included, probe);
+    const eligible: PreviewRecipient[] = assigned.eligible.map((channel) => ({
+      kind: "channel",
       channelId: channel.channelId,
       title: channel.title,
       username: channel.username,
       botId: channel.botId,
+    }));
+    const excluded: ExcludedRecipient[] = [
+      ...collected.excluded.map((channel) => ({
+        kind: "channel" as const,
+        channelId: channel.channelId,
+        title: channel.title,
+        reason: channel.reason,
+      })),
+      ...assigned.excluded.map((channel) => ({
+        kind: "channel" as const,
+        channelId: channel.channelId,
+        title: channel.title,
+        reason: channel.reason,
+      })),
+    ];
+    return {
+      text: request.text,
+      audienceType: request.audienceType,
+      preliminary: false,
+      summary: summarizePlan(eligible.length, excluded.length),
+      eligible,
+      excluded,
+    };
+  }
+
+  const collected =
+    request.audienceType === "BOT_USERS"
+      ? await loadUserAudiencePlan(prisma, request)
+      : await loadOwnerAudiencePlan(prisma, request);
+  const tokenCache = new Map<string, boolean>();
+  const isValid = async (botId: string) => {
+    const cached = tokenCache.get(botId);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const ok = await tokenValid(botId);
+    tokenCache.set(botId, ok);
+    return ok;
+  };
+  for (const user of collected.included) {
+    await isValid(user.botId);
+  }
+  const reassigned = assignPreliminaryUserSenders(
+    collected.included,
+    (botId) => tokenCache.get(botId) === true,
+  );
+
+  const eligible: PreviewRecipient[] = reassigned.eligible.map((user) => ({
+    kind: "user",
+    userId: user.userId,
+    displayName: user.displayName,
+    username: user.username,
+    botId: user.botId,
+    senderBotId: user.botId,
+  }));
+  const excluded: ExcludedRecipient[] = [
+    ...collected.excluded.map((user) => ({
+      kind: "user" as const,
+      userId: user.userId,
+      displayName: user.displayName,
+      username: user.username,
+      reason: user.reason,
     })),
-    excluded: [...collected.excluded, ...assigned.excluded],
+    ...reassigned.excluded.map((user) => ({
+      kind: "user" as const,
+      userId: user.userId,
+      displayName: user.displayName,
+      username: user.username,
+      reason: user.reason,
+    })),
+  ];
+  return {
+    text: request.text,
+    audienceType: request.audienceType,
+    preliminary: true,
+    summary: summarizePlan(eligible.length, excluded.length),
+    eligible,
+    excluded,
   };
 }
 
@@ -116,6 +356,7 @@ export async function createBroadcast(
   adminUsername: string,
   request: BroadcastRequest,
   probe: (botId: string, channelId: string) => Promise<ProbeResult>,
+  tokenValid: ReturnType<typeof createBotTokenValidator>,
 ): Promise<{ id: string; deliveryIds: string[] }> {
   const knownBots =
     request.targetMode === "SELECTED"
@@ -125,14 +366,64 @@ export async function createBroadcast(
         })
       : [];
   const knownIds = new Set(knownBots.map((bot) => bot.id));
-  const preview = await previewBroadcast(prisma, request, probe);
+  const preview = await previewBroadcast(prisma, request, probe, tokenValid);
+
+  const deliveryCreates =
+    request.audienceType === "CHANNELS"
+      ? [
+          ...preview.eligible.map((row) => {
+            if (row.kind !== "channel") {
+              throw new Error("unexpected preview row");
+            }
+            return {
+              channelId: row.channelId,
+              botId: row.botId,
+              status: "PENDING" as const,
+            };
+          }),
+          ...preview.excluded.map((row) => {
+            if (row.kind !== "channel") {
+              throw new Error("unexpected preview row");
+            }
+            return {
+              channelId: row.channelId,
+              status: "EXCLUDED" as const,
+              reason: row.reason,
+            };
+          }),
+        ]
+      : [
+          ...preview.eligible.map((row) => {
+            if (row.kind !== "user") {
+              throw new Error("unexpected preview row");
+            }
+            return {
+              userId: row.userId,
+              botId: row.botId,
+              status: "PENDING" as const,
+            };
+          }),
+          ...preview.excluded.map((row) => {
+            if (row.kind !== "user") {
+              throw new Error("unexpected preview row");
+            }
+            return {
+              userId: row.userId,
+              status: "EXCLUDED" as const,
+              reason: row.reason,
+            };
+          }),
+        ];
+
   const campaign = await prisma.broadcastCampaign.create({
     data: {
       text: request.text,
+      audienceType: request.audienceType,
       targetMode: request.targetMode,
       includeActive: request.scope.includeActive,
       includeInactive: request.scope.includeInactive,
       includeDeleted: request.scope.includeDeleted,
+      includeBotOwners: request.includeBotOwners,
       createdByAdmin: adminUsername,
       bots:
         request.targetMode === "SELECTED"
@@ -143,18 +434,7 @@ export async function createBroadcast(
             }
           : undefined,
       deliveries: {
-        create: [
-          ...preview.eligible.map((channel) => ({
-            channelId: channel.channelId,
-            botId: channel.botId,
-            status: "PENDING" as const,
-          })),
-          ...preview.excluded.map((channel) => ({
-            channelId: channel.channelId,
-            status: "EXCLUDED" as const,
-            reason: channel.reason,
-          })),
-        ],
+        create: deliveryCreates,
       },
     },
     select: {
@@ -196,6 +476,7 @@ export async function listBroadcasts(prisma: PrismaClient) {
       id: true,
       text: true,
       status: true,
+      audienceType: true,
       targetMode: true,
       createdAt: true,
       stopRequested: true,
@@ -207,6 +488,7 @@ export async function listBroadcasts(prisma: PrismaClient) {
       id: row.id,
       text: row.text,
       status: row.status,
+      audienceType: row.audienceType,
       targetMode: row.targetMode,
       createdAt: row.createdAt.toISOString(),
       stopRequested: row.stopRequested,
@@ -222,10 +504,12 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
       id: true,
       text: true,
       status: true,
+      audienceType: true,
       targetMode: true,
       includeActive: true,
       includeInactive: true,
       includeDeleted: true,
+      includeBotOwners: true,
       createdByAdmin: true,
       stopRequested: true,
       createdAt: true,
@@ -235,7 +519,13 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
           status: true,
           reason: true,
           telegramMessageId: true,
+          recipientTelegramChatId: true,
+          botId: true,
           channel: { select: { title: true, username: true } },
+          user: {
+            select: { username: true, firstName: true, lastName: true },
+          },
+          bot: { select: { botUsername: true } },
         },
       },
     },
@@ -247,10 +537,12 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
     id: row.id,
     text: row.text,
     status: row.status,
+    audienceType: row.audienceType,
     targetMode: row.targetMode,
     includeActive: row.includeActive,
     includeInactive: row.includeInactive,
     includeDeleted: row.includeDeleted,
+    includeBotOwners: row.includeBotOwners,
     createdByAdmin: row.createdByAdmin,
     stopRequested: row.stopRequested,
     createdAt: row.createdAt.toISOString(),
@@ -260,8 +552,15 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
       status: delivery.status,
       reason: delivery.reason,
       messageId: delivery.telegramMessageId?.toString() ?? null,
-      title: delivery.channel.title,
-      username: delivery.channel.username,
+      chatId: delivery.recipientTelegramChatId?.toString() ?? null,
+      senderBotUsername: delivery.bot?.botUsername ?? null,
+      title: delivery.channel?.title ?? null,
+      username: delivery.channel?.username ?? delivery.user?.username ?? null,
+      displayName:
+        delivery.user?.firstName || delivery.user?.lastName
+          ? [delivery.user.firstName, delivery.user.lastName].filter(Boolean).join(" ")
+          : delivery.user?.username ?? null,
+      kind: delivery.channel ? "channel" : "user",
     })),
   };
 }
