@@ -60,6 +60,7 @@ import {
   dashboardMessageOptions,
   type DashboardView,
 } from "./platform-menu.js";
+import { ensureTelegramCommandMenu } from "./telegram-command-menu.js";
 import {
   buildContactAddChannelView,
   buildContactVisitorWelcome,
@@ -176,6 +177,11 @@ export class BotRuntimeManager {
       this.registerChannelMembershipHandler(runtime);
     }
     this.#runtimes.set(runtime.botRecord.id, runtime);
+    void ensureTelegramCommandMenu(runtime.bot.api, (message) => {
+      console.warn(
+        `Bot ${runtime.botRecord.id} (@${runtime.botRecord.botUsername}): ${message}`,
+      );
+    });
     this.startPollingIfNeeded(runtime);
   }
 
