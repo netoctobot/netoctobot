@@ -66,7 +66,10 @@ export function buildSupportListHome(
     );
   }
   if (isOwner) {
-    keyboard.row().text(translate(language, "supportList.admin"), "sl:admin");
+    keyboard
+      .row()
+      .text(translate(language, "ownerBroadcast.broadcast"), "owner:bc:start")
+      .text(translate(language, "supportList.admin"), "sl:admin");
   }
   return {
     text: appendUnconfirmed(

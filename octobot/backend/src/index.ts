@@ -13,10 +13,9 @@ import { SupportListScheduler } from "./modules/support-list/scheduler.js";
 const env = loadEnv();
 const prisma = createPrismaClient();
 const redis = createRedisClient(env.REDIS_URL);
-const runtimeManager = new BotRuntimeManager(env, prisma, redis);
-const supportListScheduler = new SupportListScheduler(env, prisma);
 const broadcastScheduler = new BroadcastScheduler(env, prisma);
-
+const runtimeManager = new BotRuntimeManager(env, prisma, redis, broadcastScheduler);
+const supportListScheduler = new SupportListScheduler(env, prisma);
 let app: Awaited<ReturnType<typeof buildApp>> | undefined;
 let stopMediaCleanup: (() => void) | undefined;
 

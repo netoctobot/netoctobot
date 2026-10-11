@@ -316,7 +316,8 @@
     "broadcastAudience": {
       "CHANNELS": "Channels",
       "BOT_USERS": "Bot users",
-      "BOT_OWNERS": "Bot owners"
+      "BOT_OWNERS": "Bot owners",
+      "CHANNELS_AND_USERS": "Channels and users"
     }
   },
   "broadcast": {

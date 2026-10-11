@@ -316,7 +316,8 @@
     "broadcastAudience": {
       "CHANNELS": "قنوات",
       "BOT_USERS": "مستخدمو البوتات",
-      "BOT_OWNERS": "مالكو البوتات"
+      "BOT_OWNERS": "مالكو البوتات",
+      "CHANNELS_AND_USERS": "قنوات ومستخدمون"
     }
   },
   "broadcast": {

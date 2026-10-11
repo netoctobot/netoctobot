@@ -13,6 +13,7 @@ import {
   findPendingDeleteMessageIds,
   queueDeleteForSentDelivery,
 } from "./delete-reconcile.js";
+import { assertOwnerBotActiveForSend } from "./owner-broadcast-guard.js";
 import { executeBroadcastSend } from "./send-delivery.js";
 
 const QUEUE_NAME = "broadcast-send";
@@ -120,6 +121,8 @@ export class BroadcastScheduler {
             linkButtons: true,
             stopRequested: true,
             deleteRequested: true,
+            createdByKind: true,
+            initiatorBotId: true,
             mediaAsset: {
               select: {
                 id: true,
@@ -137,6 +140,22 @@ export class BroadcastScheduler {
       },
     });
     if (!delivery) {
+      return;
+    }
+    if (
+      delivery.campaign.createdByKind === "BOT_OWNER" &&
+      delivery.botId &&
+      !(await assertOwnerBotActiveForSend(this.prisma, delivery.botId))
+    ) {
+      await this.prisma.broadcastCampaign.update({
+        where: { id: delivery.campaign.id },
+        data: { stopRequested: true },
+      });
+      await this.prisma.broadcastDelivery.updateMany({
+        where: { campaignId: delivery.campaign.id, status: "PENDING" },
+        data: { status: "STOPPED" },
+      });
+      await this.#refresh(delivery.campaign.id, true);
       return;
     }
     const step = nextDelivery(delivery.status, delivery.campaign.stopRequested);

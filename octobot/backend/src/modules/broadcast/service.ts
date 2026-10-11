@@ -14,7 +14,7 @@ import { parseBroadcastContent, type LinkButtonMatrix } from "./content.js";
 import type { createBotTokenValidator } from "./probe.js";
 import { summarizeMessageDeletes, type BroadcastDeleteSummary } from "./delete-summary.js";
 
-export type AudienceType = "CHANNELS" | "BOT_USERS" | "BOT_OWNERS";
+export type AudienceType = "CHANNELS" | "BOT_USERS" | "BOT_OWNERS" | "CHANNELS_AND_USERS";
 
 export interface BroadcastRequest {
   text: string;
@@ -317,6 +317,72 @@ async function loadOwnerAudiencePlan(prisma: PrismaClient, request: BroadcastReq
   });
 }
 
+type PreviewPayload = {
+  eligible: PreviewRecipient[];
+  excluded: ExcludedRecipient[];
+};
+
+export function buildDeliveryCreatesFromPreview(
+  audienceType: AudienceType,
+  preview: PreviewPayload,
+): Prisma.BroadcastDeliveryCreateWithoutCampaignInput[] {
+  const channelEligible = preview.eligible.filter((row) => row.kind === "channel");
+  const channelExcluded = preview.excluded.filter((row) => row.kind === "channel");
+  const userEligible = preview.eligible.filter((row) => row.kind === "user");
+  const userExcluded = preview.excluded.filter((row) => row.kind === "user");
+
+  if (audienceType === "CHANNELS") {
+    return [
+      ...channelEligible.map((row) => ({
+        channelId: row.channelId,
+        botId: row.botId,
+        status: "PENDING" as const,
+      })),
+      ...channelExcluded.map((row) => ({
+        channelId: row.channelId,
+        status: "EXCLUDED" as const,
+        reason: row.reason,
+      })),
+    ];
+  }
+  if (audienceType === "CHANNELS_AND_USERS") {
+    return [
+      ...channelEligible.map((row) => ({
+        channelId: row.channelId,
+        botId: row.botId,
+        status: "PENDING" as const,
+      })),
+      ...channelExcluded.map((row) => ({
+        channelId: row.channelId,
+        status: "EXCLUDED" as const,
+        reason: row.reason,
+      })),
+      ...userEligible.map((row) => ({
+        userId: row.userId,
+        botId: row.botId,
+        status: "PENDING" as const,
+      })),
+      ...userExcluded.map((row) => ({
+        userId: row.userId,
+        status: "EXCLUDED" as const,
+        reason: row.reason,
+      })),
+    ];
+  }
+  return [
+    ...userEligible.map((row) => ({
+      userId: row.userId,
+      botId: row.botId,
+      status: "PENDING" as const,
+    })),
+    ...userExcluded.map((row) => ({
+      userId: row.userId,
+      status: "EXCLUDED" as const,
+      reason: row.reason,
+    })),
+  ];
+}
+
 export async function previewBroadcast(
   prisma: PrismaClient,
   request: BroadcastRequest,
@@ -332,17 +398,17 @@ export async function previewBroadcast(
     linkedMediaId = asset.id;
   }
   const content = buildContentPreview(request, linkedMediaId);
-  if (request.audienceType === "CHANNELS") {
+  if (request.audienceType === "CHANNELS" || request.audienceType === "CHANNELS_AND_USERS") {
     const collected = await loadChannelPlan(prisma, request);
     const assigned = await assignSenders(collected.included, probe);
-    const eligible: PreviewRecipient[] = assigned.eligible.map((channel) => ({
+    const channelEligible: PreviewRecipient[] = assigned.eligible.map((channel) => ({
       kind: "channel",
       channelId: channel.channelId,
       title: channel.title,
       username: channel.username,
       botId: channel.botId,
     }));
-    const excluded: ExcludedRecipient[] = [
+    const channelExcluded: ExcludedRecipient[] = [
       ...collected.excluded.map((channel) => ({
         kind: "channel" as const,
         channelId: channel.channelId,
@@ -356,10 +422,65 @@ export async function previewBroadcast(
         reason: channel.reason,
       })),
     ];
+    if (request.audienceType === "CHANNELS") {
+      return {
+        text: request.text,
+        audienceType: request.audienceType,
+        preliminary: false,
+        summary: summarizePlan(channelEligible.length, channelExcluded.length),
+        content,
+        eligible: channelEligible,
+        excluded: channelExcluded,
+      };
+    }
+    const userCollected = await loadUserAudiencePlan(prisma, request);
+    const tokenCache = new Map<string, boolean>();
+    const isValid = async (botId: string) => {
+      const cached = tokenCache.get(botId);
+      if (cached !== undefined) {
+        return cached;
+      }
+      const ok = await tokenValid(botId);
+      tokenCache.set(botId, ok);
+      return ok;
+    };
+    for (const user of userCollected.included) {
+      await isValid(user.botId);
+    }
+    const reassigned = assignPreliminaryUserSenders(
+      userCollected.included,
+      (botId) => tokenCache.get(botId) === true,
+    );
+    const userEligible: PreviewRecipient[] = reassigned.eligible.map((user) => ({
+      kind: "user",
+      userId: user.userId,
+      displayName: user.displayName,
+      username: user.username,
+      botId: user.botId,
+      senderBotId: user.botId,
+    }));
+    const userExcluded: ExcludedRecipient[] = [
+      ...userCollected.excluded.map((user) => ({
+        kind: "user" as const,
+        userId: user.userId,
+        displayName: user.displayName,
+        username: user.username,
+        reason: user.reason,
+      })),
+      ...reassigned.excluded.map((user) => ({
+        kind: "user" as const,
+        userId: user.userId,
+        displayName: user.displayName,
+        username: user.username,
+        reason: user.reason,
+      })),
+    ];
+    const eligible = [...channelEligible, ...userEligible];
+    const excluded = [...channelExcluded, ...userExcluded];
     return {
       text: request.text,
       audienceType: request.audienceType,
-      preliminary: false,
+      preliminary: true,
       summary: summarizePlan(eligible.length, excluded.length),
       content,
       eligible,
@@ -444,52 +565,7 @@ export async function createBroadcast(
     return null;
   }
 
-  const deliveryCreates =
-    request.audienceType === "CHANNELS"
-      ? [
-          ...preview.eligible.map((row) => {
-            if (row.kind !== "channel") {
-              throw new Error("unexpected preview row");
-            }
-            return {
-              channelId: row.channelId,
-              botId: row.botId,
-              status: "PENDING" as const,
-            };
-          }),
-          ...preview.excluded.map((row) => {
-            if (row.kind !== "channel") {
-              throw new Error("unexpected preview row");
-            }
-            return {
-              channelId: row.channelId,
-              status: "EXCLUDED" as const,
-              reason: row.reason,
-            };
-          }),
-        ]
-      : [
-          ...preview.eligible.map((row) => {
-            if (row.kind !== "user") {
-              throw new Error("unexpected preview row");
-            }
-            return {
-              userId: row.userId,
-              botId: row.botId,
-              status: "PENDING" as const,
-            };
-          }),
-          ...preview.excluded.map((row) => {
-            if (row.kind !== "user") {
-              throw new Error("unexpected preview row");
-            }
-            return {
-              userId: row.userId,
-              status: "EXCLUDED" as const,
-              reason: row.reason,
-            };
-          }),
-        ];
+  const deliveryCreates = buildDeliveryCreatesFromPreview(request.audienceType, preview);
 
   const campaign = await prisma.broadcastCampaign.create({
     data: {
