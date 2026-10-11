@@ -7,7 +7,7 @@ import type { Api } from "grammy";
 import { InputFile } from "grammy";
 import type { PrismaClient } from "@prisma/client";
 import { absolutePathForKey } from "./media-storage.js";
-import { executeBroadcastSend, persistSentDelivery } from "./send-delivery.js";
+import { buildBroadcastLinkKeyboard, executeBroadcastSend, persistSentDelivery } from "./send-delivery.js";
 
 const storageKey = "c".repeat(32);
 
@@ -140,6 +140,24 @@ test("persistSentDelivery returns uncertain when delivery row cannot be updated"
     telegramFileId: "file",
   });
   assert.equal(result, "uncertain");
+});
+
+test("buildBroadcastLinkKeyboard applies Telegram button styles", () => {
+  const keyboard = buildBroadcastLinkKeyboard([
+    [
+      { text: "A", url: "https://a.test" },
+      { text: "B", url: "https://b.test", style: "primary" },
+    ],
+    [{ text: "C", url: "https://c.test", style: "success" }],
+  ]);
+  assert.ok(keyboard);
+  assert.deepEqual(keyboard!.inline_keyboard, [
+    [
+      { text: "A", url: "https://a.test" },
+      { text: "B", url: "https://b.test", style: "primary" },
+    ],
+    [{ text: "C", url: "https://c.test", style: "success" }],
+  ]);
 });
 
 test("persistSentDelivery still ok when optional file_id cache fails", async () => {

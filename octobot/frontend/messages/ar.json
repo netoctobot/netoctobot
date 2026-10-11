@@ -337,6 +337,19 @@
     "captionPlaceholder": "نص يظهر مع الوسائط",
     "linkButtons": "أزرار الروابط",
     "addLinkButton": "إضافة زر",
+    "placementLabel": "المكان",
+    "placement": {
+      "newRow": "صف جديد",
+      "afterPrevious": "بجانب الزر السابق"
+    },
+    "buttonColorLabel": "اللون",
+    "buttonColor": {
+      "default": "افتراضي",
+      "blue": "أزرق",
+      "green": "أخضر",
+      "red": "أحمر"
+    },
+    "detailLoadFailed": "تعذر تحميل هذه الحملة. أعد المحاولة.",
     "buttonText": "نص الزر",
     "buttonUrl": "الرابط",
     "mediaUpload": "ملف الوسائط",

@@ -21,9 +21,12 @@ export const PRODUCT_LIMITS = {
   fileDeleteAfterCampaignEndHours: 48,
 } as const;
 
+export type LinkButtonStyle = "primary" | "success" | "danger";
+
 export interface LinkButtonRow {
   text: string;
   url: string;
+  style?: LinkButtonStyle;
 }
 
 export type LinkButtonMatrix = LinkButtonRow[][];
@@ -88,11 +91,19 @@ export function parseLinkButtons(value: unknown): LinkButtonMatrix | null {
       if (!text || !url || text.length > TELEGRAM_LIMITS.inlineButtonTextChars || !URL_PATTERN.test(url)) {
         return null;
       }
+      const rawStyle = (cell as LinkButtonRow).style;
+      let style: LinkButtonStyle | undefined;
+      if (rawStyle !== undefined && rawStyle !== null) {
+        if (rawStyle !== "primary" && rawStyle !== "success" && rawStyle !== "danger") {
+          return null;
+        }
+        style = rawStyle;
+      }
       total += 1;
       if (total > TELEGRAM_LIMITS.inlineButtonsTotal) {
         return null;
       }
-      parsedRow.push({ text, url });
+      parsedRow.push(style ? { text, url, style } : { text, url });
     }
     if (parsedRow.length > 0) {
       matrix.push(parsedRow);

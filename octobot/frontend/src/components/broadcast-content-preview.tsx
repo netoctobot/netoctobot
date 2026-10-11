@@ -44,7 +44,15 @@ export function BroadcastContentPreviewView({ content }: { content: BroadcastCon
               {row.map((button, buttonIndex) => (
                 <span
                   key={`${rowIndex}-${buttonIndex}`}
-                  className="rounded-full border border-line bg-card px-3 py-1 text-xs"
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    button.style === "primary"
+                      ? "border-blue-300 bg-blue-50"
+                      : button.style === "success"
+                        ? "border-green-300 bg-green-50"
+                        : button.style === "danger"
+                          ? "border-red-300 bg-red-50"
+                          : "border-line bg-card"
+                  }`}
                 >
                   {button.text} → {button.url}
                 </span>

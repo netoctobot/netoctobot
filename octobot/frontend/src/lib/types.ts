@@ -239,6 +239,7 @@ export type BroadcastContentKind =
 export interface BroadcastLinkButton {
   text: string;
   url: string;
+  style?: "primary" | "success" | "danger";
 }
 
 export interface BroadcastContentPreview {

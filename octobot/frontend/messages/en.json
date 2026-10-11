@@ -337,6 +337,19 @@
     "captionPlaceholder": "Caption shown with the media",
     "linkButtons": "Link buttons",
     "addLinkButton": "Add button",
+    "placementLabel": "Placement",
+    "placement": {
+      "newRow": "New row",
+      "afterPrevious": "Next to previous button"
+    },
+    "buttonColorLabel": "Color",
+    "buttonColor": {
+      "default": "Default",
+      "blue": "Blue",
+      "green": "Green",
+      "red": "Red"
+    },
+    "detailLoadFailed": "Could not load this campaign. Try again.",
     "buttonText": "Button label",
     "buttonUrl": "URL",
     "mediaUpload": "Media file",

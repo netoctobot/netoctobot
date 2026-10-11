@@ -22,7 +22,9 @@ export type SendOutcome =
   | { status: "uncertain"; messageId?: number; chatId?: number }
   | { status: "failed"; reason: string; cause?: unknown };
 
-function buildKeyboard(linkButtons: LinkButtonMatrix | null): InlineKeyboard | undefined {
+export function buildBroadcastLinkKeyboard(
+  linkButtons: LinkButtonMatrix | null,
+): InlineKeyboard | undefined {
   if (!linkButtons || linkButtons.length === 0) {
     return undefined;
   }
@@ -31,6 +33,13 @@ function buildKeyboard(linkButtons: LinkButtonMatrix | null): InlineKeyboard | u
     const row = linkButtons[rowIndex];
     for (const button of row) {
       keyboard.url(button.text, button.url);
+      if (button.style === "primary") {
+        keyboard.primary();
+      } else if (button.style === "success") {
+        keyboard.success();
+      } else if (button.style === "danger") {
+        keyboard.danger();
+      }
     }
     if (rowIndex < linkButtons.length - 1) {
       keyboard.row();
@@ -51,7 +60,7 @@ async function sendWithApi(
   fileId: string | null,
   uploadFilename: string | null,
 ): Promise<{ message_id: number }> {
-  const markup = buildKeyboard(content.linkButtons);
+  const markup = buildBroadcastLinkKeyboard(content.linkButtons);
   const extra = markup ? { reply_markup: markup } : {};
   const caption = content.caption ?? undefined;
 
