@@ -246,7 +246,10 @@
     "resultsTitle": "Broadcast status",
     "buttonHelp": "Send buttons in this format:",
     "invalidInput": "Could not use this input. Check the format and try again.",
-    "botInactive": "This bot is inactive. Broadcasting is not available."
+    "botInactive": "This bot is inactive. Broadcasting is not available.",
+    "publishSucceeded": "Broadcast started.",
+    "publishSucceededUiFailed": "Broadcast started, but the results screen could not be updated. Use Broadcast or Back below if you see them; otherwise send /start.",
+    "sessionEnded": "This broadcast was already published. Use the results screen or start a new broadcast."
   },
   "subscription": {
     "required": "Subscribe to the required channels, then tap Check subscription.",

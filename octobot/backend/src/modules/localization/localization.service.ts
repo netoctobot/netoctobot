@@ -234,6 +234,9 @@ export type TranslationKey =
   | "ownerBroadcast.buttonHelp"
   | "ownerBroadcast.invalidInput"
   | "ownerBroadcast.botInactive"
+  | "ownerBroadcast.publishSucceeded"
+  | "ownerBroadcast.publishSucceededUiFailed"
+  | "ownerBroadcast.sessionEnded"
   | "errors.privateOnly"
   | "errors.generic";
 

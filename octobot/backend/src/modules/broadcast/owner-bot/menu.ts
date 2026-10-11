@@ -81,9 +81,9 @@ export function buildOwnerBroadcastResultsMenu(
 ): DashboardView {
   return {
     text: `${translate(language, "ownerBroadcast.resultsTitle")}\n\n${summaryText}`,
-    keyboard: new InlineKeyboard().text(
-      translate(language, "ownerBroadcast.back"),
-      "owner:bc:home",
-    ),
+    keyboard: new InlineKeyboard()
+      .text(translate(language, "ownerBroadcast.broadcast"), "owner:bc:start")
+      .row()
+      .text(translate(language, "ownerBroadcast.back"), "owner:bc:home"),
   };
 }

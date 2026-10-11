@@ -16,10 +16,7 @@ import {
   type OwnerAudience,
 } from "../owner-broadcast-guard.js";
 import type { BroadcastScheduler } from "../scheduler.js";
-import {
-  buildOwnerBroadcastAudienceMenu,
-  buildOwnerBroadcastResultsMenu,
-} from "./menu.js";
+import { buildOwnerBroadcastAudienceMenu } from "./menu.js";
 import { parseOwnerBroadcastButtonText } from "./button-text.js";
 import {
   applyAudienceSelection,
@@ -40,7 +37,10 @@ import {
   publishOwnerBroadcastCampaign,
 } from "./owner-publish.js";
 import { summarizeCampaignCounts } from "./results.js";
-import { syncOwnerBroadcastPanel } from "./owner-broadcast-preview.js";
+import {
+  showOwnerBroadcastResultsPanel,
+  syncOwnerBroadcastPanel,
+} from "./owner-broadcast-preview.js";
 import {
   detectOwnerBroadcastMediaFromMessage,
   isCaptionWithinLimit,
@@ -100,6 +100,123 @@ async function requireOwnerBroadcastContext(
     return null;
   }
   return loadOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id);
+}
+
+async function refreshLastResultsPanel(
+  deps: OwnerBroadcastDeps,
+  context: Context,
+  runtime: ManagedBotRuntime,
+  language: ReturnType<typeof normalizeTelegramLanguage>,
+): Promise<boolean> {
+  if (!context.from) {
+    return false;
+  }
+  const last = await loadOwnerBroadcastLastResult(
+    deps.redis,
+    runtime.botRecord.id,
+    context.from.id,
+  );
+  if (!last) {
+    return false;
+  }
+  const summary = await summarizeCampaignCounts(deps.prisma, last.campaignId);
+  return showOwnerBroadcastResultsPanel({
+    context,
+    runtime,
+    redis: deps.redis,
+    language,
+    summaryText: summary,
+  });
+}
+
+/** Active draft, or recover results UI after publish cleared the draft. */
+type DraftGate = OwnerBroadcastDraft | "recovered" | null;
+
+async function ensureActiveDraft(
+  deps: OwnerBroadcastDeps,
+  runtime: ManagedBotRuntime,
+  context: Context,
+): Promise<DraftGate> {
+  const draft = await requireOwnerBroadcastContext(deps, runtime, context);
+  if (draft) {
+    return draft;
+  }
+  if (!context.from) {
+    return null;
+  }
+  const language = normalizeTelegramLanguage(context.from.language_code);
+  const recovered = await refreshLastResultsPanel(deps, context, runtime, language);
+  if (recovered) {
+    await context.answerCallbackQuery({
+      text: translate(language, "ownerBroadcast.sessionEnded"),
+      show_alert: true,
+    });
+    return "recovered";
+  }
+  return null;
+}
+
+export async function completeOwnerBroadcastPublish(
+  deps: OwnerBroadcastDeps,
+  context: Context,
+  runtime: ManagedBotRuntime,
+  existing: OwnerBroadcastDraft,
+): Promise<void> {
+  if (!context.from) {
+    return;
+  }
+  const language = normalizeTelegramLanguage(context.from.language_code);
+  const request = draftToBroadcastRequest(runtime.botRecord.id, existing);
+  const publishNonce = existing.publishNonce ?? randomUUID();
+  if (!request) {
+    await refreshLastResultsPanel(deps, context, runtime, language);
+    return;
+  }
+  const probe = broadcastProbe(deps.prisma, deps.env.ENCRYPTION_KEY);
+  const tokenValid = createBotTokenValidator(deps.prisma, deps.env.ENCRYPTION_KEY);
+  const preview = await previewBroadcast(deps.prisma, request, probe, tokenValid);
+  if (!preview) {
+    throw new Error("invalid_broadcast");
+  }
+  const { campaignId } = await publishOwnerBroadcastCampaign({
+    prisma: deps.prisma,
+    redis: deps.redis,
+    scheduler: deps.scheduler,
+    botId: runtime.botRecord.id,
+    ownerTelegramId: context.from.id,
+    publishNonce,
+    request,
+    probe,
+    tokenValid,
+  });
+  await applyPostPublishUi(deps, context, runtime, campaignId, language);
+}
+
+export async function applyPostPublishUi(
+  deps: OwnerBroadcastDeps,
+  context: Context,
+  runtime: ManagedBotRuntime,
+  campaignId: string,
+  language: ReturnType<typeof normalizeTelegramLanguage>,
+): Promise<void> {
+  const summary = await summarizeCampaignCounts(deps.prisma, campaignId);
+  const panelOk = await showOwnerBroadcastResultsPanel({
+    context,
+    runtime,
+    redis: deps.redis,
+    language,
+    summaryText: summary,
+  }).catch(() => false);
+  if (!panelOk) {
+    await context.answerCallbackQuery({
+      text: translate(language, "ownerBroadcast.publishSucceededUiFailed"),
+      show_alert: true,
+    });
+    return;
+  }
+  await context.answerCallbackQuery({
+    text: translate(language, "ownerBroadcast.publishSucceeded"),
+  });
 }
 
 async function persistDraftAndSync(
@@ -175,10 +292,24 @@ export function registerOwnerBroadcastHandlers(
   });
 
   bot.callbackQuery(/^owner:bc:aud:(channels|users|both)$/, async (context) => {
-    const existing = await requireOwnerBroadcastContext(deps, runtime, context);
     if (!context.from || !context.match) {
       return;
     }
+    if (!(await deps.isOwner(context, runtime))) {
+      await context.answerCallbackQuery();
+      return;
+    }
+    try {
+      await assertOwnerBotAccess(deps.prisma, runtime.botRecord.id, context.from.id);
+    } catch {
+      await context.answerCallbackQuery();
+      return;
+    }
+    const existing = await loadOwnerBroadcastDraft(
+      deps.redis,
+      runtime.botRecord.id,
+      context.from.id,
+    );
     const audience = context.match[1] as OwnerAudience;
     const base = existing ?? emptyOwnerBroadcastDraft();
     const draft = applyAudienceSelection(base, audience);
@@ -195,8 +326,15 @@ export function registerOwnerBroadcastHandlers(
   });
 
   bot.callbackQuery("owner:bc:back", async (context) => {
-    const existing = await requireOwnerBroadcastContext(deps, runtime, context);
+    let existing = await requireOwnerBroadcastContext(deps, runtime, context);
     if (!existing || !context.from) {
+      if (context.from) {
+        const language = normalizeTelegramLanguage(context.from.language_code);
+        if (await refreshLastResultsPanel(deps, context, runtime, language)) {
+          await context.answerCallbackQuery();
+          return;
+        }
+      }
       await context.answerCallbackQuery();
       return;
     }
@@ -222,11 +360,15 @@ export function registerOwnerBroadcastHandlers(
   });
 
   bot.callbackQuery("owner:bc:media", async (context) => {
-    const existing = await requireOwnerBroadcastContext(deps, runtime, context);
-    if (!existing) {
-      await context.answerCallbackQuery();
+    const gate = await ensureActiveDraft(deps, runtime, context);
+    if (gate === "recovered") {
       return;
     }
+    if (gate === null) {
+      await context.answerCallbackQuery().catch(() => undefined);
+      return;
+    }
+    const existing = gate;
     const draft: OwnerBroadcastDraft = {
       ...existing,
       inputMode: "media",
@@ -237,11 +379,15 @@ export function registerOwnerBroadcastHandlers(
   });
 
   bot.callbackQuery("owner:bc:buttons", async (context) => {
-    const existing = await requireOwnerBroadcastContext(deps, runtime, context);
-    if (!existing) {
-      await context.answerCallbackQuery();
+    const gate = await ensureActiveDraft(deps, runtime, context);
+    if (gate === "recovered") {
       return;
     }
+    if (gate === null) {
+      await context.answerCallbackQuery().catch(() => undefined);
+      return;
+    }
+    const existing = gate;
     const draft: OwnerBroadcastDraft = {
       ...existing,
       inputMode: "buttons",
@@ -252,22 +398,30 @@ export function registerOwnerBroadcastHandlers(
   });
 
   bot.callbackQuery("owner:bc:removeText", async (context) => {
-    const existing = await requireOwnerBroadcastContext(deps, runtime, context);
-    if (!existing) {
-      await context.answerCallbackQuery();
+    const gate = await ensureActiveDraft(deps, runtime, context);
+    if (gate === "recovered") {
       return;
     }
+    if (gate === null) {
+      await context.answerCallbackQuery().catch(() => undefined);
+      return;
+    }
+    const existing = gate;
     const draft: OwnerBroadcastDraft = { ...existing, caption: null, inputMode: null, step: "preview" };
     await persistDraftAndSync(deps, context, runtime, draft);
     await context.answerCallbackQuery();
   });
 
   bot.callbackQuery("owner:bc:removeButtons", async (context) => {
-    const existing = await requireOwnerBroadcastContext(deps, runtime, context);
-    if (!existing) {
-      await context.answerCallbackQuery();
+    const gate = await ensureActiveDraft(deps, runtime, context);
+    if (gate === "recovered") {
       return;
     }
+    if (gate === null) {
+      await context.answerCallbackQuery().catch(() => undefined);
+      return;
+    }
+    const existing = gate;
     const draft: OwnerBroadcastDraft = {
       ...existing,
       linkButtons: null,
@@ -280,60 +434,30 @@ export function registerOwnerBroadcastHandlers(
 
   bot.callbackQuery("owner:bc:publish", async (context) => {
     const existing = await requireOwnerBroadcastContext(deps, runtime, context);
-    if (!existing || !context.from) {
-      await context.answerCallbackQuery();
+    if (!context.from) {
+      await context.answerCallbackQuery().catch(() => undefined);
       return;
     }
-    const request = draftToBroadcastRequest(runtime.botRecord.id, existing);
-    const publishNonce = existing.publishNonce ?? randomUUID();
     const language = normalizeTelegramLanguage(context.from.language_code);
-    if (!request) {
-      const last = await loadOwnerBroadcastLastResult(
-        deps.redis,
-        runtime.botRecord.id,
-        context.from.id,
-      );
-      if (last) {
-        const summary = await summarizeCampaignCounts(deps.prisma, last.campaignId);
-        await presentBroadcastPanel(
-          deps,
-          context,
-          runtime,
-          buildOwnerBroadcastResultsMenu(language, summary),
-        );
-      }
-      await context.answerCallbackQuery();
-      return;
-    }
-    const probe = broadcastProbe(deps.prisma, deps.env.ENCRYPTION_KEY);
-    const tokenValid = createBotTokenValidator(deps.prisma, deps.env.ENCRYPTION_KEY);
-    const preview = await previewBroadcast(deps.prisma, request, probe, tokenValid);
-    if (!preview) {
+    if (!existing) {
+      const recovered = await refreshLastResultsPanel(deps, context, runtime, language);
       await context.answerCallbackQuery({
-        text: translate(language, "ownerBroadcast.invalidInput"),
+        text: translate(
+          language,
+          recovered ? "ownerBroadcast.sessionEnded" : "ownerBroadcast.invalidInput",
+        ),
         show_alert: true,
       });
       return;
     }
-    const { campaignId } = await publishOwnerBroadcastCampaign({
-      prisma: deps.prisma,
-      redis: deps.redis,
-      scheduler: deps.scheduler,
-      botId: runtime.botRecord.id,
-      ownerTelegramId: context.from.id,
-      publishNonce,
-      request,
-      probe,
-      tokenValid,
-    });
-    const summary = await summarizeCampaignCounts(deps.prisma, campaignId);
-    await presentBroadcastPanel(
-      deps,
-      context,
-      runtime,
-      buildOwnerBroadcastResultsMenu(language, summary),
-    );
-    await context.answerCallbackQuery();
+    try {
+      await completeOwnerBroadcastPublish(deps, context, runtime, existing);
+    } catch {
+      await context.answerCallbackQuery({
+        text: translate(language, "ownerBroadcast.invalidInput"),
+        show_alert: true,
+      });
+    }
   });
 }
 

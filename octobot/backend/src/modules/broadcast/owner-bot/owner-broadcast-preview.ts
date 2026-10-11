@@ -13,8 +13,10 @@ import {
 } from "../send-delivery.js";
 import { absolutePathForKey } from "../media-storage.js";
 import type { Env } from "../../../config/env.js";
+import { dashboardMessageOptions } from "../../bots/platform-menu.js";
 import {
   buildOwnerBroadcastButtonHelp,
+  buildOwnerBroadcastResultsMenu,
   buildOwnerPreviewKeyboard,
   buildOwnerBroadcastPromptBackKeyboard,
 } from "./menu.js";
@@ -319,6 +321,48 @@ async function showTextPanel(
     await persistPanelRef(redis, botId, ownerTelegramId, context.chat!.id, sent.message_id);
     if (oldMessageId !== null && oldMessageId !== sent.message_id) {
       await safeDeleteMessage(context, context.chat!.id, oldMessageId);
+    }
+    return true;
+  } catch (error) {
+    if (isTransientTelegramError(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/** Always replaces the dashboard with a text results view (safe after media preview). */
+export async function showOwnerBroadcastResultsPanel(input: {
+  context: Context;
+  runtime: ManagedBotRuntime;
+  redis: Redis;
+  language: SupportedLanguage;
+  summaryText: string;
+}): Promise<boolean> {
+  if (!input.context.from || !input.context.chat) {
+    return false;
+  }
+  const botId = input.runtime.botRecord.id;
+  const ownerId = input.context.from.id;
+  const view = buildOwnerBroadcastResultsMenu(input.language, input.summaryText);
+  const dashboard = await getDashboardState(input.redis, botId, ownerId);
+  const oldMessageId =
+    dashboard?.chatId === input.context.chat.id ? dashboard.messageId : null;
+  try {
+    const sent = await input.context.api.sendMessage(
+      input.context.chat.id,
+      view.text,
+      dashboardMessageOptions(view),
+    );
+    await persistPanelRef(
+      input.redis,
+      botId,
+      ownerId,
+      input.context.chat.id,
+      sent.message_id,
+    );
+    if (oldMessageId !== null && oldMessageId !== sent.message_id) {
+      await safeDeleteMessage(input.context, input.context.chat.id, oldMessageId);
     }
     return true;
   } catch (error) {
