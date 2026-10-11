@@ -35,7 +35,10 @@ export function isSubscriptionExempt(callbackData: string | undefined): boolean 
     callbackData === "forced:check" ||
     callbackData === "language:select" ||
     callbackData === "language:set:AR" ||
-    callbackData === "language:set:EN"
+    callbackData === "language:set:EN" ||
+    callbackData === "owner:lang" ||
+    callbackData === "owner:lang:AR" ||
+    callbackData === "owner:lang:EN"
   );
 }
 

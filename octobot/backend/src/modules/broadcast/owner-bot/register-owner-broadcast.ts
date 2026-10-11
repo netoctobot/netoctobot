@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Context } from "grammy";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, SupportedLanguage } from "@prisma/client";
 import type { Redis } from "ioredis";
 import type { Env } from "../../../config/env.js";
 import { decryptToken } from "../../../lib/token-crypto.js";
@@ -64,6 +64,17 @@ export interface OwnerBroadcastDeps {
   ) => Promise<void>;
   isOwner: (context: Context, runtime: ManagedBotRuntime) => Promise<boolean>;
   goHome: (context: Context, runtime: ManagedBotRuntime) => Promise<void>;
+  interfaceLanguage?: (context: Context) => Promise<SupportedLanguage>;
+}
+
+async function ownerUiLanguage(
+  deps: OwnerBroadcastDeps,
+  context: Context,
+): Promise<SupportedLanguage> {
+  if (deps.interfaceLanguage && context.from) {
+    return deps.interfaceLanguage(context);
+  }
+  return normalizeTelegramLanguage(context.from?.language_code);
 }
 
 export async function presentBroadcastPanel(
@@ -91,7 +102,7 @@ async function requireOwnerBroadcastContext(
     await assertOwnerBotAccess(deps.prisma, runtime.botRecord.id, context.from.id);
   } catch (error) {
     if (error instanceof OwnerBroadcastAccessError) {
-      const language = normalizeTelegramLanguage(context.from.language_code);
+      const language = await ownerUiLanguage(deps, context);
       await context.answerCallbackQuery?.({
         text: translate(language, "ownerBroadcast.botInactive"),
         show_alert: true,
@@ -106,7 +117,7 @@ async function refreshLastResultsPanel(
   deps: OwnerBroadcastDeps,
   context: Context,
   runtime: ManagedBotRuntime,
-  language: ReturnType<typeof normalizeTelegramLanguage>,
+  language: SupportedLanguage,
 ): Promise<boolean> {
   if (!context.from) {
     return false;
@@ -144,7 +155,7 @@ async function ensureActiveDraft(
   if (!context.from) {
     return null;
   }
-  const language = normalizeTelegramLanguage(context.from.language_code);
+  const language = await ownerUiLanguage(deps, context);
   const recovered = await refreshLastResultsPanel(deps, context, runtime, language);
   if (recovered) {
     await context.answerCallbackQuery({
@@ -165,7 +176,7 @@ export async function completeOwnerBroadcastPublish(
   if (!context.from) {
     return;
   }
-  const language = normalizeTelegramLanguage(context.from.language_code);
+  const language = await ownerUiLanguage(deps, context);
   const request = draftToBroadcastRequest(runtime.botRecord.id, existing);
   const publishNonce = existing.publishNonce ?? randomUUID();
   if (!request) {
@@ -197,7 +208,7 @@ export async function applyPostPublishUi(
   context: Context,
   runtime: ManagedBotRuntime,
   campaignId: string,
-  language: ReturnType<typeof normalizeTelegramLanguage>,
+  language: SupportedLanguage,
 ): Promise<void> {
   const summary = await summarizeCampaignCounts(deps.prisma, campaignId);
   const panelOk = await showOwnerBroadcastResultsPanel({
@@ -235,7 +246,7 @@ async function persistDraftAndSync(
     context.from.id,
     draft,
   );
-  const language = normalizeTelegramLanguage(context.from.language_code);
+  const language = await ownerUiLanguage(deps, context);
   return syncOwnerBroadcastPanel({
     context,
     runtime,
@@ -281,7 +292,7 @@ export function registerOwnerBroadcastHandlers(
       BigInt(context.from.id),
     );
     await clearOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id);
-    const language = normalizeTelegramLanguage(context.from.language_code);
+    const language = await ownerUiLanguage(deps, context);
     await presentBroadcastPanel(
       deps,
       context,
@@ -329,7 +340,7 @@ export function registerOwnerBroadcastHandlers(
     let existing = await requireOwnerBroadcastContext(deps, runtime, context);
     if (!existing || !context.from) {
       if (context.from) {
-        const language = normalizeTelegramLanguage(context.from.language_code);
+        const language = await ownerUiLanguage(deps, context);
         if (await refreshLastResultsPanel(deps, context, runtime, language)) {
           await context.answerCallbackQuery();
           return;
@@ -345,7 +356,7 @@ export function registerOwnerBroadcastHandlers(
       return;
     }
     if (next.step === "audience") {
-      const language = normalizeTelegramLanguage(context.from.language_code);
+      const language = await ownerUiLanguage(deps, context);
       await saveOwnerBroadcastDraft(deps.redis, runtime.botRecord.id, context.from.id, next);
       await presentBroadcastPanel(
         deps,
@@ -438,7 +449,7 @@ export function registerOwnerBroadcastHandlers(
       await context.answerCallbackQuery().catch(() => undefined);
       return;
     }
-    const language = normalizeTelegramLanguage(context.from.language_code);
+    const language = await ownerUiLanguage(deps, context);
     if (!existing) {
       const recovered = await refreshLastResultsPanel(deps, context, runtime, language);
       await context.answerCallbackQuery({
@@ -486,7 +497,7 @@ export async function tryOwnerBroadcastOwnerMessage(
     return false;
   }
 
-  const language = normalizeTelegramLanguage(context.from.language_code);
+  const language = await ownerUiLanguage(deps, context);
   const messageId = context.message.message_id;
   const errorPrefix = (key: "ownerBroadcast.invalidInput" | "ownerBroadcast.captionTooLong") =>
     translate(language, key);

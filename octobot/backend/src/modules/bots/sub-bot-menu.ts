@@ -92,7 +92,21 @@ export function buildSubBotHome(
         "owner:channel:list:0",
       )
       .row()
+      .text(translate(language, "menu.language"), "owner:lang")
       .text(translate(language, "ownerBroadcast.broadcast"), "owner:bc:start"),
+  };
+}
+
+export function buildContactOwnerLanguageMenu(
+  language: SupportedLanguage,
+): DashboardView {
+  return {
+    text: translate(language, "language.select"),
+    keyboard: new InlineKeyboard()
+      .text(translate(language, "language.arabic"), "owner:lang:AR")
+      .text(translate(language, "language.english"), "owner:lang:EN")
+      .row()
+      .text(translate(language, "menu.back"), CONTACT_OWNER_HOME),
   };
 }
 

@@ -6,6 +6,7 @@ import {
   type Bot as DatabaseBot,
 } from "@prisma/client";
 import {
+  buildContactOwnerLanguageMenu,
   buildContactVisitorWelcome,
   buildDisabledContactView,
   buildSubBotHome,
@@ -37,6 +38,20 @@ test("contact owner home contains welcome and channel controls", () => {
   assert.ok(callbacks.includes("owner:welcome:reset"));
   assert.ok(callbacks.includes("owner:channel:add"));
   assert.ok(callbacks.includes("owner:channel:list:0"));
+  assert.ok(callbacks.includes("owner:lang"));
+});
+
+test("contact owner language menu matches platform pattern", () => {
+  const view = buildContactOwnerLanguageMenu(SupportedLanguage.EN);
+  const callbacks = view.keyboard.inline_keyboard
+    .flat()
+    .flatMap((button) =>
+      "callback_data" in button ? [button.callback_data] : [],
+    );
+  assert.match(view.text, /interface language/i);
+  assert.ok(callbacks.includes("owner:lang:AR"));
+  assert.ok(callbacks.includes("owner:lang:EN"));
+  assert.ok(callbacks.includes("owner:home"));
 });
 
 test("welcome language menu is generated from the registry", () => {
