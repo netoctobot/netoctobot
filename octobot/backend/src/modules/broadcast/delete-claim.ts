@@ -40,6 +40,24 @@ export async function releaseClaimToPending(
   });
 }
 
+/** After crash/restart, orphaned IN_PROGRESS rows become enqueueable again. */
+export async function recoverExpiredDeleteClaims(
+  prisma: PrismaClient,
+  now = new Date(),
+): Promise<number> {
+  const result = await prisma.broadcastDeliveryMessage.updateMany({
+    where: {
+      deleteStatus: "IN_PROGRESS",
+      deleteLeaseExpiresAt: { lt: now },
+    },
+    data: {
+      deleteStatus: "PENDING",
+      deleteLeaseExpiresAt: null,
+    },
+  });
+  return result.count;
+}
+
 export async function markMessageDeletePending(
   prisma: PrismaClient,
   messageRowId: string,

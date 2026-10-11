@@ -24,6 +24,24 @@ test("summarizeMessageDeletes counts terminal and in-flight states", () => {
   assert.equal(summary.active, true);
 });
 
+test("findMessagesNeedingDeleteQueue filters deleteRequested SENT campaigns", async () => {
+  let where: unknown;
+  const prisma = {
+    broadcastDeliveryMessage: {
+      findMany: async (args: { where: unknown }) => {
+        where = args.where;
+        return [];
+      },
+      updateMany: async () => ({ count: 0 }),
+    },
+  } as unknown as PrismaClient;
+
+  await findMessagesNeedingDeleteQueue(prisma);
+  const campaignFilter = (where as { delivery: { campaign: { deleteRequested: boolean } } })
+    .delivery.campaign.deleteRequested;
+  assert.equal(campaignFilter, true);
+});
+
 test("findMessagesNeedingDeleteQueue promotes NONE rows for sent deliveries", async () => {
   const pendingIds: string[] = [];
   const prisma = {

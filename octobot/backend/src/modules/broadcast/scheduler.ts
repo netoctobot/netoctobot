@@ -7,6 +7,7 @@ import { decryptToken } from "../../lib/token-crypto.js";
 import type { LinkButtonMatrix } from "./content.js";
 import { classifySendError, nextDelivery } from "./plan.js";
 import { executeBroadcastMessageDelete } from "./delete-delivery.js";
+import { recoverExpiredDeleteClaims } from "./delete-claim.js";
 import {
   findMessagesNeedingDeleteQueue,
   findPendingDeleteMessageIds,
@@ -95,6 +96,7 @@ export class BroadcastScheduler {
   }
 
   async reconcileDeleteWork(): Promise<void> {
+    await recoverExpiredDeleteClaims(this.prisma);
     await findMessagesNeedingDeleteQueue(this.prisma);
     const pending = await findPendingDeleteMessageIds(this.prisma);
     for (const messageRowId of pending) {
