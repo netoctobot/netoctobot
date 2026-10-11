@@ -111,7 +111,7 @@ export default function BroadcastPage() {
     };
   }
 
-  async function uploadMedia(file: File) {
+  async function uploadMedia(file: File, kind: BroadcastContentKind) {
     setError(null);
     setUploading(true);
     setMediaUploadId(null);
@@ -119,12 +119,12 @@ export default function BroadcastPage() {
     setPreview(null);
     try {
       const form = new FormData();
+      form.append("contentKind", kind);
       form.append("file", file);
-      form.append("contentKind", contentKind);
       const result = await apiForm<{
         mediaUploadId: string;
         originalName: string;
-      }>("/broadcasts/media", form);
+      }>(`/broadcasts/media?contentKind=${encodeURIComponent(kind)}`, form);
       setMediaUploadId(result.mediaUploadId);
       setMediaName(result.originalName);
     } catch (caught) {
@@ -266,7 +266,7 @@ export default function BroadcastPage() {
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) {
-                    void uploadMedia(file);
+                    void uploadMedia(file, contentKind);
                   }
                 }}
               />

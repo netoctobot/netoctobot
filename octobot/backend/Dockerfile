@@ -15,6 +15,7 @@ RUN pnpm install --frozen-lockfile --filter backend... --ignore-scripts
 COPY backend backend
 WORKDIR /app/backend
 RUN pnpm exec prisma generate && pnpm exec tsc
+RUN mkdir -p /var/lib/octobot/broadcast-media && chmod 755 /var/lib/octobot/broadcast-media
 
 EXPOSE 3000
 CMD ["node", "--env-file-if-exists=.env", "dist/index.js"]

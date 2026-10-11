@@ -6,6 +6,7 @@ import {
   detectContentKindFromBuffer,
   kindMatchesDetection,
 } from "./content.js";
+import { parseBroadcastMediaUpload } from "./broadcast-media-upload.js";
 import {
   absolutePathForKey,
   deleteMediaFile,
@@ -33,51 +34,17 @@ export function registerBroadcastMediaRoutes(
     if (!admin) {
       return;
     }
-    const file = await request.file();
-    if (!file) {
-      return reply.code(400).send({ error: "invalid_broadcast_media" });
+    const parsed = await parseBroadcastMediaUpload(request);
+    if (!parsed.ok) {
+      return reply.code(400).send({ error: parsed.code });
     }
-    const kindField = file.fields.contentKind;
-    const kindValue =
-      kindField && typeof kindField === "object" && "value" in kindField
-        ? String(kindField.value)
-        : "";
-    if (
-      kindValue !== "PHOTO" &&
-      kindValue !== "VIDEO" &&
-      kindValue !== "AUDIO" &&
-      kindValue !== "VOICE" &&
-      kindValue !== "DOCUMENT" &&
-      kindValue !== "ANIMATION"
-    ) {
-      return reply.code(400).send({ error: "invalid_broadcast_media" });
+    const maxBytes = uploadByteLimit(parsed.declaredKind);
+    if (parsed.buffer.length > maxBytes) {
+      return reply.code(400).send({ error: "media_too_large" });
     }
-    const declaredKind = kindValue as
-      | "PHOTO"
-      | "VIDEO"
-      | "AUDIO"
-      | "VOICE"
-      | "DOCUMENT"
-      | "ANIMATION";
-    const maxBytes = uploadByteLimit(declaredKind);
-    const buffers: Buffer[] = [];
-    let total = 0;
-    try {
-      for await (const chunk of file.file) {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        total += buf.length;
-        if (total > maxBytes) {
-          return reply.code(400).send({ error: "media_too_large" });
-        }
-        buffers.push(buf);
-      }
-    } catch {
-      return reply.code(400).send({ error: "invalid_broadcast_media" });
-    }
-    const body = Buffer.concat(buffers);
-    const headBuffer = body.subarray(0, Math.min(512, body.length));
+    const headBuffer = parsed.buffer.subarray(0, Math.min(512, parsed.buffer.length));
     const detectedKind = detectContentKindFromBuffer(headBuffer);
-    if (!detectedKind || !kindMatchesDetection(declaredKind, detectedKind)) {
+    if (!detectedKind || !kindMatchesDetection(parsed.declaredKind, detectedKind)) {
       return reply.code(400).send({ error: "media_type_mismatch" });
     }
     const storageKey = generateStorageKey();
@@ -85,31 +52,31 @@ export function registerBroadcastMediaRoutes(
     const finalPath = absolutePathForKey(input.mediaRoot, storageKey);
     try {
       await ensureMediaRoot(input.mediaRoot);
-      await writeFile(tempPath, body);
+      await writeFile(tempPath, parsed.buffer);
       const { rename } = await import("node:fs/promises");
       await rename(tempPath, finalPath);
     } catch {
       await deleteMediaFile(input.mediaRoot, storageKey).catch(() => undefined);
-      return reply.code(400).send({ error: "invalid_broadcast_media" });
+      return reply.code(400).send({ error: "broadcast_media_storage_failed" });
     }
     const expiresAt = new Date(Date.now() + PRODUCT_LIMITS.orphanUploadTtlHours * 60 * 60 * 1000);
     const sha256 = await hashStorageKey(input.mediaRoot, storageKey);
     const row = await input.prisma.broadcastMediaAsset.create({
       data: {
         uploadedByAdmin: admin.username,
-        originalName: file.filename.slice(0, 255),
+        originalName: parsed.filename.slice(0, 255),
         storageKey,
-        mimeTypeReported: file.mimetype,
+        mimeTypeReported: parsed.mimetype,
         detectedMime: null,
         contentKind: detectedKind,
-        sizeBytes: BigInt(body.length),
+        sizeBytes: BigInt(parsed.buffer.length),
         expiresAt,
       },
     });
     return {
       mediaUploadId: row.id,
       contentKind: row.contentKind,
-      sizeBytes: body.length,
+      sizeBytes: parsed.buffer.length,
       originalName: row.originalName,
       sha256,
     };
