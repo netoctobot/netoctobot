@@ -222,6 +222,133 @@ test("recreates a dashboard when Telegram says the hidden old message is unchang
   );
 });
 
+test("showRuntimeDashboard does not delete the panel when callback is on the same message", async () => {
+  const redisValues = new Map<string, string>([
+    [
+      "bot:dashboard:bot-id:123",
+      JSON.stringify({ chatId: 123, messageId: 40 }),
+    ],
+  ]);
+  const redis = {
+    get: async (key: string) => redisValues.get(key) ?? null,
+    set: async (key: string, value: string) => {
+      redisValues.set(key, value);
+      return "OK";
+    },
+    del: async (key: string) => {
+      redisValues.delete(key);
+      return 1;
+    },
+  } as unknown as Redis;
+  const manager = new BotRuntimeManager(
+    { WEBHOOK_REGISTRATION_ENABLED: true } as Env,
+    {} as PrismaClient,
+    redis,
+  );
+  let callbackDeletes = 0;
+  let editedDashboardId: number | null = null;
+  const context = {
+    from: { id: 123, is_bot: false, first_name: "Owner" },
+    chat: { id: 123, type: "private" },
+    callbackQuery: {
+      message: {
+        message_id: 40,
+        chat: { id: 123, type: "private" },
+      },
+    },
+    api: {
+      editMessageText: async (_chatId: number, messageId: number) => {
+        editedDashboardId = messageId;
+        return true;
+      },
+    },
+    deleteMessage: async () => {
+      callbackDeletes += 1;
+      return true;
+    },
+  } as unknown as Context;
+  const runtime = {
+    bot: {} as TelegramBot,
+    botRecord: { id: "bot-id" } as Bot,
+  };
+  const dashboardManager = manager as unknown as {
+    showRuntimeDashboard(
+      context: Context,
+      runtime: typeof runtime,
+      view: { text: string; keyboard: InlineKeyboard },
+    ): Promise<void>;
+  };
+
+  await dashboardManager.showRuntimeDashboard(context, runtime, {
+    text: "Broadcast audience",
+    keyboard: new InlineKeyboard(),
+  });
+
+  assert.equal(editedDashboardId, 40);
+  assert.equal(callbackDeletes, 0);
+});
+
+test("showRuntimeDashboard still deletes a side callback after editing the panel", async () => {
+  const redisValues = new Map<string, string>([
+    [
+      "bot:dashboard:bot-id:123",
+      JSON.stringify({ chatId: 123, messageId: 40 }),
+    ],
+  ]);
+  const redis = {
+    get: async (key: string) => redisValues.get(key) ?? null,
+    set: async (key: string, value: string) => {
+      redisValues.set(key, value);
+      return "OK";
+    },
+    del: async (key: string) => {
+      redisValues.delete(key);
+      return 1;
+    },
+  } as unknown as Redis;
+  const manager = new BotRuntimeManager(
+    { WEBHOOK_REGISTRATION_ENABLED: true } as Env,
+    {} as PrismaClient,
+    redis,
+  );
+  let callbackDeletes = 0;
+  const context = {
+    from: { id: 123, is_bot: false, first_name: "Owner" },
+    chat: { id: 123, type: "private" },
+    callbackQuery: {
+      message: {
+        message_id: 99,
+        chat: { id: 123, type: "private" },
+      },
+    },
+    api: {
+      editMessageText: async () => true,
+    },
+    deleteMessage: async () => {
+      callbackDeletes += 1;
+      return true;
+    },
+  } as unknown as Context;
+  const runtime = {
+    bot: {} as TelegramBot,
+    botRecord: { id: "bot-id" } as Bot,
+  };
+  const dashboardManager = manager as unknown as {
+    showRuntimeDashboard(
+      context: Context,
+      runtime: typeof runtime,
+      view: { text: string; keyboard: InlineKeyboard },
+    ): Promise<void>;
+  };
+
+  await dashboardManager.showRuntimeDashboard(context, runtime, {
+    text: "Updated panel",
+    keyboard: new InlineKeyboard(),
+  });
+
+  assert.equal(callbackDeletes, 1);
+});
+
 test("a side-message callback does not replace the navigation panel", async () => {
   const redisValues = new Map<string, string>([
     [
