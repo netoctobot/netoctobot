@@ -64,7 +64,13 @@ export class BroadcastScheduler {
             linkButtons: true,
             stopRequested: true,
             mediaAsset: {
-              select: { id: true, storageKey: true, contentKind: true, fileDeletedAt: true },
+              select: {
+                id: true,
+                storageKey: true,
+                contentKind: true,
+                fileDeletedAt: true,
+                originalName: true,
+              },
             },
           },
         },
@@ -142,6 +148,7 @@ export class BroadcastScheduler {
               id: mediaAsset.id,
               storageKey: mediaAsset.storageKey,
               contentKind: mediaAsset.contentKind,
+              originalName: mediaAsset.originalName,
             }
           : null,
       },

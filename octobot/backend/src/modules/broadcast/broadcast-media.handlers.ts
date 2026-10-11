@@ -15,6 +15,7 @@ import {
   hashStorageKey,
   inlineContentType,
   openMediaReadStream,
+  sanitizeBroadcastFilename,
   uploadByteLimit,
 } from "./media-storage.js";
 
@@ -64,7 +65,7 @@ export function registerBroadcastMediaRoutes(
     const row = await input.prisma.broadcastMediaAsset.create({
       data: {
         uploadedByAdmin: admin.username,
-        originalName: parsed.filename.slice(0, 255),
+        originalName: sanitizeBroadcastFilename(parsed.filename),
         storageKey,
         mimeTypeReported: parsed.mimetype,
         detectedMime: null,

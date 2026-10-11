@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { InlineKeyboard, InputFile, type Api } from "grammy";
 import type { PrismaClient, BroadcastContentKind } from "@prisma/client";
 import type { LinkButtonMatrix } from "./content.js";
-import { absolutePathForKey } from "./media-storage.js";
+import { absolutePathForKey, sanitizeBroadcastFilename } from "./media-storage.js";
 
 export interface SendCampaignContent {
   contentKind: BroadcastContentKind;
@@ -13,6 +13,7 @@ export interface SendCampaignContent {
     id: string;
     storageKey: string;
     contentKind: BroadcastContentKind;
+    originalName: string;
   } | null;
 }
 
@@ -38,12 +39,17 @@ function buildKeyboard(linkButtons: LinkButtonMatrix | null): InlineKeyboard | u
   return keyboard;
 }
 
+export function buildBroadcastInputFile(filePath: string, originalName: string): InputFile {
+  return new InputFile(createReadStream(filePath), sanitizeBroadcastFilename(originalName));
+}
+
 async function sendWithApi(
   api: Api,
   chatId: number,
   content: SendCampaignContent,
   filePath: string | null,
   fileId: string | null,
+  uploadFilename: string | null,
 ): Promise<{ message_id: number }> {
   const markup = buildKeyboard(content.linkButtons);
   const extra = markup ? { reply_markup: markup } : {};
@@ -70,10 +76,10 @@ async function sendWithApi(
     }
   }
 
-  if (!filePath) {
+  if (!filePath || !uploadFilename) {
     throw new Error("missing_media");
   }
-  const input = new InputFile(createReadStream(filePath));
+  const input = buildBroadcastInputFile(filePath, uploadFilename);
   switch (content.contentKind) {
     case "PHOTO":
       return api.sendPhoto(chatId, input, { caption, ...extra });
@@ -179,7 +185,15 @@ export async function executeBroadcastSend(input: {
 
   let sent: { message_id: number; photo?: Array<{ file_id: string; file_unique_id: string }>; video?: { file_id: string; file_unique_id: string }; document?: { file_id: string; file_unique_id: string }; audio?: { file_id: string; file_unique_id: string }; voice?: { file_id: string; file_unique_id: string }; animation?: { file_id: string; file_unique_id: string } };
   try {
-    sent = await sendWithApi(input.api, input.chatId, input.content, filePath, cachedFileId);
+    const uploadFilename = input.content.mediaAsset?.originalName ?? null;
+    sent = await sendWithApi(
+      input.api,
+      input.chatId,
+      input.content,
+      filePath,
+      cachedFileId,
+      uploadFilename,
+    );
   } catch (error) {
     const reason = error instanceof Error ? error.message : "send_failed";
     return { status: "failed", reason, cause: error };
