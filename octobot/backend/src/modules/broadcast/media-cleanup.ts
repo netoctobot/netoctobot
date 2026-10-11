@@ -2,6 +2,27 @@ import type { PrismaClient } from "@prisma/client";
 import { PRODUCT_LIMITS } from "./content.js";
 import { deleteMediaFile } from "./media-storage.js";
 
+/** True when the asset must stay on disk (active campaign or in-flight / retry deliveries). */
+export async function mediaAssetHasActiveSendWork(
+  prisma: PrismaClient,
+  mediaAssetId: string,
+): Promise<boolean> {
+  const running = await prisma.broadcastCampaign.findFirst({
+    where: { mediaAssetId, status: "RUNNING" },
+    select: { id: true },
+  });
+  if (running) {
+    return true;
+  }
+  const pending = await prisma.broadcastDelivery.count({
+    where: {
+      campaign: { mediaAssetId },
+      status: "PENDING",
+    },
+  });
+  return pending > 0;
+}
+
 export async function cleanupOrphanUploads(
   prisma: PrismaClient,
   mediaRoot: string,
@@ -56,10 +77,7 @@ export async function cleanupFinishedCampaignMedia(
     if (!asset || asset.fileDeletedAt) {
       continue;
     }
-    const pending = await prisma.broadcastDelivery.count({
-      where: { campaignId: campaign.id, status: "PENDING" },
-    });
-    if (pending > 0) {
+    if (await mediaAssetHasActiveSendWork(prisma, asset.id)) {
       continue;
     }
     const otherCampaign = await prisma.broadcastCampaign.findFirst({

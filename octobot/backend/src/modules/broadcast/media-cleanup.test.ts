@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import type { PrismaClient } from "@prisma/client";
-import { cleanupFinishedCampaignMedia, cleanupOrphanUploads } from "./media-cleanup.js";
+import {
+  cleanupFinishedCampaignMedia,
+  cleanupOrphanUploads,
+  mediaAssetHasActiveSendWork,
+} from "./media-cleanup.js";
 import { absolutePathForKey } from "./media-storage.js";
 
 test("cleanupOrphanUploads removes only unlinked expired uploads", async () => {
@@ -28,6 +32,38 @@ test("cleanupOrphanUploads removes only unlinked expired uploads", async () => {
   assert.equal(deleted, true);
 });
 
+test("mediaAssetHasActiveSendWork is true for RUNNING campaigns or pending deliveries", async () => {
+  const prisma = {
+    broadcastCampaign: {
+      findFirst: async () => ({ id: "camp-running" }),
+    },
+    broadcastDelivery: {
+      count: async () => 0,
+    },
+  } as unknown as PrismaClient;
+  assert.equal(await mediaAssetHasActiveSendWork(prisma, "asset-1"), true);
+
+  const idle = {
+    broadcastCampaign: {
+      findFirst: async () => null,
+    },
+    broadcastDelivery: {
+      count: async () => 2,
+    },
+  } as unknown as PrismaClient;
+  assert.equal(await mediaAssetHasActiveSendWork(idle, "asset-1"), true);
+
+  const done = {
+    broadcastCampaign: {
+      findFirst: async () => null,
+    },
+    broadcastDelivery: {
+      count: async () => 0,
+    },
+  } as unknown as PrismaClient;
+  assert.equal(await mediaAssetHasActiveSendWork(done, "asset-1"), false);
+});
+
 test("cleanupFinishedCampaignMedia skips campaigns with pending deliveries", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "broadcast-campaign-"));
   const storageKey = "b".repeat(32);
@@ -40,7 +76,8 @@ test("cleanupFinishedCampaignMedia skips campaigns with pending deliveries", asy
           mediaAsset: { id: "asset-1", storageKey, fileDeletedAt: null },
         },
       ],
-      findFirst: async () => null,
+      findFirst: async (args: { where?: { status?: string } }) =>
+        args.where?.status === "RUNNING" ? null : null,
     },
     broadcastDelivery: {
       count: async () => 1,

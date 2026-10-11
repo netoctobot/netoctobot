@@ -36,7 +36,7 @@ bash setup/setup6.sh
 
 `WEBHOOK_REGISTRATION_ENABLED=false` هو الافتراضي، ويستخدم الاستطلاع ويحتاج خروجًا إلى `api.telegram.org`. تفعيل الويب هوك يحتاج `true` و`PUBLIC_BASE_URL` على HTTPS ومنفذًا عامًا.
 
-الإيقاف الآمن هو `docker compose --env-file backend/.env stop`. لا تستخدم `docker compose down -v`. ترقية PostgreSQL إلى إصدار رئيسي آخر خطة منفصلة تحفظ البيانات، وليست جزءًا من هذه السكربتات.
+الإيقاف الآمن هو `docker compose --env-file backend/.env stop`. لا تستخدم `docker compose down -v` (يحذف `postgres_data` و`redis_data` و`broadcast_media`). ترقية PostgreSQL إلى إصدار رئيسي آخر خطة منفصلة تحفظ البيانات، وليست جزءًا من هذه السكربتات. `setup/update.sh` يتحقق من أحجام البيانات الثلاثة وينشئ `broadcast_media` عند الترقية إن لم يكن موجودًا.
 
 ## التحديث بعد دفع التعديلات
 
