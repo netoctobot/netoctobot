@@ -300,6 +300,17 @@ export interface BroadcastPreview {
   excluded: BroadcastPreviewExcluded[];
 }
 
+export interface BroadcastDeleteSummary {
+  deleted: number;
+  gone: number;
+  unavailable: number;
+  pending: number;
+  inProgress: number;
+  none: number;
+  unavailableReasons: Record<string, number>;
+  active: boolean;
+}
+
 export interface BroadcastCampaign {
   id: string;
   text: string;
@@ -309,10 +320,12 @@ export interface BroadcastCampaign {
   targetMode: string;
   createdAt: string;
   stopRequested: boolean;
+  deleteRequested: boolean;
   counts: Record<string, number>;
 }
 
 export interface BroadcastDetail extends BroadcastCampaign {
+  deleteSummary: BroadcastDeleteSummary;
   caption: string | null;
   linkButtons: BroadcastLinkButton[][] | null;
   content: BroadcastContentPreview;
@@ -332,5 +345,7 @@ export interface BroadcastDetail extends BroadcastCampaign {
     title: string | null;
     username: string | null;
     displayName: string | null;
+    messageDeleteStatus: string | null;
+    messageDeleteReason: string | null;
   }>;
 }

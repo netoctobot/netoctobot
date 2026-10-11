@@ -12,6 +12,7 @@ import {
 import type { BroadcastContentKind } from "@prisma/client";
 import { parseBroadcastContent, type LinkButtonMatrix } from "./content.js";
 import type { createBotTokenValidator } from "./probe.js";
+import { summarizeMessageDeletes, type BroadcastDeleteSummary } from "./delete-summary.js";
 
 export type AudienceType = "CHANNELS" | "BOT_USERS" | "BOT_OWNERS";
 
@@ -564,6 +565,7 @@ export async function listBroadcasts(prisma: PrismaClient) {
       targetMode: true,
       createdAt: true,
       stopRequested: true,
+      deleteRequested: true,
       deliveries: { select: { status: true } },
     },
   });
@@ -577,6 +579,7 @@ export async function listBroadcasts(prisma: PrismaClient) {
       targetMode: row.targetMode,
       createdAt: row.createdAt.toISOString(),
       stopRequested: row.stopRequested,
+      deleteRequested: row.deleteRequested,
       counts: countStatuses(row.deliveries),
     })),
   };
@@ -601,6 +604,7 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
       includeBotOwners: true,
       createdByAdmin: true,
       stopRequested: true,
+      deleteRequested: true,
       createdAt: true,
       deliveries: {
         select: {
@@ -615,6 +619,15 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
             select: { username: true, firstName: true, lastName: true },
           },
           bot: { select: { botUsername: true } },
+          messages: {
+            orderBy: { sortOrder: "asc" },
+            select: {
+              deleteStatus: true,
+              deleteReason: true,
+              deletedAt: true,
+              deleteSettledAt: true,
+            },
+          },
         },
       },
     },
@@ -622,6 +635,11 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
   if (!row) {
     return null;
   }
+  const messageRows = row.deliveries.flatMap((delivery) => delivery.messages);
+  const deleteSummary: BroadcastDeleteSummary = summarizeMessageDeletes(
+    messageRows,
+    row.deleteRequested,
+  );
   const content = buildContentPreview(
     {
       text: row.text,
@@ -653,23 +671,56 @@ export async function readBroadcast(prisma: PrismaClient, id: string) {
     includeBotOwners: row.includeBotOwners,
     createdByAdmin: row.createdByAdmin,
     stopRequested: row.stopRequested,
+    deleteRequested: row.deleteRequested,
+    deleteSummary,
     createdAt: row.createdAt.toISOString(),
     counts: countStatuses(row.deliveries),
-    deliveries: row.deliveries.map((delivery) => ({
-      id: delivery.id,
-      status: delivery.status,
-      reason: delivery.reason,
-      messageId: delivery.telegramMessageId?.toString() ?? null,
-      chatId: delivery.recipientTelegramChatId?.toString() ?? null,
-      senderBotUsername: delivery.bot?.botUsername ?? null,
-      title: delivery.channel?.title ?? null,
-      username: delivery.channel?.username ?? delivery.user?.username ?? null,
-      displayName:
-        delivery.user?.firstName || delivery.user?.lastName
-          ? [delivery.user.firstName, delivery.user.lastName].filter(Boolean).join(" ")
-          : delivery.user?.username ?? null,
-      kind: delivery.channel ? "channel" : "user",
-    })),
+    deliveries: row.deliveries.map((delivery) => {
+      const message = delivery.messages[0];
+      return {
+        id: delivery.id,
+        status: delivery.status,
+        reason: delivery.reason,
+        messageId: delivery.telegramMessageId?.toString() ?? null,
+        chatId: delivery.recipientTelegramChatId?.toString() ?? null,
+        senderBotUsername: delivery.bot?.botUsername ?? null,
+        title: delivery.channel?.title ?? null,
+        username: delivery.channel?.username ?? delivery.user?.username ?? null,
+        displayName:
+          delivery.user?.firstName || delivery.user?.lastName
+            ? [delivery.user.firstName, delivery.user.lastName].filter(Boolean).join(" ")
+            : delivery.user?.username ?? null,
+        kind: delivery.channel ? "channel" : "user",
+        messageDeleteStatus: message?.deleteStatus ?? null,
+        messageDeleteReason: message?.deleteReason ?? null,
+      };
+    }),
+  };
+}
+
+export async function requestCampaignTelegramDelete(
+  prisma: PrismaClient,
+  id: string,
+): Promise<{ id: string; deleteRequested: true; stopRequested: boolean } | null> {
+  const row = await prisma.broadcastCampaign.findUnique({
+    where: { id },
+    select: { id: true, status: true, stopRequested: true },
+  });
+  if (!row) {
+    return null;
+  }
+  const shouldStop = row.status === "RUNNING";
+  await prisma.broadcastCampaign.update({
+    where: { id },
+    data: {
+      deleteRequested: true,
+      ...(shouldStop ? { stopRequested: true } : {}),
+    },
+  });
+  return {
+    id,
+    deleteRequested: true,
+    stopRequested: shouldStop || row.stopRequested,
   };
 }
 

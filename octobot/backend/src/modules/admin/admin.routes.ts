@@ -29,6 +29,7 @@ import {
   parseBroadcastRequest,
   previewBroadcast,
   readBroadcast,
+  requestCampaignTelegramDelete,
   stopBroadcast,
 } from "../broadcast/service.js";
 import { registerBroadcastMediaRoutes } from "../broadcast/broadcast-media.handlers.js";
@@ -533,6 +534,24 @@ export async function registerAdminRoutes(
         return reply.code(404).send({ error: "not_found" });
       }
       return { id, stopRequested: true };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/admin/broadcasts/:id/delete-sent",
+    async (request, reply) => {
+      if (!(await requireAdmin(request, reply))) {
+        return;
+      }
+      const id = routeId(request.params.id);
+      const result = id ? await requestCampaignTelegramDelete(prisma, id) : null;
+      if (!result) {
+        return reply.code(404).send({ error: "not_found" });
+      }
+      if (options.broadcast) {
+        await options.broadcast.reconcileDeleteWork();
+      }
+      return result;
     },
   );
 

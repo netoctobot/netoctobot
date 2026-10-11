@@ -65,6 +65,7 @@ export default function BroadcastPage() {
   const [preview, setPreview] = useState<BroadcastPreview | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const detail = useResource<BroadcastDetail>(openId ? `/broadcasts/${openId}` : null);
@@ -72,8 +73,17 @@ export default function BroadcastPage() {
   const reloadDetail = detail.reload;
   const reloadCampaigns = campaigns.reload;
   const detailStatus = detail.data?.status;
+  const deleteSummary = detail.data?.deleteSummary;
+  const deletePolling =
+    detailStatus === "RUNNING" ||
+    Boolean(
+      deleteSummary &&
+        (deleteSummary.pending > 0 ||
+          deleteSummary.inProgress > 0 ||
+          (detail.data?.deleteRequested && deleteSummary.none > 0)),
+    );
   useEffect(() => {
-    if (detailStatus !== "RUNNING") {
+    if (!deletePolling) {
       return;
     }
     const timer = window.setInterval(() => {
@@ -81,7 +91,7 @@ export default function BroadcastPage() {
       void reloadCampaigns();
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [detailStatus, reloadDetail, reloadCampaigns]);
+  }, [deletePolling, reloadDetail, reloadCampaigns]);
 
   function botLabel(id: string) {
     const match = bots.data?.items.find((bot) => bot.id === id);
@@ -183,6 +193,28 @@ export default function BroadcastPage() {
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.code : "generic");
     }
+  }
+
+  async function deleteSent() {
+    if (!openId) {
+      return;
+    }
+    setDeleting(false);
+    setError(null);
+    try {
+      await api(`/broadcasts/${openId}/delete-sent`, { method: "POST" });
+      await detail.reload();
+      await campaigns.reload();
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.code : "generic");
+    }
+  }
+
+  function canRequestTelegramDelete(data: BroadcastDetail) {
+    if (data.deleteRequested) {
+      return false;
+    }
+    return data.status === "RUNNING" || data.status === "STOPPED" || data.status === "COMPLETED";
   }
 
   async function stop() {
@@ -579,14 +611,48 @@ export default function BroadcastPage() {
               <StatusBadge tone={deliveryTone(detail.data.status)}>
                 <StatusText group="broadcast" code={detail.data.status} />
               </StatusBadge>
-              {detail.data.status === "RUNNING" ? (
-                <button
-                  type="button"
-                  className="w-fit rounded-lg border border-line px-3 py-1.5 text-sm"
-                  onClick={() => setStopping(true)}
-                >
-                  {t("stop")}
-                </button>
+              <div className="flex flex-wrap gap-2">
+                {detail.data.status === "RUNNING" ? (
+                  <button
+                    type="button"
+                    className="w-fit rounded-lg border border-line px-3 py-1.5 text-sm"
+                    onClick={() => setStopping(true)}
+                  >
+                    {t("stop")}
+                  </button>
+                ) : null}
+                {canRequestTelegramDelete(detail.data) ? (
+                  <button
+                    type="button"
+                    className="w-fit rounded-lg border border-line px-3 py-1.5 text-sm"
+                    onClick={() => setDeleting(true)}
+                  >
+                    {t("deleteSent")}
+                  </button>
+                ) : null}
+              </div>
+              {detail.data.deleteRequested && detail.data.deleteSummary ? (
+                <div className="text-sm">
+                  <p className="font-medium">{t("deleteSummary")}</p>
+                  <p dir="ltr" className="[unicode-bidi:isolate] text-muted">
+                    {t("deleteDeleted")}: {detail.data.deleteSummary.deleted} · {t("deleteGone")}:{" "}
+                    {detail.data.deleteSummary.gone} · {t("deleteUnavailable")}:{" "}
+                    {detail.data.deleteSummary.unavailable} · {t("deletePending")}:{" "}
+                    {detail.data.deleteSummary.pending} · {t("deleteInProgress")}:{" "}
+                    {detail.data.deleteSummary.inProgress}
+                  </p>
+                  {Object.keys(detail.data.deleteSummary.unavailableReasons).length > 0 ? (
+                    <ul className="mt-1 list-disc ps-5 text-muted">
+                      {Object.entries(detail.data.deleteSummary.unavailableReasons).map(
+                        ([reason, count]) => (
+                          <li key={reason}>
+                            <StatusText group="broadcastReason" code={reason} />: {count}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  ) : null}
+                </div>
               ) : null}
               <RecordList
                 rows={detail.data.deliveries}
@@ -630,6 +696,17 @@ export default function BroadcastPage() {
                     header: t("chatId"),
                     render: (row) => <UserContent value={row.chatId} />,
                   },
+                  {
+                    header: t("deleteMessageStatus"),
+                    render: (row) =>
+                      row.messageDeleteStatus ? (
+                        <StatusBadge tone={deliveryTone(row.messageDeleteStatus)}>
+                          <StatusText group="messageDelete" code={row.messageDeleteStatus} />
+                        </StatusBadge>
+                      ) : (
+                        <UserContent value={null} />
+                      ),
+                  },
                 ]}
               />
             </div>
@@ -651,6 +728,25 @@ export default function BroadcastPage() {
             type="button"
             className="rounded-lg border border-line px-3 py-1.5 text-sm"
             onClick={() => setConfirming(false)}
+          >
+            {common("cancel")}
+          </button>
+        </div>
+      </Dialog>
+      <Dialog open={deleting} title={t("deleteSent")} onClose={() => setDeleting(false)}>
+        <p className="text-sm">{t("confirmDeleteSent")}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-lg bg-action px-3 py-1.5 text-sm text-white"
+            onClick={() => void deleteSent()}
+          >
+            {common("confirm")}
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-line px-3 py-1.5 text-sm"
+            onClick={() => setDeleting(false)}
           >
             {common("cancel")}
           </button>

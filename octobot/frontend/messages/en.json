@@ -284,6 +284,14 @@
       "FAILED": "Failed",
       "STOPPED": "Stopped"
     },
+    "messageDelete": {
+      "NONE": "Not queued",
+      "PENDING": "Delete queued",
+      "IN_PROGRESS": "Deleting",
+      "DELETED": "Deleted",
+      "GONE": "Already gone",
+      "UNAVAILABLE": "Could not delete"
+    },
     "broadcastReason": {
       "invalid_token": "Token cannot be decrypted",
       "not_admin": "Bot is not an administrator",
@@ -297,7 +305,13 @@
       "owner_excluded": "Bot owner excluded from user audience",
       "user_deleted": "User is soft-deleted",
       "user_blocked": "User blocked the bot or cannot be reached",
-      "invalid_target": "Delivery target is missing"
+      "invalid_target": "Delivery target is missing",
+      "message_not_found": "Message not found on Telegram",
+      "cannot_delete": "Telegram does not allow deleting this message",
+      "telegram_rejected": "Telegram rejected the delete",
+      "missing_sender_bot": "Sending bot is missing",
+      "max_attempts": "Too many delete attempts",
+      "unknown": "Unknown delete error"
     },
     "broadcastAudience": {
       "CHANNELS": "Channels",
@@ -368,6 +382,15 @@
     "progress": "Progress",
     "stop": "Stop remaining",
     "confirmStop": "Remaining sends stop. Messages already handed to Telegram stay as recorded.",
+    "deleteSent": "Delete sent messages from Telegram",
+    "confirmDeleteSent": "Stop any remaining sends and delete every message this campaign already sent. Telegram rules still apply per chat.",
+    "deleteSummary": "Telegram delete progress",
+    "deleteDeleted": "Deleted",
+    "deleteGone": "Already gone",
+    "deleteUnavailable": "Could not delete",
+    "deletePending": "Queued",
+    "deleteInProgress": "In progress",
+    "deleteMessageStatus": "Message delete",
     "open": "Open",
     "channel": "Channel",
     "messageId": "Message ID",

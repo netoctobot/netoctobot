@@ -284,6 +284,14 @@
       "FAILED": "فشل",
       "STOPPED": "توقف"
     },
+    "messageDelete": {
+      "NONE": "غير مجدول",
+      "PENDING": "حذف في الانتظار",
+      "IN_PROGRESS": "جاري الحذف",
+      "DELETED": "حُذف",
+      "GONE": "غير موجود",
+      "UNAVAILABLE": "تعذّر الحذف"
+    },
     "broadcastReason": {
       "invalid_token": "لا يمكن فك التوكن",
       "not_admin": "البوت ليس مشرفًا",
@@ -297,7 +305,13 @@
       "owner_excluded": "مالك البوت مستبعد من جمهور المستخدمين",
       "user_deleted": "المستخدم محذوف ظاهريًا",
       "user_blocked": "المستخدم حظر البوت أو تعذر الوصول",
-      "invalid_target": "هدف الإرسال غير موجود"
+      "invalid_target": "هدف الإرسال غير موجود",
+      "message_not_found": "الرسالة غير موجودة في تيليجرام",
+      "cannot_delete": "تيليجرام لا يسمح بحذف هذه الرسالة",
+      "telegram_rejected": "رفض تيليجرام طلب الحذف",
+      "missing_sender_bot": "البوت المرسل غير موجود",
+      "max_attempts": "تجاوز عدد محاولات الحذف",
+      "unknown": "خطأ حذف غير معروف"
     },
     "broadcastAudience": {
       "CHANNELS": "قنوات",
@@ -368,6 +382,15 @@
     "progress": "التقدم",
     "stop": "إيقاف المتبقي",
     "confirmStop": "يتوقف ما تبقى من الإرسال. الرسائل التي سُلّمت إلى تيليجرام تبقى كما سُجّلت.",
+    "deleteSent": "حذف الرسائل المُرسلة من تيليجرام",
+    "confirmDeleteSent": "إيقاف أي إرسال متبقي وحذف كل رسالة أُرسلتها الحملة. قواعد تيليجرام تطبّق على كل محادثة.",
+    "deleteSummary": "تقدّم حذف تيليجرام",
+    "deleteDeleted": "حُذفت",
+    "deleteGone": "غير موجودة",
+    "deleteUnavailable": "تعذّر الحذف",
+    "deletePending": "في الانتظار",
+    "deleteInProgress": "قيد التنفيذ",
+    "deleteMessageStatus": "حذف الرسالة",
     "open": "فتح",
     "channel": "القناة",
     "messageId": "معرّف الرسالة",

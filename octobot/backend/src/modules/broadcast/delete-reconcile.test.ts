@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { PrismaClient } from "@prisma/client";
+import { summarizeMessageDeletes } from "./delete-summary.js";
+import { findMessagesNeedingDeleteQueue } from "./delete-reconcile.js";
+
+test("summarizeMessageDeletes counts terminal and in-flight states", () => {
+  const summary = summarizeMessageDeletes(
+    [
+      { deleteStatus: "DELETED", deleteReason: null },
+      { deleteStatus: "GONE", deleteReason: "message_not_found" },
+      { deleteStatus: "UNAVAILABLE", deleteReason: "cannot_delete" },
+      { deleteStatus: "PENDING", deleteReason: null },
+      { deleteStatus: "NONE", deleteReason: null },
+    ],
+    true,
+  );
+  assert.equal(summary.deleted, 1);
+  assert.equal(summary.gone, 1);
+  assert.equal(summary.unavailable, 1);
+  assert.equal(summary.pending, 1);
+  assert.equal(summary.none, 1);
+  assert.equal(summary.unavailableReasons.cannot_delete, 1);
+  assert.equal(summary.active, true);
+});
+
+test("findMessagesNeedingDeleteQueue filters deleteRequested SENT campaigns", async () => {
+  let where: unknown;
+  const prisma = {
+    broadcastDeliveryMessage: {
+      findMany: async (args: { where: unknown }) => {
+        where = args.where;
+        return [];
+      },
+      updateMany: async () => ({ count: 0 }),
+    },
+  } as unknown as PrismaClient;
+
+  await findMessagesNeedingDeleteQueue(prisma);
+  const campaignFilter = (where as { delivery: { campaign: { deleteRequested: boolean } } })
+    .delivery.campaign.deleteRequested;
+  assert.equal(campaignFilter, true);
+});
+
+test("findMessagesNeedingDeleteQueue promotes NONE rows for sent deliveries", async () => {
+  const pendingIds: string[] = [];
+  const prisma = {
+    broadcastDeliveryMessage: {
+      findMany: async () => [{ id: "a", deleteStatus: "NONE" }],
+      updateMany: async () => {
+        pendingIds.push("a");
+        return { count: 1 };
+      },
+    },
+  } as unknown as PrismaClient;
+
+  const ids = await findMessagesNeedingDeleteQueue(prisma);
+  assert.deepEqual(ids, ["a"]);
+  assert.equal(pendingIds.length, 1);
+});
