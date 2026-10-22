@@ -53,6 +53,15 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Fixture only. It does not start with `docker compose up` and does not call Telegram.
+  cpm-lab:
+    profiles: ["cpm-lab"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["node", "dist/cpm-lab/main.js", "fixture"]
+    restart: "no"
+
   frontend:
     build:
       context: .
