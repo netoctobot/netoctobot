@@ -26,18 +26,54 @@ enum CpmLabRunStatus {
   STOPPED
 }
 
+enum CpmLabRunKind {
+  PREFLIGHT
+  TRIAL
+}
+
+/// STARTED is committed before the RPC is sent. A STARTED row left by a stopped
+/// worker becomes ABANDONED only after the next worker holds the advisory lock.
+/// A key that exists in any status is never sent again.
+enum CpmLabRequestStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+  ABANDONED
+}
+
+enum CpmLabRequestPurpose {
+  TRIAL_READ
+  PREFLIGHT_READ
+  RETRY
+  PEER_RESOLUTION
+}
+
+enum CpmLabResultKind {
+  MESSAGE
+  MESSAGE_EMPTY
+  VIEWS_ABSENT
+}
+
 /// CPM measurement lab. These tables are unused by fixed-price ads.
 model CpmLabRun {
-  id        String          @id @default(cuid())
-  label     String
-  status    CpmLabRunStatus @default(RUNNING)
-  startedAt DateTime        @default(now())
-  stoppedAt DateTime?
-  createdAt DateTime        @default(now())
+  id             String          @id @default(cuid())
+  label          String
+  status         CpmLabRunStatus @default(RUNNING)
+  kind           CpmLabRunKind   @default(TRIAL)
+  /// Settings recorded when the run started. No secrets.
+  settings       Json?
+  /// Library RPCs that did not come from the lab policy, counted at invoke.
+  libraryTraffic Json?
+  stopReason     String?
+  startedAt      DateTime        @default(now())
+  stoppedAt      DateTime?
+  createdAt      DateTime        @default(now())
 
-  requests CpmLabRpcRequest[]
-  readings CpmLabReading[]
-  alerts   CpmLabAlert[]
+  requests     CpmLabRpcRequest[]
+  readings     CpmLabReading[]
+  alerts       CpmLabAlert[]
+  floodEvents  CpmLabFloodEvent[]
+  manualEvents CpmLabManualEvent[]
 
   @@map("cpm_lab_runs")
 }
@@ -74,18 +110,29 @@ model CpmLabPost {
 /// A later database write must reject a different channelId, reader, or source inside the same transaction, before any insert or update.
 /// Readings are append-only. The first stored views are not updated when a replay reports different views.
 model CpmLabRpcRequest {
-  id             String                  @id @default(cuid())
-  runId          String
-  reader         CpmLabReaderKind
-  channelId      String
-  idempotencyKey String
-  source         CpmLabObservationSource
-  errorClass     String?
-  requestedAt    DateTime                @default(now())
+  id               String                  @id @default(cuid())
+  runId            String
+  reader           CpmLabReaderKind
+  channelId        String
+  idempotencyKey   String
+  source           CpmLabObservationSource
+  errorClass       String?
+  requestedAt      DateTime                @default(now())
+  purpose          CpmLabRequestPurpose    @default(TRIAL_READ)
+  status           CpmLabRequestStatus     @default(STARTED)
+  rpcMethod        String                  @default("")
+  slotIndex        Int?
+  finishedAt       DateTime?
+  durationMs       Int?
+  floodWaitSeconds Int?
+  retryOfId        String?
 
-  run      CpmLabRun       @relation(fields: [runId], references: [id])
-  channel  CpmLabChannel   @relation(fields: [channelId], references: [id])
-  readings CpmLabReading[]
+  run         CpmLabRun          @relation(fields: [runId], references: [id])
+  channel     CpmLabChannel      @relation(fields: [channelId], references: [id])
+  readings    CpmLabReading[]
+  retryOf     CpmLabRpcRequest?  @relation("CpmLabRetry", fields: [retryOfId], references: [id])
+  retries     CpmLabRpcRequest[] @relation("CpmLabRetry")
+  floodEvents CpmLabFloodEvent[]
 
   @@unique([runId, idempotencyKey])
   @@index([runId, reader])
@@ -101,6 +148,7 @@ model CpmLabReading {
   postId            String
   telegramMessageId BigInt
   views             Int?
+  resultKind        CpmLabResultKind        @default(MESSAGE)
   observedAt        DateTime
   source            CpmLabObservationSource
 
@@ -136,4 +184,47 @@ model CpmLabSession {
   createdAt  DateTime         @default(now())
 
   @@map("cpm_lab_sessions")
+}
+
+/// Survives restarts. A new run reads nextAllowedAt and stoppedAt before any request.
+model CpmLabReaderState {
+  reader        CpmLabReaderKind @id
+  nextAllowedAt DateTime?
+  stoppedAt     DateTime?
+  stopReason    String?
+  updatedAt     DateTime         @updatedAt
+
+  @@map("cpm_lab_reader_states")
+}
+
+/// Append-only. The stop rule counts rows for one reader in the last 24 hours.
+model CpmLabFloodEvent {
+  id            String           @id @default(cuid())
+  reader        CpmLabReaderKind
+  runId         String?
+  requestId     String?
+  seconds       Int
+  occurredAt    DateTime
+  nextAllowedAt DateTime
+
+  run     CpmLabRun?        @relation(fields: [runId], references: [id])
+  request CpmLabRpcRequest? @relation(fields: [requestId], references: [id])
+
+  @@index([reader, occurredAt])
+  @@map("cpm_lab_flood_events")
+}
+
+/// Optional event recorded by the operator, such as opening the post from another account.
+model CpmLabManualEvent {
+  id         String   @id @default(cuid())
+  runId      String
+  kind       String
+  occurredAt DateTime
+  note       String?
+  createdAt  DateTime @default(now())
+
+  run CpmLabRun @relation(fields: [runId], references: [id])
+
+  @@index([runId, occurredAt])
+  @@map("cpm_lab_manual_events")
 }
