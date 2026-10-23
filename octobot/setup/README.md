@@ -20,7 +20,7 @@ bash setup/setup6.sh
 - `setup1.sh`: التوزيعة ديبيان أو أوبونتو، والأدوات `bash` و`git` و`curl` و`docker` و`docker compose` الإصدار 2. إذا كان Docker مثبتًا بلا صلاحية، يطبع `sudo usermod -aG docker` ولا يعيد التثبيت.
 - `setup2.sh`: وجود `backend/.env` وصحة مفاتيحه، ويطبع اسم مضيف `DATABASE_URL` فقط. إذا كان الملف غائبًا ولا يوجد حجم `postgres_data`، ينشئ الملف بصلاحية `600` من دون طباعة كلمة المرور أو مفتاح التشفير. إذا كان الحجم موجودًا والملف غائبًا، يتوقف ويطلب استعادة الملف. لا يستبدل ملفًا موجودًا.
 - `setup3.sh`: بناء الصور، ثم تشغيل Postgres 16 وRedis 7 حتى تصبح healthcheck ناجحة. يقرأ `PG_VERSION` من الحجم الحالي بتركيب للقراءة فقط، ويرفض التشغيل إذا كان الإصدار الرئيسي غير 16.
-- `setup4.sh`: `prisma migrate deploy` داخل شبكة Compose. لا ينفّذ reset ولا يمسح البيانات.
+- `setup4.sh`: `prisma migrate deploy` لمخطط التطبيق فقط داخل شبكة Compose. لا ينفّذ reset ولا يمسح البيانات، ولا يطبّق مهاجرات المختبر في `backend/prisma-lab`.
 - `setup5.sh`: تشغيل backend وfrontend. عمال النشر وقوائم الدعم يعملون داخل عملية backend.
 - `setup6.sh`: `GET /health`، و`pg_isready`، و`redis ping`، وحالة الحاويات، ثم يطبع نفق اللوحة وأوامر السجلات والإيقاف.
 
@@ -57,7 +57,7 @@ bash setup/update.sh
 1. بناء صور backend و frontend. إذا فشل البناء تبقى الحاويات الحالية تعمل.
 2. التأكد من حجمَي PostgreSQL و Redis من دون سحب صورة جديدة ومن دون حذف البيانات.
 3. نسخة احتياطية بصيغة `pg_dump -Fc` داخل `.update/backups/`. إذا فشلت يتوقف قبل migrations.
-4. `setup4.sh` أي `prisma migrate deploy`.
+4. `setup4.sh` أي `prisma migrate deploy` لمهاجرات التطبيق فقط.
 5. `setup5.sh` لإعادة إنشاء backend و frontend فقط.
 6. انتظار `/health` ثم `setup6.sh`.
 
@@ -66,6 +66,10 @@ bash setup/update.sh
 يُحفظ مرجع صور الإصدار السابق بالوسمين `octobot-rollback/backend:previous` و `octobot-rollback/frontend:previous`، ومعه المسارات في `.update/rollback.txt`. السجل في `.update/update.log`. هذه المسارات مستثناة من Git. السكربت لا يطبع كلمات المرور ولا مفاتيح التشفير، ولا يستبدل `backend/.env`.
 
 الرجوع إلى صور التطبيق لا يعكس migrations. `prisma migrate deploy` لا يُلغى تلقائيًا عند تشغيل الصورة السابقة.
+
+## مختبر CPM
+
+تحديث التطبيق لا يطبّق مهاجرات المختبر. جداول المختبر في `backend/prisma-lab`، وأمرها الصريح هو `pnpm --filter backend lab:migrate` بعد ضبط `LAB_DATABASE_URL`. هذا المتغير لا يُنسخ من `DATABASE_URL`. الأمر يقارن المضيف والمنفذ واسم القاعدة بعد التطبيع، ويرفض قاعدة التطبيق نفسها ولو اختلف المستخدم أو كلمة المرور أو query أو schema. الفحص المحلي لا يكشف أسماء المضيف المختلفة التي قد تشير إلى السيرفر نفسه. لا يُشغَّل هذا الأمر ضمن `setup4.sh` أو `update.sh`.
 
 ### إذا فشل التحديث بعد تغيير القاعدة
 

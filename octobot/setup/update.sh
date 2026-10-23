@@ -27,8 +27,8 @@ frontend_rollback_id=""
 redact() {
   sed -u -E \
     -e 's#(postgres(ql)?://[^:/[:space:]]+:)[^@[:space:]]+@#\1[redacted]@#g' \
-    -e 's#((DATABASE_URL|REDIS_URL|BOT_TOKEN|OWNER_TELEGRAM_ID|ENCRYPTION_KEY|WEBHOOK_SECRET|POSTGRES_PASSWORD|LOCAL_ADMIN_PASSWORD|LOCAL_ADMIN_USERNAME|LAB_API_ID|LAB_API_HASH|LAB_BOT_TOKEN|LAB_SESSION_ENCRYPTION_KEY)[[:space:]]*[:=][[:space:]]*")[^"]*"#\1[redacted]"#g' \
-    -e 's#((DATABASE_URL|REDIS_URL|BOT_TOKEN|OWNER_TELEGRAM_ID|ENCRYPTION_KEY|WEBHOOK_SECRET|POSTGRES_PASSWORD|LOCAL_ADMIN_PASSWORD|LOCAL_ADMIN_USERNAME|LAB_API_ID|LAB_API_HASH|LAB_BOT_TOKEN|LAB_SESSION_ENCRYPTION_KEY)[[:space:]]*[:=][[:space:]]*)[^[:space:]'\''"]+#\1[redacted]#g'
+    -e 's#((DATABASE_URL|REDIS_URL|BOT_TOKEN|OWNER_TELEGRAM_ID|ENCRYPTION_KEY|WEBHOOK_SECRET|POSTGRES_PASSWORD|LOCAL_ADMIN_PASSWORD|LOCAL_ADMIN_USERNAME|LAB_API_ID|LAB_API_HASH|LAB_BOT_TOKEN|LAB_SESSION_ENCRYPTION_KEY|LAB_DATABASE_URL)[[:space:]]*[:=][[:space:]]*")[^"]*"#\1[redacted]"#g' \
+    -e 's#((DATABASE_URL|REDIS_URL|BOT_TOKEN|OWNER_TELEGRAM_ID|ENCRYPTION_KEY|WEBHOOK_SECRET|POSTGRES_PASSWORD|LOCAL_ADMIN_PASSWORD|LOCAL_ADMIN_USERNAME|LAB_API_ID|LAB_API_HASH|LAB_BOT_TOKEN|LAB_SESSION_ENCRYPTION_KEY|LAB_DATABASE_URL)[[:space:]]*[:=][[:space:]]*)[^[:space:]'\''"]+#\1[redacted]#g'
 }
 
 say() {
@@ -385,7 +385,7 @@ backup_postgres
 write_rollback "$before" "$after"
 
 db_touched=1
-say "تطبيق migrations من الإصدار الجديد عبر setup4.sh."
+say "تطبيق migrations التطبيق فقط من الإصدار الجديد عبر setup4.sh. مهاجرات المختبر لا تُطبَّق هنا."
 if ! run bash "$SETUP_DIR/setup4.sh"; then
   fail "فشل prisma migrate deploy. قد تكون بعض migrations قد طُبقت. خدمات التطبيق لم تُستبدل إذا توقف الأمر قبل setup5.sh."
 fi

@@ -10,6 +10,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
   die "$step: backend/.env is missing. Run setup2.sh and restore the file if a database volume already exists."
 fi
 
-echo "$step: applying Prisma migrations inside the Compose network."
+echo "$step: applying application Prisma migrations inside the Compose network."
+echo "$step: lab migrations in backend/prisma-lab are not applied by this command."
 compose run --rm backend pnpm exec prisma migrate deploy
-echo "$step: migrations applied. Existing data was not reset."
+echo "$step: application migrations applied. Existing data was not reset."

@@ -9,7 +9,9 @@
     "start": "node --env-file-if-exists=.env dist/index.js",
     "generate": "prisma generate",
     "test": "tsx --test",
-    "lab:fixture": "tsx src/cpm-lab/main.ts fixture"
+    "lab:fixture": "tsx src/cpm-lab/main.ts fixture",
+    "lab:generate": "tsx src/cpm-lab/prisma-cli.ts generate",
+    "lab:migrate": "tsx src/cpm-lab/prisma-cli.ts migrate"
   },
   "dependencies": {
     "@fastify/multipart": "^9.0.3",

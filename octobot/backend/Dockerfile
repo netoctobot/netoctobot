@@ -14,6 +14,7 @@ RUN pnpm install --frozen-lockfile --filter backend... --ignore-scripts
 
 COPY backend backend
 WORKDIR /app/backend
+# Application schema only. Lab client generation and lab migrations stay outside image build.
 RUN pnpm exec prisma generate && pnpm exec tsc
 RUN mkdir -p /var/lib/octobot/broadcast-media && chmod 755 /var/lib/octobot/broadcast-media
 

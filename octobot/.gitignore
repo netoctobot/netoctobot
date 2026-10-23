@@ -7,4 +7,5 @@ dist
 *.rdb
 .DS_Store
 backend/prisma/*.db
+backend/generated/
 .update/
