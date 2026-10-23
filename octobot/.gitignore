@@ -3,6 +3,7 @@ dist
 .next
 .env
 .env.local
+.env.lab
 *.log
 *.rdb
 .DS_Store

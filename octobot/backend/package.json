@@ -11,7 +11,8 @@
     "test": "tsx --test",
     "lab:fixture": "tsx src/cpm-lab/main.ts fixture",
     "lab:generate": "tsx src/cpm-lab/prisma-cli.ts generate",
-    "lab:migrate": "tsx src/cpm-lab/prisma-cli.ts migrate"
+    "lab:migrate": "tsx src/cpm-lab/prisma-cli.ts migrate",
+    "lab:test-db": "tsx src/cpm-lab/main.ts test-db"
   },
   "dependencies": {
     "@fastify/multipart": "^9.0.3",
@@ -29,6 +30,7 @@
     "@types/pg": "8.23.1",
     "prisma": "6",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "yaml": "2.8.1"
   }
 }

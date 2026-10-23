@@ -53,13 +53,49 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Fixture only. It does not start with `docker compose up` and does not call Telegram.
+  # CPM lab services start only with --profile cpm-lab, through setup/lab.sh.
+  # Values come from backend/.env.lab via --env-file. Each lab service lists the
+  # variables it receives. Neither uses env_file, and backend gets no LAB_* key.
+  lab-postgres:
+    profiles: ["cpm-lab"]
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${LAB_POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${LAB_POSTGRES_PASSWORD:-}
+      POSTGRES_DB: ${LAB_POSTGRES_DB:-}
+    volumes:
+      - lab_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # The default command is the offline fixture. Live commands are run by setup/lab.sh.
   cpm-lab:
     profiles: ["cpm-lab"]
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: backend/Dockerfile.lab
     command: ["node", "dist/cpm-lab/main.js", "fixture"]
+    environment:
+      LAB_DATABASE_URL: ${LAB_DATABASE_URL:-}
+      LAB_TEST_DATABASE_URL: ${LAB_TEST_DATABASE_URL:-}
+      # Host, port, and database name of the application database only, set by lab.sh.
+      DATABASE_URL: ${LAB_APP_DATABASE_TARGET:-}
+      LAB_API_ID: ${LAB_API_ID:-}
+      LAB_API_HASH: ${LAB_API_HASH:-}
+      LAB_BOT_TOKEN: ${LAB_BOT_TOKEN:-}
+      LAB_SESSION_ENCRYPTION_KEY: ${LAB_SESSION_ENCRYPTION_KEY:-}
+      LAB_CHANNEL_ID: ${LAB_CHANNEL_ID:-}
+      LAB_POST_ID: ${LAB_POST_ID:-}
+      LAB_CHANNEL_USERNAME: ${LAB_CHANNEL_USERNAME:-}
+      LAB_CHANNEL_INVITE_LINK: ${LAB_CHANNEL_INVITE_LINK:-}
+      LAB_TRIAL_ROUNDS: ${LAB_TRIAL_ROUNDS:-}
+      LAB_TRIAL_INTERVAL_SECONDS: ${LAB_TRIAL_INTERVAL_SECONDS:-}
+    stop_signal: SIGTERM
+    stop_grace_period: 60s
     restart: "no"
 
   frontend:
@@ -78,3 +114,4 @@ volumes:
   postgres_data:
   redis_data:
   broadcast_media:
+  lab_postgres_data:
