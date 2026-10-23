@@ -37,8 +37,9 @@ export class RedactingLabLogger extends Logger {
   constructor(
     private readonly secrets: readonly string[],
     private readonly sink: (line: string) => void,
+    level: LogLevel = LogLevel.DEBUG,
   ) {
-    super(LogLevel.DEBUG);
+    super(level);
   }
 
   override log(level: LogLevel, message: string, error?: unknown): void {

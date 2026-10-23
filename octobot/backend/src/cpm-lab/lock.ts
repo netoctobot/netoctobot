@@ -97,12 +97,27 @@ export class AdvisorySessionLock {
   }
 }
 
+export const LAB_LOCK_APPLICATION_NAME = "cpm-lab-lock";
+
+/**
+ * A pg.Client outside any Prisma pool. The advisory lock lives as long as
+ * this connection. TCP keepalive lets a dead peer surface as "error" or "end",
+ * which marks the lock lost.
+ */
 export async function openDedicatedPostgresLock(connectionString: string): Promise<{
   lock: AdvisorySessionLock;
+  backendPid: number;
   close: () => Promise<void>;
 }> {
-  const client = new pg.Client({ connectionString });
+  const client = new pg.Client({
+    connectionString,
+    keepAlive: true,
+    application_name: LAB_LOCK_APPLICATION_NAME,
+  });
+  client.on("error", () => undefined);
   await client.connect();
+  const pidResult = await client.query("SELECT pg_backend_pid() AS pid");
+  const backendPid = Number(pidResult.rows[0]?.pid);
   const adapted: DedicatedDbClient = {
     async query(sql, params) {
       const result = await client.query(sql, params as unknown[] | undefined);
@@ -121,9 +136,41 @@ export async function openDedicatedPostgresLock(connectionString: string): Promi
   }
   return {
     lock,
+    backendPid,
     close: async () => {
       lock.markLost();
       await client.end().catch(() => undefined);
     },
   };
+}
+
+export async function withLabLock<T>(
+  connectionString: string,
+  run: (lock: AdvisorySessionLock) => Promise<T>,
+): Promise<T> {
+  const { lock, close } = await openDedicatedPostgresLock(connectionString);
+  try {
+    return await run(lock);
+  } finally {
+    await close();
+  }
+}
+
+/** Read-only check from another connection. It does not take the lock. */
+export async function labLockHolders(connectionString: string): Promise<number> {
+  const client = new pg.Client({ connectionString, application_name: "cpm-lab-status" });
+  client.on("error", () => undefined);
+  await client.connect();
+  try {
+    const result = await client.query(
+      `SELECT count(*)::int AS holders FROM pg_locks
+       WHERE locktype = 'advisory' AND granted = true
+         AND classid = $1::integer AND objid = $2::integer
+         AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
+      [LAB_ADVISORY_LOCK_CLASSID, LAB_ADVISORY_LOCK_OBJID],
+    );
+    return Number(result.rows[0]?.holders ?? 0);
+  } finally {
+    await client.end().catch(() => undefined);
+  }
 }

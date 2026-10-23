@@ -89,6 +89,19 @@ export function assertDistinctLabDatabase(
   return labUrl;
 }
 
+export function sameDatabaseTarget(left: string, right: string): boolean | null {
+  const leftTarget = parsePostgresTarget(left.trim());
+  const rightTarget = parsePostgresTarget(right.trim());
+  if (!leftTarget || !rightTarget) {
+    return null;
+  }
+  return sameDatabase(leftTarget, rightTarget);
+}
+
+export function isPostgresTarget(value: string): boolean {
+  return parsePostgresTarget(value.trim()) !== null;
+}
+
 function sameDatabase(left: DatabaseTarget, right: DatabaseTarget): boolean {
   return (
     left.host === right.host &&
