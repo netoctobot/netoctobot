@@ -12,9 +12,10 @@ const LAB_URL = `postgres://lab_user:${LAB_PASSWORD}@lab.example:5432/cpm_lab?sc
 
 function rejection(
   env: { LAB_DATABASE_URL?: string; DATABASE_URL?: string },
+  options?: { requireAppDatabase?: boolean },
 ): LabDatabaseTargetError {
   try {
-    assertDistinctLabDatabase(env);
+    assertDistinctLabDatabase(env, options);
   } catch (error) {
     assert.ok(error instanceof LabDatabaseTargetError);
     assert.equal(error.message.includes(APP_PASSWORD), false);
@@ -117,6 +118,30 @@ test("an unparseable DATABASE_URL fails closed", () => {
   });
   assert.equal(error.code, "unparseable_app_database");
   assert.equal(error.message.includes("not a database url"), false);
+});
+
+test("lab migration requires a present and parseable application URL", () => {
+  assert.equal(
+    rejection(
+      { LAB_DATABASE_URL: LAB_URL },
+      { requireAppDatabase: true },
+    ).code,
+    "missing_app_database",
+  );
+  assert.equal(
+    rejection(
+      { LAB_DATABASE_URL: LAB_URL, DATABASE_URL: "   " },
+      { requireAppDatabase: true },
+    ).code,
+    "missing_app_database",
+  );
+  assert.equal(
+    rejection(
+      { LAB_DATABASE_URL: LAB_URL, DATABASE_URL: "not a database url" },
+      { requireAppDatabase: true },
+    ).code,
+    "unparseable_app_database",
+  );
 });
 
 test("an absent application URL does not block a valid lab URL", () => {

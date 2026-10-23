@@ -6,12 +6,15 @@
  * the application database.
  * This check does not detect different host aliases that point at the same server.
  * Errors do not include credentials or connection strings.
+ * lab:generate may omit DATABASE_URL. lab:migrate sets requireAppDatabase and
+ * rejects a missing, blank, or unparseable application URL before Prisma starts.
  */
 
 export type LabDatabaseTargetCode =
   | "missing"
   | "invalid"
   | "same_database"
+  | "missing_app_database"
   | "unparseable_app_database";
 
 const ALIAS_LIMIT =
@@ -33,10 +36,13 @@ type DatabaseTarget = {
   database: string;
 };
 
-export function assertDistinctLabDatabase(env: {
-  LAB_DATABASE_URL?: string | undefined;
-  DATABASE_URL?: string | undefined;
-}): string {
+export function assertDistinctLabDatabase(
+  env: {
+    LAB_DATABASE_URL?: string | undefined;
+    DATABASE_URL?: string | undefined;
+  },
+  options?: { requireAppDatabase?: boolean },
+): string {
   const labRaw = env.LAB_DATABASE_URL;
   if (labRaw === undefined || labRaw.trim() === "") {
     throw new LabDatabaseTargetError(
@@ -55,6 +61,15 @@ export function assertDistinctLabDatabase(env: {
   }
 
   const appRaw = env.DATABASE_URL;
+  if (
+    options?.requireAppDatabase &&
+    (appRaw === undefined || appRaw.trim() === "")
+  ) {
+    throw new LabDatabaseTargetError(
+      "missing_app_database",
+      `DATABASE_URL is required for lab:migrate so the application database can be identified. It is not used as the lab connection. ${ALIAS_LIMIT}`,
+    );
+  }
   if (appRaw !== undefined && appRaw.trim() !== "") {
     const appTarget = parsePostgresTarget(appRaw.trim());
     if (!appTarget) {
