@@ -18,12 +18,20 @@ export function createTtyPrompt(
   });
   const interactive = Boolean(input.isTTY);
   const rl = createInterface({ input, output: sink, terminal: interactive });
+  let closed = false;
+  let pending: ((error: Error) => void) | null = null;
 
   const question = (label: string, hidden: boolean) =>
-    new Promise<string>((resolve) => {
+    new Promise<string>((resolve, reject) => {
+      if (closed) {
+        reject(new Error("PROMPT_CLOSED"));
+        return;
+      }
+      pending = reject;
       output.write(label);
       muted = hidden;
       rl.question("", (answer) => {
+        pending = null;
         muted = false;
         if (hidden) {
           output.write("\n");
@@ -36,6 +44,14 @@ export function createTtyPrompt(
     interactive,
     ask: (label) => question(label, false),
     askHidden: (label) => question(label, true),
-    close: () => rl.close(),
+    close: () => {
+      if (closed) return;
+      closed = true;
+      muted = false;
+      const reject = pending;
+      pending = null;
+      rl.close();
+      reject?.(new Error("PROMPT_CLOSED"));
+    },
   };
 }

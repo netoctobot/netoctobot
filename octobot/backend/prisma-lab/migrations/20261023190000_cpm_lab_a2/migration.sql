@@ -69,6 +69,9 @@ CREATE TABLE "cpm_lab_manual_events" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "cpm_lab_flood_events_requestId_key" ON "cpm_lab_flood_events"("requestId");
+
+-- CreateIndex
 CREATE INDEX "cpm_lab_flood_events_reader_occurredAt_idx" ON "cpm_lab_flood_events"("reader", "occurredAt");
 
 -- CreateIndex

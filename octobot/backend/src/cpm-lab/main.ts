@@ -18,6 +18,7 @@ const KNOWN_ERRORS = new Set([
   "LabDatabaseTargetError",
   "LabTestDatabaseError",
   "LabLockDeniedError",
+  "LabLockLostError",
   "LabLoginError",
   "SessionExistsError",
   "NoTrialRunError",

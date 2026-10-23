@@ -81,32 +81,31 @@ export function buildSchedule(input: {
   return rounds;
 }
 
+export type SkipReason = "deadline" | "flood_wait" | "late";
+
 /**
- * A slot is sent at the latest of its due time, the persisted nextAllowedAt,
- * and 3 seconds after the last request by the same lab. A slot whose send time
- * reaches its round deadline is skipped. Nothing is carried to later rounds.
+ * A slot is sent at the latest of the current time, its due time, the
+ * persisted nextAllowedAt, and 3 seconds after the last request by the same
+ * lab. A slot whose send time reaches its round deadline is skipped. Nothing
+ * is carried to later rounds. The worker calls this again after every wait.
  */
 export function plannedSendTime(input: {
+  now: Date;
   dueAt: Date;
   deadline: Date;
   nextAllowedAt: Date | null;
   lastRequestedAt: Date | null;
-}): { sendAt: Date; skip: boolean; reason: "flood_wait" | "late" | null } {
-  const candidates = [input.dueAt.getTime()];
-  if (input.lastRequestedAt) {
-    candidates.push(input.lastRequestedAt.getTime() + LAB_LIMITS.minSpacingMs);
-  }
-  const spacingAt = Math.max(...candidates);
+}): { sendAt: Date; skip: boolean; reason: SkipReason | null } {
+  const deadline = input.deadline.getTime();
+  const nowAt = input.now.getTime();
+  const spacingAt = input.lastRequestedAt ? input.lastRequestedAt.getTime() + LAB_LIMITS.minSpacingMs : 0;
   const floodAt = input.nextAllowedAt?.getTime() ?? 0;
-  const sendAt = Math.max(spacingAt, floodAt);
-  if (sendAt >= input.deadline.getTime()) {
-    return {
-      sendAt: new Date(sendAt),
-      skip: true,
-      reason: floodAt >= input.deadline.getTime() ? "flood_wait" : "late",
-    };
+  const sendAt = Math.max(nowAt, input.dueAt.getTime(), spacingAt, floodAt);
+  if (sendAt < deadline) {
+    return { sendAt: new Date(sendAt), skip: false, reason: null };
   }
-  return { sendAt: new Date(sendAt), skip: false, reason: null };
+  const reason: SkipReason = nowAt >= deadline ? "deadline" : floodAt >= deadline ? "flood_wait" : "late";
+  return { sendAt: new Date(sendAt), skip: true, reason };
 }
 
 export function requestKey(parts: {

@@ -62,7 +62,33 @@ export type FloodOutcome = {
   priorEventsInWindow: number;
   stopReader: boolean;
   reason: string | null;
+  /** True when the request already had its flood event and nothing new was written. */
+  replayed: boolean;
 };
+
+export type FloodFailureInput = {
+  requestId: string;
+  reader: LabReader;
+  runId: string;
+  seconds: number;
+  finishedAt: Date;
+  durationMs: number;
+};
+
+export type AbandonResult = {
+  requests: number;
+  runs: number;
+  /** Readers stopped because a request may have reached Telegram with an unknown result. */
+  stoppedReaders: LabReader[];
+};
+
+/** Checked inside the session write. backendPid is the lock connection's pg_backend_pid. */
+export type SessionWriteGuard = {
+  backendPid: number | null;
+  isHeld: () => boolean;
+};
+
+export const UNRESOLVED_STOP_REASON = "unresolved_request_after_interruption";
 
 export type StoredRun = {
   id: string;
@@ -115,6 +141,13 @@ export class NoTrialRunError extends Error {
   }
 }
 
+export class LabLockLostError extends Error {
+  constructor() {
+    super("The CPM lab advisory lock was lost. Nothing more was sent or stored.");
+    this.name = "LabLockLostError";
+  }
+}
+
 export class RequestStateError extends Error {
   constructor() {
     super("The lab request is no longer STARTED, so its result was not stored");
@@ -127,8 +160,12 @@ export interface LabStore {
   ensurePost(channelId: string, telegramMessageId: bigint): Promise<{ id: string }>;
   createRun(input: { label: string; kind: RunKind; settings: unknown; startedAt: Date }): Promise<{ id: string }>;
   finishRun(runId: string, input: { stopReason: string; libraryTraffic: unknown; stoppedAt: Date }): Promise<void>;
-  /** Call only while holding the advisory lock. */
-  abandonInterrupted(now: Date): Promise<{ requests: number; runs: number }>;
+  /**
+   * Call only while holding the advisory lock. STARTED rows become ABANDONED
+   * and their readers are stopped in the same transaction, because a lost
+   * FLOOD_WAIT or session error cannot be ruled out. clear-stop is a manual step.
+   */
+  abandonInterrupted(now: Date): Promise<AbandonResult>;
   beginRequest(spec: RequestSpec, now: Date): Promise<BeginResult>;
   completeRequest(input: {
     requestId: string;
@@ -147,18 +184,17 @@ export interface LabStore {
   lastRequestedAt(reader: LabReader): Promise<Date | null>;
   readerState(reader: LabReader): Promise<ReaderState>;
   readerStates(): Promise<ReaderState[]>;
-  recordFloodWait(input: {
-    reader: LabReader;
-    runId: string;
-    requestId: string;
-    seconds: number;
-    now: Date;
-  }): Promise<FloodOutcome>;
+  /**
+   * One transaction: the request becomes FAILED with FLOOD_WAIT, the flood
+   * event is inserted, and nextAllowedAt and any stop are written. Calling it
+   * again for the same request returns the stored outcome without a new event.
+   */
+  failRequestWithFlood(input: FloodFailureInput): Promise<FloodOutcome>;
   stopReader(reader: LabReader, reason: string, now: Date): Promise<void>;
   clearReaderStop(reader: LabReader): Promise<ReaderState>;
   addAlert(runId: string, kind: string, detail: string, now: Date): Promise<void>;
   loadSession(reader: LabReader): Promise<{ ciphertext: string; keyVersion: number } | null>;
-  saveSession(reader: LabReader, ciphertext: string, replace: boolean): Promise<void>;
+  saveSession(reader: LabReader, ciphertext: string, replace: boolean, guard: SessionWriteGuard): Promise<void>;
   addManualEvent(input: {
     runId: string | null;
     kind: string;
@@ -247,14 +283,20 @@ export class MemoryLabStore implements LabStore {
     run.stoppedAt = input.stoppedAt;
   }
 
-  async abandonInterrupted(now: Date) {
+  async abandonInterrupted(now: Date): Promise<AbandonResult> {
     let requests = 0;
+    const stoppedReaders: LabReader[] = [];
     for (const request of this.requests) {
       if (request.status === "STARTED") {
         request.status = "ABANDONED";
         request.errorClass = ABANDONED_ERROR_CLASS;
         request.finishedAt = now;
         requests += 1;
+        const state = this.states.get(request.reader) ?? emptyState(request.reader);
+        if (state.stoppedAt === null) {
+          this.states.set(request.reader, { ...state, stoppedAt: now, stopReason: UNRESOLVED_STOP_REASON });
+          stoppedReaders.push(request.reader);
+        }
       }
     }
     let runs = 0;
@@ -266,7 +308,7 @@ export class MemoryLabStore implements LabStore {
         runs += 1;
       }
     }
-    return { requests, runs };
+    return { requests, runs, stoppedReaders };
   }
 
   async beginRequest(spec: RequestSpec, now: Date): Promise<BeginResult> {
@@ -360,37 +402,71 @@ export class MemoryLabStore implements LabStore {
     return [...this.states.values()].map((state) => ({ ...state }));
   }
 
-  async recordFloodWait(input: {
-    reader: LabReader;
-    runId: string;
-    requestId: string;
-    seconds: number;
-    now: Date;
-  }): Promise<FloodOutcome> {
-    const since = input.now.getTime() - LAB_LIMITS.floodWindowMs;
-    const prior = this.floodEvents.filter(
-      (event) => event.reader === input.reader && event.occurredAt.getTime() > since,
-    ).length;
+  failFloodWritesBeforeCommit = false;
+
+  async failRequestWithFlood(input: FloodFailureInput): Promise<FloodOutcome> {
+    const request = this.requests.find((candidate) => candidate.id === input.requestId);
+    if (!request) throw new RequestStateError();
+    const existing = this.floodEvents.find((event) => event.requestId === input.requestId);
+    if (existing) {
+      return this.storedFloodOutcome(input.reader, existing);
+    }
+    if (request.status !== "STARTED") throw new RequestStateError();
+    const prior = this.priorFloodEvents(input.reader, input.finishedAt);
     const decision = floodDecision({ priorEventsInWindow: prior, seconds: input.seconds });
-    const requested = new Date(input.now.getTime() + input.seconds * 1000);
+    const requested = new Date(input.finishedAt.getTime() + input.seconds * 1000);
+    const state = this.states.get(input.reader) ?? emptyState(input.reader);
+    const nextAllowedAt = laterOf(state.nextAllowedAt, requested);
+    if (this.failFloodWritesBeforeCommit) {
+      this.failFloodWritesBeforeCommit = false;
+      throw new Error("simulated failure inside the flood transaction");
+    }
+    request.status = "FAILED";
+    request.errorClass = "FLOOD_WAIT";
+    request.floodWaitSeconds = input.seconds;
+    request.finishedAt = input.finishedAt;
+    request.durationMs = input.durationMs;
     this.floodEvents.push({
       reader: input.reader,
       runId: input.runId,
       requestId: input.requestId,
       seconds: input.seconds,
-      occurredAt: input.now,
+      occurredAt: input.finishedAt,
       nextAllowedAt: requested,
     });
-    const state = this.states.get(input.reader) ?? emptyState(input.reader);
-    const nextAllowedAt = laterOf(state.nextAllowedAt, requested);
     this.states.set(input.reader, {
       ...state,
       nextAllowedAt,
       ...(decision.stopReader && state.stoppedAt === null
-        ? { stoppedAt: input.now, stopReason: decision.reason }
+        ? { stoppedAt: input.finishedAt, stopReason: decision.reason }
         : {}),
     });
-    return { nextAllowedAt, priorEventsInWindow: prior, ...decision };
+    return { nextAllowedAt, priorEventsInWindow: prior, ...decision, replayed: false };
+  }
+
+  private priorFloodEvents(reader: LabReader, at: Date): number {
+    const since = at.getTime() - LAB_LIMITS.floodWindowMs;
+    return this.floodEvents.filter(
+      (event) => event.reader === reader && event.occurredAt.getTime() > since && event.occurredAt.getTime() <= at.getTime(),
+    ).length;
+  }
+
+  private storedFloodOutcome(reader: LabReader, event: StoredFloodEvent): FloodOutcome {
+    const prior = this.floodEvents.filter(
+      (candidate) =>
+        candidate !== event &&
+        candidate.reader === reader &&
+        candidate.occurredAt.getTime() > event.occurredAt.getTime() - LAB_LIMITS.floodWindowMs &&
+        candidate.occurredAt.getTime() <= event.occurredAt.getTime(),
+    ).length;
+    const decision = floodDecision({ priorEventsInWindow: prior, seconds: event.seconds });
+    const state = this.states.get(reader) ?? emptyState(reader);
+    return {
+      nextAllowedAt: laterOf(state.nextAllowedAt, event.nextAllowedAt),
+      priorEventsInWindow: prior,
+      ...decision,
+      replayed: true,
+    };
   }
 
   async stopReader(reader: LabReader, reason: string, now: Date) {
@@ -415,7 +491,8 @@ export class MemoryLabStore implements LabStore {
     return this.sessions.get(reader) ?? null;
   }
 
-  async saveSession(reader: LabReader, ciphertext: string, replace: boolean) {
+  async saveSession(reader: LabReader, ciphertext: string, replace: boolean, guard: SessionWriteGuard) {
+    if (!guard.isHeld()) throw new LabLockLostError();
     if (this.sessions.has(reader) && !replace) throw new SessionExistsError();
     this.sessions.set(reader, { ciphertext, keyVersion: 1 });
   }

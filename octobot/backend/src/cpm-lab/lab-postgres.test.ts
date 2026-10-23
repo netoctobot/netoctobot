@@ -11,7 +11,7 @@ import { runTestDatabaseCheck } from "./lab-test-database-check.js";
 import { LAB_LOCK_APPLICATION_NAME, LabLockDeniedError, openDedicatedPostgresLock, withLabLock } from "./lock.js";
 import { openPrismaLabStore, type PrismaLabStore } from "./prisma-store.js";
 import { RequestIdentityConflictError } from "./reading-log.js";
-import { SessionExistsError, type RequestSpec } from "./store.js";
+import { LabLockLostError, SessionExistsError, UNRESOLVED_STOP_REASON, type RequestSpec } from "./store.js";
 
 /**
  * Runs only with LAB_TEST_DATABASE_URL, which must differ from LAB_DATABASE_URL
@@ -131,15 +131,18 @@ test("completion is one transaction and readings reject UPDATE", { skip }, async
 });
 
 test("flood events persist, reject UPDATE, and use a rolling 24-hour window", { skip }, async () => {
-  const begun = await store.beginRequest(spec("flood", { reader: "USER_GET_MESSAGES_VIEWS" }), new Date());
   const now = Date.now();
-  const old = await store.recordFloodWait({ reader: "USER_GET_MESSAGES_VIEWS", runId, requestId: begun.request.id, seconds: 5, now: new Date(now - 25 * 3600_000) });
+  const fail = async (key: string, at: number) => {
+    const begun = await store.beginRequest(spec(key, { reader: "USER_GET_MESSAGES_VIEWS" }), new Date(at));
+    return store.failRequestWithFlood({ requestId: begun.request.id, reader: "USER_GET_MESSAGES_VIEWS", runId, seconds: 5, finishedAt: new Date(at), durationMs: 1 });
+  };
+  const old = await fail("flood:old", now - 25 * 3600_000);
   assert.equal(old.priorEventsInWindow, 0);
-  const first = await store.recordFloodWait({ reader: "USER_GET_MESSAGES_VIEWS", runId, requestId: begun.request.id, seconds: 5, now: new Date(now) });
+  const first = await fail("flood:1", now);
   assert.equal(first.priorEventsInWindow, 0);
-  const second = await store.recordFloodWait({ reader: "USER_GET_MESSAGES_VIEWS", runId, requestId: begun.request.id, seconds: 5, now: new Date(now + 1000) });
+  const second = await fail("flood:2", now + 1000);
   assert.equal(second.stopReader, false);
-  const third = await store.recordFloodWait({ reader: "USER_GET_MESSAGES_VIEWS", runId, requestId: begun.request.id, seconds: 5, now: new Date(now + 2000) });
+  const third = await fail("flood:3", now + 2000);
   assert.equal(third.stopReader, true);
   const state = await store.readerState("USER_GET_MESSAGES_VIEWS");
   assert.equal(state.stopReason, "third_flood_wait_in_24h");
@@ -150,10 +153,57 @@ test("flood events persist, reject UPDATE, and use a rolling 24-hour window", { 
   assert.equal(cleared.nextAllowedAt?.getTime(), now + 7000);
 });
 
-test("sessions refuse overwrite without replace", { skip }, async () => {
-  await store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-1", false);
-  await assert.rejects(store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-2", false), SessionExistsError);
-  await store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-3", true);
+test("a failure inside the flood transaction rolls back the request, the event, and the reader state", { skip }, async () => {
+  const at = new Date(Date.now() + 10 * 60_000);
+  const begun = await store.beginRequest(spec("flood:atomic"), at);
+  const input = { requestId: begun.request.id, reader: "BOT_CHANNELS_GET_MESSAGES" as const, runId, seconds: 90, finishedAt: at, durationMs: 1 };
+  const stateBefore = await store.readerState("BOT_CHANNELS_GET_MESSAGES");
+  await sql(`CREATE FUNCTION cpm_lab_test_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated write failure'; END $$`);
+  await sql(`CREATE TRIGGER cpm_lab_test_fail BEFORE INSERT OR UPDATE ON cpm_lab_reader_states FOR EACH ROW EXECUTE FUNCTION cpm_lab_test_fail()`);
+  try {
+    await assert.rejects(store.failRequestWithFlood(input));
+  } finally {
+    await sql(`DROP TRIGGER cpm_lab_test_fail ON cpm_lab_reader_states`);
+    await sql(`DROP FUNCTION cpm_lab_test_fail()`);
+  }
+  const row = await sql(`SELECT status, "errorClass" FROM cpm_lab_rpc_requests WHERE id = $1`, [begun.request.id]);
+  assert.deepEqual(row.rows[0], { status: "STARTED", errorClass: null });
+  assert.equal((await sql(`SELECT count(*)::int AS n FROM cpm_lab_flood_events WHERE "requestId" = $1`, [begun.request.id])).rows[0]?.n, 0);
+  assert.deepEqual(await store.readerState("BOT_CHANNELS_GET_MESSAGES"), stateBefore);
+
+  const firstCalls = await Promise.all([store.failRequestWithFlood(input), store.failRequestWithFlood(input)]);
+  assert.deepEqual(firstCalls.map((call) => call.replayed).sort(), [false, true]);
+  const stored = firstCalls.find((call) => !call.replayed)!;
+  assert.equal(stored.nextAllowedAt.getTime(), at.getTime() + 90_000);
+  const replays = await Promise.all([store.failRequestWithFlood(input), store.failRequestWithFlood(input)]);
+  assert.deepEqual(replays.map((replay) => [replay.replayed, replay.priorEventsInWindow]), [[true, stored.priorEventsInWindow], [true, stored.priorEventsInWindow]]);
+  assert.equal((await sql(`SELECT count(*)::int AS n FROM cpm_lab_flood_events WHERE "requestId" = $1`, [begun.request.id])).rows[0]?.n, 1);
+  await assert.rejects(
+    sql(`INSERT INTO cpm_lab_flood_events (id, reader, "runId", "requestId", seconds, "occurredAt", "nextAllowedAt") VALUES ('dup', 'BOT_CHANNELS_GET_MESSAGES', $1, $2, 1, now(), now())`, [runId, begun.request.id]),
+    (error: { code?: string }) => error.code === "23505",
+  );
+  assert.equal((await store.readerState("BOT_CHANNELS_GET_MESSAGES")).nextAllowedAt?.getTime(), at.getTime() + 90_000);
+});
+
+test("sessions refuse overwrite without replace and are written only while pg_locks shows the lock", { skip }, async () => {
+  const holder = await openDedicatedPostgresLock(testUrl!);
+  const guard = { backendPid: holder.backendPid, isHeld: () => holder.lock.isHeld() };
+  try {
+    await store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-1", false, guard);
+    await assert.rejects(store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-2", false, guard), SessionExistsError);
+    await store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-3", true, guard);
+    assert.equal((await store.loadSession("BOT_CHANNELS_GET_MESSAGES"))?.ciphertext, "cipher-3");
+    await assert.rejects(
+      store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-4", true, { backendPid: holder.backendPid + 100_000, isHeld: () => true }),
+      LabLockLostError,
+    );
+  } finally {
+    await holder.close();
+  }
+  await assert.rejects(
+    store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-5", true, { backendPid: holder.backendPid, isHeld: () => true }),
+    LabLockLostError,
+  );
   assert.equal((await store.loadSession("BOT_CHANNELS_GET_MESSAGES"))?.ciphertext, "cipher-3");
 });
 
@@ -176,6 +226,7 @@ test("pg_terminate_backend aborts the in-flight request; the next holder abandon
     lock: holder.lock,
     store,
     now: () => new Date(),
+    deadline: null,
     lockSignal: controller.signal,
     spec: spec("terminated"),
     send: (signal) =>
@@ -198,9 +249,13 @@ test("pg_terminate_backend aborts the in-flight request; the next holder abandon
   await withLabLock(testUrl!, async () => {
     const result = await store.abandonInterrupted(new Date());
     assert.ok(result.requests >= 1);
+    assert.ok(result.stoppedReaders.includes("BOT_CHANNELS_GET_MESSAGES"));
   });
   const after = await sql(`SELECT status, "errorClass" FROM cpm_lab_rpc_requests WHERE "idempotencyKey" = 'terminated'`);
   assert.deepEqual(after.rows[0], { status: "ABANDONED", errorClass: "ABANDONED_MAY_HAVE_REACHED_TELEGRAM" });
+  const state = await store.readerState("BOT_CHANNELS_GET_MESSAGES");
+  assert.equal(state.stopReason, UNRESOLVED_STOP_REASON);
+  assert.equal(await store.countStarted(), 0);
 });
 
 test("the lab.sh test-db self check passes and drops its own schema", { skip }, async () => {

@@ -3,14 +3,15 @@ import test from "node:test";
 import { errors } from "teleproto";
 import type { LabChannelConfig } from "./config.js";
 import { buildLabReport } from "./report.js";
-import { MemoryLabStore } from "./store.js";
+import { LabPersistenceError } from "./executor.js";
+import { MemoryLabStore, UNRESOLVED_STOP_REASON } from "./store.js";
 import { FakeClock, FakeLock, ScriptedTransport } from "./testing/fakes.js";
 import { runLabWorker } from "./worker.js";
 
 const CHANNEL: LabChannelConfig = { telegramChannelId: 1234567890n, postId: 42, username: "octolab_test", inviteHash: null };
 const TRIAL = { rounds: 12, intervalMs: 300_000 };
 
-function harness(store = new MemoryLabStore(), clock = new FakeClock()) {
+function harness(store = new MemoryLabStore(), clock = new FakeClock(), trial = TRIAL) {
   const lock = new FakeLock();
   const bot = new ScriptedTransport("BOT_CHANNELS_GET_MESSAGES", clock);
   const user = new ScriptedTransport("USER_GET_MESSAGES_VIEWS", clock);
@@ -22,7 +23,7 @@ function harness(store = new MemoryLabStore(), clock = new FakeClock()) {
       clock,
       transports,
       channel: CHANNEL,
-      trial: TRIAL,
+      trial,
       kind,
       stopSignal: stop.signal,
       settings: {},
@@ -141,8 +142,12 @@ test("restart: a new runId, interrupted rows are abandoned, and stored waits sti
   const second = harness(store, clock);
   const secondSummary = await second.run();
   assert.notEqual(secondSummary.runId, firstSummary.runId);
-  assert.deepEqual(secondSummary.abandonedAtStart, { requests: 1, runs: 1 });
+  assert.deepEqual(secondSummary.abandonedAtStart, { requests: 1, runs: 1, stoppedReaders: ["USER_GET_MESSAGES_VIEWS"] });
   assert.equal(store.requests.find((request) => request.idempotencyKey === "trial:r9:USER_GET_MESSAGES_VIEWS")?.status, "ABANDONED");
+  assert.equal(
+    store.requests.filter((request) => request.runId === secondSummary.runId && request.reader === "USER_GET_MESSAGES_VIEWS").length,
+    0,
+  );
   const secondBot = store.requests.filter(
     (request) => request.runId === secondSummary.runId && request.reader === "BOT_CHANNELS_GET_MESSAGES",
   );
@@ -225,4 +230,121 @@ test("manual view event drives the renewal section of the report", async () => {
   }
   assert.equal(report.trial?.differences.length, 12);
   assert.equal(report.trial?.botViewsVisible, true);
+});
+
+const keysOf = (store: MemoryLabStore, runId: string) =>
+  store.requests.filter((request) => request.runId === runId).map((request) => request.idempotencyKey);
+const skipped = (store: MemoryLabStore, runId: string) =>
+  store.alerts.filter((alert) => alert.runId === runId && alert.kind === "slot_skipped").map((alert) => alert.detail);
+
+test("a failed flood write stops the worker; the restart stops that reader before any new request", async () => {
+  const store = new MemoryLabStore();
+  const clock = new FakeClock();
+  const first = harness(store, clock);
+  first.bot.readScript = [flood(30)];
+  store.failFloodWritesBeforeCommit = true;
+  await assert.rejects(first.run(), (error: unknown) => error instanceof LabPersistenceError && error.stage === "fail");
+  const firstRun = store.runs[0]!;
+  assert.deepEqual(keysOf(store, firstRun.id), ["peer:BOT_CHANNELS_GET_MESSAGES:r0", "trial:r0:BOT_CHANNELS_GET_MESSAGES"]);
+  assert.equal(store.requests[1]?.status, "STARTED");
+  assert.equal(store.floodEvents.length, 0);
+
+  const second = harness(store, clock);
+  const summary = await second.run();
+  assert.deepEqual(summary.abandonedAtStart.stoppedReaders, ["BOT_CHANNELS_GET_MESSAGES"]);
+  assert.equal(store.requests[1]?.status, "ABANDONED");
+  assert.equal((await store.readerState("BOT_CHANNELS_GET_MESSAGES")).stopReason, UNRESOLVED_STOP_REASON);
+  assert.equal(second.bot.calls.length, 0);
+  assert.ok(store.alerts.some((alert) => alert.runId === summary.runId && alert.kind === "reader_stopped_unresolved"));
+  assert.equal(
+    store.requests.filter((request) => request.runId === summary.runId && request.reader === "USER_GET_MESSAGES_VIEWS" && request.purpose === "TRIAL_READ").length,
+    12,
+  );
+});
+
+test("flood events from an earlier run count toward the stop limit after restart", async () => {
+  const store = new MemoryLabStore();
+  const clock = new FakeClock();
+  const first = harness(store, clock, { rounds: 2, intervalMs: 300_000 });
+  first.bot.readScript = [flood(5), flood(5)];
+  await first.run();
+  assert.equal(store.floodEvents.length, 2);
+  assert.equal((await store.readerState("BOT_CHANNELS_GET_MESSAGES")).stoppedAt, null);
+
+  const second = harness(store, clock, { rounds: 2, intervalMs: 300_000 });
+  second.bot.readScript = [flood(5)];
+  const summary = await second.run();
+  assert.equal((await store.readerState("BOT_CHANNELS_GET_MESSAGES")).stopReason, "third_flood_wait_in_24h");
+  const botReads = store.requests.filter(
+    (request) => request.runId === summary.runId && request.reader === "BOT_CHANNELS_GET_MESSAGES" && request.purpose === "TRIAL_READ",
+  );
+  assert.equal(botReads.length, 1);
+});
+
+test("a late wake-up past the round deadline records slot_skipped and sends nothing for that round", async () => {
+  const { store, clock, run } = harness();
+  const start = clock.time;
+  clock.nextWakeJumpMs = 400_000;
+  const summary = await run();
+  assert.ok(skipped(store, summary.runId).includes("trial:r0:BOT_CHANNELS_GET_MESSAGES deadline"));
+  assert.ok(skipped(store, summary.runId).includes("peer:USER_GET_MESSAGES_VIEWS:r0 deadline"));
+  assert.equal(store.requests.some((request) => request.purpose === "TRIAL_READ" && request.slotIndex === 0), false);
+  for (const request of store.requests) {
+    const round = request.slotIndex ?? 0;
+    assert.ok(request.requestedAt.getTime() < start + (round + 1) * 300_000, request.idempotencyKey);
+  }
+  assert.equal(store.requests.filter((request) => request.purpose === "TRIAL_READ" && request.slotIndex === 1).length, 2);
+});
+
+test("a time jump during a request skips every ended round without a backlog", async () => {
+  const { store, clock, bot, run } = harness();
+  const start = clock.time;
+  bot.readScript = [
+    {
+      run: async () => {
+        clock.advance(10 * 300_000);
+        return [{ messageId: 42, views: 1, resultKind: "MESSAGE" }];
+      },
+    },
+  ];
+  const summary = await run();
+  const reads = store.requests.filter((request) => request.runId === summary.runId && request.purpose === "TRIAL_READ");
+  assert.deepEqual(
+    [...new Set(reads.map((request) => request.slotIndex))].sort((a, b) => a! - b!),
+    [0, 10, 11],
+  );
+  for (const request of reads) {
+    assert.ok(request.requestedAt.getTime() < start + (request.slotIndex! + 1) * 300_000, request.idempotencyKey);
+  }
+  for (let round = 1; round <= 9; round += 1) {
+    assert.ok(skipped(store, summary.runId).includes(`trial:r${round}:BOT_CHANNELS_GET_MESSAGES deadline`), `round ${round}`);
+  }
+});
+
+test("a request that runs past the next round skips that round's peer resolution, reads, and retry", async () => {
+  const { store, bot, user, run } = harness(new MemoryLabStore(), new FakeClock(), { rounds: 3, intervalMs: 300_000 });
+  bot.readScript = [
+    {
+      run: async () => {
+        bot.latencyMs = 200;
+        return [{ messageId: 42, views: 1, resultKind: "MESSAGE" }];
+      },
+    },
+  ];
+  bot.latencyMs = 650_000;
+  user.readScript = [];
+  const summary = await run();
+  const keys = keysOf(store, summary.runId);
+  assert.equal(keys.includes("peer:USER_GET_MESSAGES_VIEWS:r0"), false);
+  assert.equal(keys.includes("trial:r1:BOT_CHANNELS_GET_MESSAGES"), false);
+  assert.equal(keys.includes("trial:r1:USER_GET_MESSAGES_VIEWS"), false);
+  assert.ok(skipped(store, summary.runId).includes("peer:USER_GET_MESSAGES_VIEWS:r0 deadline"));
+  assert.ok(keys.includes("trial:r2:BOT_CHANNELS_GET_MESSAGES"));
+
+  const retry = harness(new MemoryLabStore(), new FakeClock(), { rounds: 1, intervalMs: 300_000 });
+  retry.bot.latencyMs = 280_000;
+  retry.bot.readScript = [timeout()];
+  const retrySummary = await retry.run();
+  assert.equal(keysOf(retry.store, retrySummary.runId).includes("trial:r0:BOT_CHANNELS_GET_MESSAGES:retry1"), false);
+  assert.ok(skipped(retry.store, retrySummary.runId).some((detail) => detail.startsWith("trial:r0:BOT_CHANNELS_GET_MESSAGES:retry1 ")));
 });

@@ -6,6 +6,10 @@ export class FakeClock implements LabClock {
   constructor(public time = Date.parse("2026-10-24T06:00:00.000Z")) {}
   stopAfterSleeps: number | null = null;
   sleeps = 0;
+  /** Each wake-up lands this many ms after the requested time, like a suspended host. */
+  oversleepMs = 0;
+  /** Extra jump applied once on the next wake-up only. */
+  nextWakeJumpMs = 0;
 
   now(): Date {
     return new Date(this.time);
@@ -16,6 +20,8 @@ export class FakeClock implements LabClock {
     this.sleeps += 1;
     if (this.stopAfterSleeps !== null && this.sleeps > this.stopAfterSleeps) return false;
     if (at.getTime() > this.time) this.time = at.getTime();
+    this.time += this.oversleepMs + this.nextWakeJumpMs;
+    this.nextWakeJumpMs = 0;
     return true;
   }
 

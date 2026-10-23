@@ -52,18 +52,28 @@ export async function runTestDatabaseCheck(env: LabEnv, out: (line: string) => v
         durationMs: 1,
       });
       record("reading_update_rejected", await updateRejected(temporary.url, temporary.schema));
+      const floodRequest = await store.beginRequest({ ...spec, idempotencyKey: "check:flood" }, now);
+      const floodInput = {
+        requestId: floodRequest.request.id,
+        reader: "BOT_CHANNELS_GET_MESSAGES" as const,
+        runId: run.id,
+        seconds: 5,
+        finishedAt: now,
+        durationMs: 1,
+      };
+      const flood = await store.failRequestWithFlood(floodInput);
+      const replay = await store.failRequestWithFlood(floodInput);
+      const state = await store.readerState("BOT_CHANNELS_GET_MESSAGES");
+      record(
+        "flood_wait_persisted_once",
+        state.nextAllowedAt?.getTime() === flood.nextAllowedAt.getTime() && replay.replayed,
+      );
       await store.beginRequest({ ...spec, idempotencyKey: "check:2" }, now);
       const abandoned = await store.abandonInterrupted(new Date());
-      record("started_becomes_abandoned", abandoned.requests === 1);
-      const flood = await store.recordFloodWait({
-        reader: "BOT_CHANNELS_GET_MESSAGES",
-        runId: run.id,
-        requestId: first.request.id,
-        seconds: 5,
-        now,
-      });
-      const state = await store.readerState("BOT_CHANNELS_GET_MESSAGES");
-      record("flood_wait_persisted", state.nextAllowedAt?.getTime() === flood.nextAllowedAt.getTime());
+      record(
+        "started_becomes_abandoned_and_stops_reader",
+        abandoned.requests === 1 && abandoned.stoppedReaders.includes("BOT_CHANNELS_GET_MESSAGES"),
+      );
     } finally {
       await store.close();
     }

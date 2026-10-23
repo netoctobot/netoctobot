@@ -11,8 +11,8 @@ import {
   type LabEnv,
   type TelegramCredentials,
 } from "./config.js";
-import { labLockHolders, withLabLock, type AdvisorySessionLock } from "./lock.js";
-import { loginBot, loginUser, type LoginClient, type LoginPrompt } from "./login.js";
+import { labLockHolders, withLabLock, type AdvisorySessionLock, type LabLockInfo } from "./lock.js";
+import { loginBot, loginUser, type LoginClient, type LoginLock, type LoginPrompt } from "./login.js";
 import { openPrismaLabStore } from "./prisma-store.js";
 import { createTtyPrompt } from "./prompt.js";
 import { BotChannelReader, UserViewsReader, type LabRpc, type ReaderTransport } from "./readers.js";
@@ -34,7 +34,9 @@ export type TelegramSessionHandle = LabRpc & {
 
 export type LiveDeps = {
   openStore: (databaseUrl: string) => Promise<LabStore>;
-  withLock: <T>(databaseUrl: string, run: (lock: AdvisorySessionLock) => Promise<T>) => Promise<T>;
+  withLock: <T>(databaseUrl: string, run: (lock: AdvisorySessionLock, info: LabLockInfo) => Promise<T>) => Promise<T>;
+  /** How often login re-checks the lock in PostgreSQL while it waits. */
+  loginProbeIntervalMs: number;
   lockHolders: (databaseUrl: string) => Promise<number>;
   openTelegram: (input: {
     credentials: TelegramCredentials;
@@ -81,7 +83,7 @@ export async function runLiveCommand(
     if (!LOCKED_COMMANDS.includes(command)) {
       return await unlockedCommand(command, args, store, databaseUrl, deps);
     }
-    return await deps.withLock(databaseUrl, async (lock) => {
+    return await deps.withLock(databaseUrl, async (lock, info) => {
       switch (command) {
         case "clear-stop": {
           const state = await store.clearReaderStop(reader as LabReader);
@@ -90,7 +92,7 @@ export async function runLiveCommand(
         }
         case "login-bot":
         case "login-user":
-          return await login(command, args, env, store, deps, secrets, log);
+          return await login(command, args, env, store, deps, secrets, log, lock, info);
         default:
           return await liveRun(command === "run" ? "TRIAL" : "PREFLIGHT", env, store, lock, deps, secrets, log);
       }
@@ -176,6 +178,8 @@ async function login(
   deps: LiveDeps,
   secrets: string[],
   log: (line: string) => void,
+  lock: AdvisorySessionLock,
+  info: LabLockInfo,
 ): Promise<number> {
   const credentials = telegramCredentials(env);
   const key = sessionKey(env);
@@ -192,11 +196,27 @@ async function login(
         logLevel: LogLevel.WARN,
       })
     ).loginClient();
-  const shared = { store, credentials, sessionKey: key, replace, openClient, out: deps.out };
-  if (token !== null) {
-    await loginBot({ ...shared, botToken: token });
-  } else {
-    await loginUser({ ...shared, prompt: deps.prompt() });
+  const lost = new AbortController();
+  lock.onLost(() => lost.abort());
+  if (!lock.isHeld()) lost.abort();
+  const heartbeat = setInterval(() => {
+    void lock.probe().catch(() => false);
+  }, deps.loginProbeIntervalMs);
+  heartbeat.unref?.();
+  const loginLock: LoginLock = {
+    signal: lost.signal,
+    probe: () => lock.probe(),
+    guard: { backendPid: info.backendPid, isHeld: () => lock.isHeld() && !lost.signal.aborted },
+  };
+  const shared = { store, credentials, sessionKey: key, replace, lock: loginLock, openClient, out: deps.out };
+  try {
+    if (token !== null) {
+      await loginBot({ ...shared, botToken: token });
+    } else {
+      await loginUser({ ...shared, prompt: deps.prompt() });
+    }
+  } finally {
+    clearInterval(heartbeat);
   }
   return 0;
 }
@@ -216,6 +236,10 @@ async function liveRun(
   const trial = trialConfig(env);
   const ciphertexts = new Map<LabReader, string>();
   const readers: LabReader[] = [];
+  const abandoned = await store.abandonInterrupted(deps.clock.now());
+  for (const reader of abandoned.stoppedReaders) {
+    log(`${reader} stopped: a request from an interrupted run has no stored result. Review it, then run clear-stop.`);
+  }
   for (const reader of labReaders) {
     const state = await store.readerState(reader);
     if (state.stoppedAt !== null) {
@@ -271,6 +295,7 @@ async function liveRun(
       libraryTraffic: () =>
         Object.fromEntries([...sessions.entries()].map(([reader, handle]) => [reader, handle.traffic()])),
       log,
+      abandoned,
     });
     deps.out(JSON.stringify(summary));
     return ["completed", "signal"].includes(summary.stopReason) ? 0 : 2;
@@ -303,6 +328,7 @@ function defaultDeps(): LiveDeps {
   return {
     openStore: openPrismaLabStore,
     withLock: withLabLock,
+    loginProbeIntervalMs: 5_000,
     lockHolders: labLockHolders,
     openTelegram: async (input) => {
       const { openLabTelegramClient } = await import("./telegram-client.js");

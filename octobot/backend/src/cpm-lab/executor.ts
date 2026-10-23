@@ -1,7 +1,7 @@
 import { classifyThrown, type ClassifiedLabError } from "./errors.js";
 import type { PollLock } from "./poll-loop.js";
 import { LAB_LIMITS } from "./policy.js";
-import type { LabStore, ObservationRow, RequestSpec, StoredRequest } from "./store.js";
+import type { FloodOutcome, LabStore, ObservationRow, RequestSpec, StoredRequest } from "./store.js";
 
 export class LabPersistenceError extends Error {
   constructor(readonly stage: "begin" | "complete" | "fail") {
@@ -12,23 +12,27 @@ export class LabPersistenceError extends Error {
 
 export type ExecuteOutcome =
   | { kind: "succeeded"; request: StoredRequest; observations: ObservationRow[] }
-  | { kind: "failed"; request: StoredRequest; error: ClassifiedLabError }
+  | { kind: "failed"; request: StoredRequest; error: ClassifiedLabError; flood: FloodOutcome | null }
   | { kind: "existing"; request: StoredRequest }
+  | { kind: "deadline_passed" }
   | { kind: "lock_lost" }
   | { kind: "cap_reached" };
 
 /**
  * One lab request. The lock is probed first. The STARTED row is committed
- * before the RPC. A key that already exists in any status is not sent again.
- * If the lock is lost while the RPC is in flight, the call is aborted, nothing
- * is written, and the row stays STARTED for the next lock holder to abandon.
- * A failed write raises LabPersistenceError so the worker stops.
+ * before the RPC, and only while the slot deadline has not passed. A key that
+ * already exists in any status is not sent again. If the lock is lost while
+ * the RPC is in flight, the call is aborted, nothing is written, and the row
+ * stays STARTED for the next lock holder to abandon. A FLOOD_WAIT result is
+ * stored with its flood event and reader state in one transaction. A failed
+ * write raises LabPersistenceError so the worker stops.
  */
 export async function executeLabRequest(input: {
   lock: PollLock;
   store: LabStore;
   spec: RequestSpec;
   now: () => Date;
+  deadline: Date | null;
   lockSignal: AbortSignal;
   send: (signal: AbortSignal) => Promise<ObservationRow[]>;
 }): Promise<ExecuteOutcome> {
@@ -46,6 +50,9 @@ export async function executeLabRequest(input: {
   }
 
   const startedAt = input.now();
+  if (input.deadline !== null && startedAt.getTime() >= input.deadline.getTime()) {
+    return { kind: "deadline_passed" };
+  }
   let begun;
   try {
     begun = await input.store.beginRequest(input.spec, startedAt);
@@ -92,14 +99,26 @@ export async function executeLabRequest(input: {
   }
 
   const classified = classifyThrown(thrown);
+  let flood: FloodOutcome | null = null;
   try {
-    await input.store.failRequest({
-      requestId: begun.request.id,
-      errorClass: classified.errorClass,
-      floodWaitSeconds: classified.floodWaitSeconds,
-      finishedAt,
-      durationMs,
-    });
+    if (classified.errorClass === "FLOOD_WAIT" && classified.floodWaitSeconds !== null) {
+      flood = await input.store.failRequestWithFlood({
+        requestId: begun.request.id,
+        reader: begun.request.reader,
+        runId: begun.request.runId,
+        seconds: classified.floodWaitSeconds,
+        finishedAt,
+        durationMs,
+      });
+    } else {
+      await input.store.failRequest({
+        requestId: begun.request.id,
+        errorClass: classified.errorClass,
+        floodWaitSeconds: classified.floodWaitSeconds,
+        finishedAt,
+        durationMs,
+      });
+    }
   } catch {
     throw new LabPersistenceError("fail");
   }
@@ -114,6 +133,7 @@ export async function executeLabRequest(input: {
       durationMs,
     },
     error: classified,
+    flood,
   };
 }
 

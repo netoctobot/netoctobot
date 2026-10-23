@@ -4,7 +4,14 @@ import { executeLabRequest } from "./executor.js";
 import type { PollLock } from "./poll-loop.js";
 import { actionForError, buildSchedule, LAB_LIMITS, plannedSendTime, requestKey } from "./policy.js";
 import type { ParsedObservation, ReaderTransport } from "./readers.js";
-import type { LabStore, ObservationRow, RequestPurpose, RunKind } from "./store.js";
+import {
+  UNRESOLVED_STOP_REASON,
+  type AbandonResult,
+  type LabStore,
+  type ObservationRow,
+  type RequestPurpose,
+  type RunKind,
+} from "./store.js";
 import type { LabReader } from "./types.js";
 
 export type LabClock = {
@@ -39,7 +46,7 @@ export type WorkerSummary = {
   runId: string;
   kind: RunKind;
   stopReason: string;
-  abandonedAtStart: { requests: number; runs: number };
+  abandonedAtStart: AbandonResult;
 };
 
 type Slot = {
@@ -73,6 +80,8 @@ export async function runLabWorker(deps: {
   settings: Record<string, unknown>;
   libraryTraffic: () => unknown;
   log: (line: string) => void;
+  /** Result of abandonInterrupted when the caller already ran it under this lock. */
+  abandoned?: AbandonResult;
 }): Promise<WorkerSummary> {
   const { store, clock } = deps;
   if (!deps.lock.isHeld()) {
@@ -81,7 +90,7 @@ export async function runLabWorker(deps: {
   const lockController = new AbortController();
   deps.lock.onLost(() => lockController.abort(new LabAbortError()));
 
-  const abandonedAtStart = await store.abandonInterrupted(clock.now());
+  const abandonedAtStart = deps.abandoned ?? (await store.abandonInterrupted(clock.now()));
   const channel = await store.ensureChannel(deps.channel.telegramChannelId);
   const post = await store.ensurePost(channel.id, BigInt(deps.channel.postId));
   const run = await store.createRun({
@@ -102,6 +111,10 @@ export async function runLabWorker(deps: {
     startedAt: clock.now(),
   });
   deps.log(`run ${run.id} started (${deps.kind})`);
+  for (const reader of abandonedAtStart.stoppedReaders) {
+    await store.addAlert(run.id, "reader_stopped_unresolved", `${reader} ${UNRESOLVED_STOP_REASON}`, clock.now());
+    deps.log(`${reader} stopped: a request from an interrupted run has no stored result. Review it, then run clear-stop.`);
+  }
 
   const active = new Map<LabReader, ReaderTransport>();
   let lastRequestedAt: Date | null = null;
@@ -129,29 +142,37 @@ export async function runLabWorker(deps: {
 
   const runSlot = async (slot: Slot, isRetry: boolean): Promise<boolean> => {
     const reader = slot.transport.reader;
-    const state = await store.readerState(reader);
-    if (state.stoppedAt !== null) {
-      active.delete(reader);
-      return false;
-    }
-    const plan = plannedSendTime({
-      dueAt: slot.dueAt,
-      deadline: slot.deadline,
-      nextAllowedAt: state.nextAllowedAt,
-      lastRequestedAt,
-    });
-    if (plan.skip) {
-      await store.addAlert(run.id, "slot_skipped", `${slot.key} ${plan.reason}`, clock.now());
-      return false;
-    }
-    if (!(await clock.sleepUntil(plan.sendAt, deps.stopSignal))) {
-      stopReason = "signal";
-      return false;
+    for (;;) {
+      const state = await store.readerState(reader);
+      if (state.stoppedAt !== null) {
+        active.delete(reader);
+        return false;
+      }
+      const now = clock.now();
+      const plan = plannedSendTime({
+        now,
+        dueAt: slot.dueAt,
+        deadline: slot.deadline,
+        nextAllowedAt: state.nextAllowedAt,
+        lastRequestedAt,
+      });
+      if (plan.skip) {
+        await store.addAlert(run.id, "slot_skipped", `${slot.key} ${plan.reason}`, now);
+        return false;
+      }
+      if (plan.sendAt.getTime() <= now.getTime()) {
+        break;
+      }
+      if (!(await clock.sleepUntil(plan.sendAt, deps.stopSignal))) {
+        stopReason = "signal";
+        return false;
+      }
     }
     const outcome = await executeLabRequest({
       lock: deps.lock,
       store,
       now: () => clock.now(),
+      deadline: slot.deadline,
       lockSignal: lockController.signal,
       spec: {
         runId: run.id,
@@ -166,10 +187,13 @@ export async function runLabWorker(deps: {
       },
       send: async (signal) => toRows(await slot.send(signal)),
     });
-    if (outcome.kind !== "cap_reached" && outcome.kind !== "lock_lost") {
+    if ("request" in outcome) {
       lastRequestedAt = outcome.request.requestedAt;
     }
     switch (outcome.kind) {
+      case "deadline_passed":
+        await store.addAlert(run.id, "slot_skipped", `${slot.key} deadline`, clock.now());
+        return false;
       case "lock_lost":
         stopReason = "lock_lost";
         return false;
@@ -184,14 +208,8 @@ export async function runLabWorker(deps: {
       case "failed": {
         const errorClass = outcome.error.errorClass;
         deps.log(`${slot.key} failed: ${errorClass}`);
-        if (errorClass === "FLOOD_WAIT" && outcome.error.floodWaitSeconds !== null) {
-          const flood = await store.recordFloodWait({
-            reader,
-            runId: run.id,
-            requestId: outcome.request.id,
-            seconds: outcome.error.floodWaitSeconds,
-            now: clock.now(),
-          });
+        const flood = outcome.flood;
+        if (flood !== null) {
           await store.addAlert(
             run.id,
             "flood_wait",

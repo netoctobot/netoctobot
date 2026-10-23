@@ -127,12 +127,12 @@ model CpmLabRpcRequest {
   floodWaitSeconds Int?
   retryOfId        String?
 
-  run         CpmLabRun          @relation(fields: [runId], references: [id])
-  channel     CpmLabChannel      @relation(fields: [channelId], references: [id])
-  readings    CpmLabReading[]
-  retryOf     CpmLabRpcRequest?  @relation("CpmLabRetry", fields: [retryOfId], references: [id])
-  retries     CpmLabRpcRequest[] @relation("CpmLabRetry")
-  floodEvents CpmLabFloodEvent[]
+  run        CpmLabRun          @relation(fields: [runId], references: [id])
+  channel    CpmLabChannel      @relation(fields: [channelId], references: [id])
+  readings   CpmLabReading[]
+  retryOf    CpmLabRpcRequest?  @relation("CpmLabRetry", fields: [retryOfId], references: [id])
+  retries    CpmLabRpcRequest[] @relation("CpmLabRetry")
+  floodEvent CpmLabFloodEvent?
 
   @@unique([runId, idempotencyKey])
   @@index([runId, reader])
@@ -197,12 +197,14 @@ model CpmLabReaderState {
   @@map("cpm_lab_reader_states")
 }
 
-/// Append-only. The stop rule counts rows for one reader in the last 24 hours.
+/// Append-only. One row per request at most, written in the same transaction
+/// that marks the request FAILED and updates the reader state.
+/// The stop rule counts rows for one reader in the last 24 hours.
 model CpmLabFloodEvent {
   id            String           @id @default(cuid())
   reader        CpmLabReaderKind
   runId         String?
-  requestId     String?
+  requestId     String?          @unique
   seconds       Int
   occurredAt    DateTime
   nextAllowedAt DateTime

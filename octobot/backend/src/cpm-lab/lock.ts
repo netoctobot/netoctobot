@@ -99,6 +99,9 @@ export class AdvisorySessionLock {
 
 export const LAB_LOCK_APPLICATION_NAME = "cpm-lab-lock";
 
+/** backendPid is pg_backend_pid() of the connection that holds the lock. */
+export type LabLockInfo = { backendPid: number | null };
+
 /**
  * A pg.Client outside any Prisma pool. The advisory lock lives as long as
  * this connection. TCP keepalive lets a dead peer surface as "error" or "end",
@@ -146,11 +149,11 @@ export async function openDedicatedPostgresLock(connectionString: string): Promi
 
 export async function withLabLock<T>(
   connectionString: string,
-  run: (lock: AdvisorySessionLock) => Promise<T>,
+  run: (lock: AdvisorySessionLock, info: LabLockInfo) => Promise<T>,
 ): Promise<T> {
-  const { lock, close } = await openDedicatedPostgresLock(connectionString);
+  const { lock, backendPid, close } = await openDedicatedPostgresLock(connectionString);
   try {
-    return await run(lock);
+    return await run(lock, { backendPid });
   } finally {
     await close();
   }

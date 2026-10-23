@@ -27,7 +27,7 @@ async function setup() {
   };
   const row = (views: number) => [{ postId: post.id, telegramMessageId: 42n, views, resultKind: "MESSAGE" as const }];
   const controller = new AbortController();
-  const base = { lock, store, now: () => clock.now(), lockSignal: controller.signal };
+  const base = { lock, store, now: () => clock.now(), deadline: null, lockSignal: controller.signal };
   return { store, clock, lock, spec, row, controller, base };
 }
 
@@ -90,6 +90,7 @@ test("lock lost in flight: the call is aborted, the row stays STARTED, and a lat
     lock,
     store,
     now: () => new Date(),
+    deadline: null,
     lockSignal: controller.signal,
     spec,
     send: async (signal) => {
@@ -104,19 +105,88 @@ test("lock lost in flight: the call is aborted, the row stays STARTED, and a lat
   assert.equal(store.readings.length, 0);
 });
 
-test("errors are stored as FAILED with the classified flood wait", async () => {
-  const { store, spec, base } = await setup();
+const floodError = (seconds: number) => new errors.FloodWaitError({ capture: String(seconds), request: undefined } as never);
+
+test("FLOOD_WAIT stores the request, the flood event, and nextAllowedAt together", async () => {
+  const { store, spec, base, clock } = await setup();
   const outcome = await executeLabRequest({
     ...base,
     spec,
     send: async () => {
-      throw new errors.FloodWaitError({ capture: "12", request: undefined } as never);
+      throw floodError(12);
     },
   });
   assert.equal(outcome.kind, "failed");
   assert.equal(store.requests[0]?.status, "FAILED");
   assert.equal(store.requests[0]?.errorClass, "FLOOD_WAIT");
   assert.equal(store.requests[0]?.floodWaitSeconds, 12);
+  assert.equal(store.floodEvents.length, 1);
+  assert.equal(store.floodEvents[0]?.requestId, store.requests[0]?.id);
+  const state = await store.readerState("BOT_CHANNELS_GET_MESSAGES");
+  assert.equal(state.nextAllowedAt?.getTime(), clock.time + 12_000);
+  if (outcome.kind === "failed") {
+    assert.equal(outcome.flood?.nextAllowedAt.getTime(), clock.time + 12_000);
+    assert.equal(outcome.flood?.replayed, false);
+  }
+});
+
+test("a write failure inside the flood transaction leaves nothing half-written and stops the worker", async () => {
+  const { store, spec, base } = await setup();
+  store.failFloodWritesBeforeCommit = true;
+  await assert.rejects(
+    executeLabRequest({
+      ...base,
+      spec,
+      send: async () => {
+        throw floodError(30);
+      },
+    }),
+    (error: unknown) => error instanceof LabPersistenceError && error.stage === "fail",
+  );
+  assert.equal(store.requests[0]?.status, "STARTED");
+  assert.equal(store.floodEvents.length, 0);
+  assert.equal((await store.readerState("BOT_CHANNELS_GET_MESSAGES")).nextAllowedAt, null);
+});
+
+test("reprocessing the same flood result adds no event and does not count twice", async () => {
+  const { store, spec, base, clock } = await setup();
+  await executeLabRequest({
+    ...base,
+    spec,
+    send: async () => {
+      throw floodError(5);
+    },
+  });
+  const input = {
+    requestId: store.requests[0]!.id,
+    reader: "BOT_CHANNELS_GET_MESSAGES" as const,
+    runId: spec.runId,
+    seconds: 5,
+    finishedAt: clock.now(),
+    durationMs: 0,
+  };
+  for (let index = 0; index < 3; index += 1) {
+    const replay = await store.failRequestWithFlood(input);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.priorEventsInWindow, 0);
+    assert.equal(replay.stopReader, false);
+  }
+  assert.equal(store.floodEvents.length, 1);
+  assert.equal((await store.readerState("BOT_CHANNELS_GET_MESSAGES")).stoppedAt, null);
+});
+
+test("a deadline that passed before the row is written sends nothing", async () => {
+  const { store, spec, row, base, clock } = await setup();
+  let sent = false;
+  const outcome = await executeLabRequest({
+    ...base,
+    deadline: clock.now(),
+    spec,
+    send: async () => ((sent = true), row(1)),
+  });
+  assert.equal(outcome.kind, "deadline_passed");
+  assert.equal(sent, false);
+  assert.equal(store.requests.length, 0);
 });
 
 test("a failed completion write stops with LabPersistenceError and leaves STARTED", async () => {

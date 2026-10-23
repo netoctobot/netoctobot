@@ -32,14 +32,27 @@ test("schedule rounds and skip late slots without backlog", () => {
   assert.equal(rounds[0]?.deadline.toISOString(), "2026-10-24T06:05:00.000Z");
 
   const round = rounds[1]!;
-  const spaced = plannedSendTime({ dueAt: round.dueAt, deadline: round.deadline, nextAllowedAt: null, lastRequestedAt: new Date(round.dueAt.getTime() - 1000) });
+  const now = start;
+  const spaced = plannedSendTime({ now, dueAt: round.dueAt, deadline: round.deadline, nextAllowedAt: null, lastRequestedAt: new Date(round.dueAt.getTime() - 1000) });
   assert.equal(spaced.sendAt.getTime() - round.dueAt.getTime(), 2000);
   assert.equal(spaced.skip, false);
 
-  const flooded = plannedSendTime({ dueAt: round.dueAt, deadline: round.deadline, nextAllowedAt: round.deadline, lastRequestedAt: null });
+  const flooded = plannedSendTime({ now, dueAt: round.dueAt, deadline: round.deadline, nextAllowedAt: round.deadline, lastRequestedAt: null });
   assert.deepEqual([flooded.skip, flooded.reason], [true, "flood_wait"]);
-  const late = plannedSendTime({ dueAt: round.dueAt, deadline: round.deadline, nextAllowedAt: null, lastRequestedAt: new Date(round.deadline.getTime() - 1000) });
+  const late = plannedSendTime({ now, dueAt: round.dueAt, deadline: round.deadline, nextAllowedAt: null, lastRequestedAt: new Date(round.deadline.getTime() - 1000) });
   assert.deepEqual([late.skip, late.reason], [true, "late"]);
+});
+
+test("the current time is part of the plan: a round that already ended is skipped", () => {
+  const [round] = buildSchedule({ startAt: new Date("2026-10-24T06:00:00Z"), rounds: 1, intervalMs: 300_000 });
+  const inside = new Date(round!.dueAt.getTime() + 120_000);
+  const midRound = plannedSendTime({ now: inside, dueAt: round!.dueAt, deadline: round!.deadline, nextAllowedAt: null, lastRequestedAt: null });
+  assert.deepEqual([midRound.skip, midRound.sendAt.getTime()], [false, inside.getTime()]);
+
+  for (const now of [round!.deadline, new Date(round!.deadline.getTime() + 3_600_000)]) {
+    const ended = plannedSendTime({ now, dueAt: round!.dueAt, deadline: round!.deadline, nextAllowedAt: null, lastRequestedAt: null });
+    assert.deepEqual([ended.skip, ended.reason], [true, "deadline"]);
+  }
 });
 
 test("request keys are deterministic and retries get their own key", () => {

@@ -1,13 +1,19 @@
+import { LAB_ADVISORY_LOCK_CLASSID, LAB_ADVISORY_LOCK_OBJID } from "./lock.js";
 import { floodDecision, LAB_LIMITS } from "./policy.js";
 import {
   ABANDONED_ERROR_CLASS,
   assertSameRequestIdentity,
+  LabLockLostError,
   NoTrialRunError,
   RequestStateError,
   SessionExistsError,
+  UNRESOLVED_STOP_REASON,
+  type AbandonResult,
   type BeginResult,
+  type FloodFailureInput,
   type FloodOutcome,
   type LabStore,
+  type SessionWriteGuard,
   type ObservationRow,
   type ReaderState,
   type RequestSpec,
@@ -47,6 +53,7 @@ type LabPrismaTx = {
   cpmLabReaderState: Delegate;
   cpmLabFloodEvent: Delegate;
   cpmLabManualEvent: Delegate;
+  $queryRawUnsafe<T>(sql: string, ...values: unknown[]): Promise<T>;
 };
 type LabPrismaClient = LabPrismaTx & {
   $transaction<T>(fn: (tx: LabPrismaTx) => Promise<T>): Promise<T>;
@@ -124,17 +131,37 @@ export class PrismaLabStore implements LabStore {
     });
   }
 
-  async abandonInterrupted(now: Date) {
+  async abandonInterrupted(now: Date): Promise<AbandonResult> {
     return this.prisma.$transaction(async (tx) => {
-      const requests = await tx.cpmLabRpcRequest.updateMany({
+      const started = await tx.cpmLabRpcRequest.findMany({
         where: { status: "STARTED" },
+        select: { id: true, reader: true },
+      });
+      const requests = await tx.cpmLabRpcRequest.updateMany({
+        where: { id: { in: started.map((row) => row.id) }, status: "STARTED" },
         data: { status: "ABANDONED", errorClass: ABANDONED_ERROR_CLASS, finishedAt: now },
       });
+      if (requests.count !== started.length) {
+        throw new RequestStateError();
+      }
+      const stoppedReaders: LabReader[] = [];
+      for (const reader of new Set(started.map((row) => row.reader as LabReader))) {
+        const current = toState(reader, await tx.cpmLabReaderState.findUnique({ where: { reader } }));
+        if (current.stoppedAt !== null) {
+          continue;
+        }
+        await tx.cpmLabReaderState.upsert({
+          where: { reader },
+          create: { reader, stoppedAt: now, stopReason: UNRESOLVED_STOP_REASON },
+          update: { stoppedAt: now, stopReason: UNRESOLVED_STOP_REASON },
+        });
+        stoppedReaders.push(reader);
+      }
       const runs = await tx.cpmLabRun.updateMany({
         where: { status: "RUNNING" },
         data: { status: "STOPPED", stopReason: "interrupted", stoppedAt: now },
       });
-      return { requests: requests.count, runs: runs.count };
+      return { requests: requests.count, runs: runs.count, stoppedReaders };
     });
   }
 
@@ -232,48 +259,82 @@ export class PrismaLabStore implements LabStore {
     return toState(reader, row);
   }
 
-  async recordFloodWait(input: {
-    reader: LabReader;
-    runId: string;
-    requestId: string;
-    seconds: number;
-    now: Date;
-  }): Promise<FloodOutcome> {
+  async failRequestWithFlood(input: FloodFailureInput): Promise<FloodOutcome> {
+    try {
+      return await this.floodTransaction(input);
+    } catch (error) {
+      if (!isUniqueViolation(error)) {
+        throw error;
+      }
+      return this.floodTransaction(input);
+    }
+  }
+
+  /**
+   * The request row is locked first, so a concurrent call for the same
+   * request waits and then returns the stored outcome. The unique requestId
+   * on flood events is the second line of defense.
+   */
+  private async floodTransaction(input: FloodFailureInput): Promise<FloodOutcome> {
     return this.prisma.$transaction(async (tx) => {
-      const since = new Date(input.now.getTime() - LAB_LIMITS.floodWindowMs);
-      const prior = await tx.cpmLabFloodEvent.count({
-        where: { reader: input.reader, occurredAt: { gt: since } },
-      });
+      await tx.$queryRawUnsafe(LOCK_REQUEST_ROW_SQL, input.requestId);
+      const request = await tx.cpmLabRpcRequest.findUnique({ where: { id: input.requestId } });
+      if (!request) {
+        throw new RequestStateError();
+      }
+      const existing = await tx.cpmLabFloodEvent.findUnique({ where: { requestId: input.requestId } });
+      if (existing) {
+        const prior = await countPriorFloodEvents(tx, input.reader, existing.occurredAt, existing.id);
+        const decision = floodDecision({ priorEventsInWindow: prior, seconds: existing.seconds });
+        const current = toState(input.reader, await tx.cpmLabReaderState.findUnique({ where: { reader: input.reader } }));
+        return {
+          nextAllowedAt: laterOf(current.nextAllowedAt, existing.nextAllowedAt),
+          priorEventsInWindow: prior,
+          ...decision,
+          replayed: true,
+        };
+      }
+      if (request.status !== "STARTED") {
+        throw new RequestStateError();
+      }
+      const prior = await countPriorFloodEvents(tx, input.reader, input.finishedAt, null);
       const decision = floodDecision({ priorEventsInWindow: prior, seconds: input.seconds });
-      const requested = new Date(input.now.getTime() + input.seconds * 1000);
+      const requested = new Date(input.finishedAt.getTime() + input.seconds * 1000);
+      const updated = await tx.cpmLabRpcRequest.updateMany({
+        where: { id: input.requestId, status: "STARTED" },
+        data: {
+          status: "FAILED",
+          errorClass: "FLOOD_WAIT",
+          floodWaitSeconds: input.seconds,
+          finishedAt: input.finishedAt,
+          durationMs: input.durationMs,
+        },
+      });
+      if (updated.count !== 1) {
+        throw new RequestStateError();
+      }
       await tx.cpmLabFloodEvent.create({
         data: {
           reader: input.reader,
           runId: input.runId,
           requestId: input.requestId,
           seconds: input.seconds,
-          occurredAt: input.now,
+          occurredAt: input.finishedAt,
           nextAllowedAt: requested,
         },
       });
-      const current = toState(
-        input.reader,
-        await tx.cpmLabReaderState.findUnique({ where: { reader: input.reader } }),
-      );
-      const nextAllowedAt =
-        current.nextAllowedAt !== null && current.nextAllowedAt > requested
-          ? current.nextAllowedAt
-          : requested;
+      const current = toState(input.reader, await tx.cpmLabReaderState.findUnique({ where: { reader: input.reader } }));
+      const nextAllowedAt = laterOf(current.nextAllowedAt, requested);
       const stopFields =
         decision.stopReader && current.stoppedAt === null
-          ? { stoppedAt: input.now, stopReason: decision.reason }
+          ? { stoppedAt: input.finishedAt, stopReason: decision.reason }
           : {};
       await tx.cpmLabReaderState.upsert({
         where: { reader: input.reader },
         create: { reader: input.reader, nextAllowedAt, ...stopFields },
         update: { nextAllowedAt, ...stopFields },
       });
-      return { nextAllowedAt, priorEventsInWindow: prior, ...decision };
+      return { nextAllowedAt, priorEventsInWindow: prior, ...decision, replayed: false };
     });
   }
 
@@ -309,17 +370,37 @@ export class PrismaLabStore implements LabStore {
     return row ? { ciphertext: row.ciphertext as string, keyVersion: row.keyVersion as number } : null;
   }
 
-  async saveSession(reader: LabReader, ciphertext: string, replace: boolean) {
-    if (replace) {
-      await this.prisma.cpmLabSession.upsert({
-        where: { reader },
-        create: { reader, ciphertext },
-        update: { ciphertext, keyVersion: 1 },
-      });
-      return;
+  /**
+   * The lock check and the write share one transaction. pg_locks must show the
+   * lock connection's backend still holding the advisory lock, so a session
+   * is never written or replaced after that connection is gone.
+   */
+  async saveSession(reader: LabReader, ciphertext: string, replace: boolean, guard: SessionWriteGuard) {
+    if (!guard.isHeld() || guard.backendPid === null) {
+      throw new LabLockLostError();
     }
+    const backendPid = guard.backendPid;
     try {
-      await this.prisma.cpmLabSession.create({ data: { reader, ciphertext } });
+      await this.prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRawUnsafe<Array<{ held: boolean }>>(
+          LOCK_HELD_BY_PID_SQL,
+          LAB_ADVISORY_LOCK_CLASSID,
+          LAB_ADVISORY_LOCK_OBJID,
+          backendPid,
+        );
+        if (rows[0]?.held !== true || !guard.isHeld()) {
+          throw new LabLockLostError();
+        }
+        if (replace) {
+          await tx.cpmLabSession.upsert({
+            where: { reader },
+            create: { reader, ciphertext },
+            update: { ciphertext, keyVersion: 1 },
+          });
+          return;
+        }
+        await tx.cpmLabSession.create({ data: { reader, ciphertext } });
+      });
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new SessionExistsError();
@@ -410,6 +491,38 @@ export class PrismaLabStore implements LabStore {
   async close() {
     await this.prisma.$disconnect();
   }
+}
+
+const LOCK_REQUEST_ROW_SQL = `SELECT id FROM "cpm_lab_rpc_requests" WHERE id = $1 FOR UPDATE`;
+
+const LOCK_HELD_BY_PID_SQL = `SELECT EXISTS (
+  SELECT 1 FROM pg_locks
+  WHERE locktype = 'advisory'
+    AND granted = true
+    AND pid = $3::integer
+    AND classid = $1::integer
+    AND objid = $2::integer
+    AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+) AS held`;
+
+async function countPriorFloodEvents(
+  tx: LabPrismaTx,
+  reader: LabReader,
+  at: Date,
+  excludeId: string | null,
+): Promise<number> {
+  const since = new Date(at.getTime() - LAB_LIMITS.floodWindowMs);
+  return tx.cpmLabFloodEvent.count({
+    where: {
+      reader,
+      occurredAt: { gt: since, lte: at },
+      ...(excludeId === null ? {} : { id: { not: excludeId } }),
+    },
+  });
+}
+
+function laterOf(left: Date | null, right: Date): Date {
+  return left !== null && left.getTime() > right.getTime() ? left : right;
 }
 
 export function isUniqueViolation(error: unknown): boolean {

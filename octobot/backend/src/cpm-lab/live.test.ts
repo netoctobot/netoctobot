@@ -4,7 +4,7 @@ import { isLiveCommand, LOCKED_COMMANDS } from "./commands.js";
 import { runLiveCommand, type LiveDeps, type TelegramSessionHandle } from "./live.js";
 import type { AdvisorySessionLock } from "./lock.js";
 import { encryptLabSession } from "./session-crypto.js";
-import { MemoryLabStore } from "./store.js";
+import { LabLockLostError, MemoryLabStore, UNRESOLVED_STOP_REASON } from "./store.js";
 import { FakeClock, FakeLock } from "./testing/fakes.js";
 import { mainCommand, startLab } from "./main.js";
 
@@ -22,13 +22,15 @@ const ENV = {
   LAB_TRIAL_INTERVAL_SECONDS: "60",
 };
 
+const HELD = { backendPid: 4242, isHeld: () => true };
+
 function fakeDeps(store: MemoryLabStore, events: string[]): Partial<LiveDeps> {
   return {
     openStore: async () => store,
     withLock: async (_url, run) => {
       events.push("lock");
       try {
-        return await run(new FakeLock() as unknown as AdvisorySessionLock);
+        return await run(new FakeLock() as unknown as AdvisorySessionLock, { backendPid: 4242 });
       } finally {
         events.push("unlock");
       }
@@ -80,7 +82,7 @@ test("run requires --confirm-live before any database or Telegram access", async
 test("preflight takes the lock before opening Telegram and closes clients before unlocking", async () => {
   const store = new MemoryLabStore();
   for (const reader of ["BOT_CHANNELS_GET_MESSAGES", "USER_GET_MESSAGES_VIEWS"] as const) {
-    await store.saveSession(reader, encryptLabSession("session", KEY), false);
+    await store.saveSession(reader, encryptLabSession("session", KEY), false, HELD);
   }
   const events: string[] = [];
   const code = await runLiveCommand("preflight", [], ENV, fakeDeps(store, events));
@@ -94,7 +96,7 @@ test("preflight takes the lock before opening Telegram and closes clients before
 test("a stopped reader's session is not opened", async () => {
   const store = new MemoryLabStore();
   for (const reader of ["BOT_CHANNELS_GET_MESSAGES", "USER_GET_MESSAGES_VIEWS"] as const) {
-    await store.saveSession(reader, encryptLabSession("session", KEY), false);
+    await store.saveSession(reader, encryptLabSession("session", KEY), false, HELD);
   }
   await store.stopReader("USER_GET_MESSAGES_VIEWS", "SESSION_REVOKED", new Date());
   const events: string[] = [];
@@ -139,4 +141,69 @@ test("fixture stays the default and live is not a command", async () => {
     process.stderr.write = original;
   }
   assert.match(writes.join(""), /Unknown cpm-lab command/);
+});
+
+test("an interrupted request stops its reader before any session is opened", async () => {
+  const store = new MemoryLabStore();
+  for (const reader of ["BOT_CHANNELS_GET_MESSAGES", "USER_GET_MESSAGES_VIEWS"] as const) {
+    await store.saveSession(reader, encryptLabSession("session", KEY), false, HELD);
+  }
+  const channel = await store.ensureChannel(1234567890n);
+  const run = await store.createRun({ label: "old", kind: "TRIAL", settings: {}, startedAt: new Date() });
+  await store.beginRequest(
+    {
+      runId: run.id,
+      reader: "USER_GET_MESSAGES_VIEWS",
+      channelId: channel.id,
+      idempotencyKey: "trial:r3:USER_GET_MESSAGES_VIEWS",
+      source: "TELEGRAM",
+      purpose: "TRIAL_READ",
+      rpcMethod: "messages.GetMessagesViews",
+      slotIndex: 3,
+      retryOfId: null,
+    },
+    new Date(),
+  );
+  const events: string[] = [];
+  await runLiveCommand("preflight", [], ENV, fakeDeps(store, events));
+  assert.equal((await store.readerState("USER_GET_MESSAGES_VIEWS")).stopReason, UNRESOLVED_STOP_REASON);
+  assert.equal(events.filter((event) => event === "telegram").length, 1);
+  assert.equal(events.some((event) => event === "rpc:messages.GetMessagesViews"), false);
+  assert.equal(store.requests[0]?.status, "ABANDONED");
+});
+
+test("login-bot --replace: lock loss during sign-in closes the client and keeps the old session", async () => {
+  const store = new MemoryLabStore();
+  store.sessions.set("BOT_CHANNELS_GET_MESSAGES", { ciphertext: "old-ciphertext", keyVersion: 1 });
+  const lock = new FakeLock();
+  const events: string[] = [];
+  let finish!: () => void;
+  const code = runLiveCommand("login-bot", ["--replace"], { ...ENV, LAB_BOT_TOKEN: "123456:ABCdefGhIJKlmNoPQRstuVWXyz012345678" }, {
+    ...fakeDeps(store, events),
+    withLock: async (_url, run) => run(lock as unknown as AdvisorySessionLock, { backendPid: 4242 }),
+    openTelegram: async () => ({
+      invokeLab: async () => {
+        throw new Error("not used");
+      },
+      traffic: () => ({ countedAtInvoke: {}, notFullyMeasured: [] }),
+      saveSession: () => "new-session",
+      close: async () => void events.push("telegram-close"),
+      loginClient: () => ({
+        signInBot: () => {
+          events.push("sign-in");
+          setImmediate(() => lock.lose());
+          return new Promise<void>((resolve) => (finish = resolve));
+        },
+        signInUser: async () => undefined,
+        getMe: async () => ((events.push("get-me")), { bot: true }),
+        saveSession: () => "new-session",
+        close: async () => void events.push("telegram-close"),
+      }),
+    }),
+  });
+  await assert.rejects(code, LabLockLostError);
+  finish();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(events, ["sign-in", "telegram-close"]);
+  assert.equal(store.sessions.get("BOT_CHANNELS_GET_MESSAGES")?.ciphertext, "old-ciphertext");
 });
