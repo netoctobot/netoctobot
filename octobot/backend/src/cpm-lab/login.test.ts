@@ -21,7 +21,14 @@ class TestLock {
       this.probes += 1;
       return this.probeResult ? this.probeResult() : this.held;
     },
-    guard: { backendPid: 4242, isHeld: () => this.held },
+    guard: {
+      backendPid: 4242,
+      isHeld: () => this.held,
+      inLockTransaction: async (write) => {
+        if (!this.held) throw new LabLockLostError();
+        await write(async () => ({ rows: [] }));
+      },
+    },
   };
   lose() {
     this.held = false;

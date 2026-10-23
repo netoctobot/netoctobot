@@ -1,4 +1,5 @@
 import pg from "pg";
+import { LabLockLostError, type LockQuery, type SessionWriteGuard } from "./store.js";
 
 export const LAB_ADVISORY_LOCK_CLASSID = 591_001;
 export const LAB_ADVISORY_LOCK_OBJID = 2_026_1022;
@@ -76,7 +77,37 @@ export class AdvisorySessionLock {
     this.client.on("end", () => this.markLost());
   }
 
+  /**
+   * Test seam. Runs after this backend is confirmed to hold the lock and
+   * before the session statements. Production leaves it null. The callback
+   * must not use this lock's connection, or it deadlocks the query queue.
+   */
+  beforeSessionWrite: (() => Promise<void>) | null = null;
+  private tail: Promise<void> = Promise.resolve();
+
   async probe(): Promise<boolean> {
+    return this.enqueue(() => this.probeNow());
+  }
+
+  /**
+   * BEGIN, confirm this backend holds the advisory lock, run the write, COMMIT.
+   * All of it is on the lock connection, so a disconnect rolls the write back
+   * before any other backend can acquire the lock.
+   */
+  async inLockTransaction(write: (query: LockQuery) => Promise<void>): Promise<void> {
+    await this.enqueue(() => this.transactionNow(write));
+  }
+
+  private enqueue<T>(run: () => Promise<T>): Promise<T> {
+    const result = this.tail.then(run, run);
+    this.tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  private async probeNow(): Promise<boolean> {
     if (!this.isHeld()) {
       return false;
     }
@@ -95,12 +126,65 @@ export class AdvisorySessionLock {
     this.markLost();
     return false;
   }
+
+  private async transactionNow(write: (query: LockQuery) => Promise<void>): Promise<void> {
+    if (!this.isHeld()) {
+      throw new LabLockLostError();
+    }
+    await this.client.query("BEGIN");
+    try {
+      const result = await this.client.query(ADVISORY_LOCK_HELD_SQL, [
+        LAB_ADVISORY_LOCK_CLASSID,
+        LAB_ADVISORY_LOCK_OBJID,
+      ]);
+      if (result.rows[0]?.held !== true) {
+        this.markLost();
+        throw new LabLockLostError();
+      }
+      if (this.beforeSessionWrite) {
+        await this.beforeSessionWrite();
+      }
+      if (!this.isHeld()) {
+        throw new LabLockLostError();
+      }
+      await write((sql, params) => this.client.query(sql, params));
+      if (!this.isHeld()) {
+        throw new LabLockLostError();
+      }
+      await this.client.query("COMMIT");
+    } catch (error) {
+      await this.client.query("ROLLBACK").catch(() => undefined);
+      if (error instanceof LabLockLostError) {
+        throw error;
+      }
+      if (isDisconnect(error)) {
+        this.markLost();
+        throw new LabLockLostError();
+      }
+      throw error;
+    }
+  }
+}
+
+function isDisconnect(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const code = "code" in error ? String((error as { code: unknown }).code) : "";
+  if (["57P01", "57P02", "57P03", "08006", "08003", "08000", "ECONNRESET", "EPIPE"].includes(code)) {
+    return true;
+  }
+  const message = "message" in error ? String((error as { message: unknown }).message) : "";
+  return /terminated|not queryable|connection (ended|closed|reset)|administrator command/i.test(message);
 }
 
 export const LAB_LOCK_APPLICATION_NAME = "cpm-lab-lock";
 
 /** backendPid is pg_backend_pid() of the connection that holds the lock. */
-export type LabLockInfo = { backendPid: number | null };
+export type LabLockInfo = {
+  backendPid: number | null;
+  sessionGuard: SessionWriteGuard;
+};
 
 /**
  * A pg.Client outside any Prisma pool. The advisory lock lives as long as
@@ -110,6 +194,7 @@ export type LabLockInfo = { backendPid: number | null };
 export async function openDedicatedPostgresLock(connectionString: string): Promise<{
   lock: AdvisorySessionLock;
   backendPid: number;
+  sessionGuard: SessionWriteGuard;
   close: () => Promise<void>;
 }> {
   const client = new pg.Client({
@@ -137,9 +222,15 @@ export async function openDedicatedPostgresLock(connectionString: string): Promi
     await client.end().catch(() => undefined);
     throw error;
   }
+  const sessionGuard: SessionWriteGuard = {
+    backendPid,
+    isHeld: () => lock.isHeld(),
+    inLockTransaction: (write) => lock.inLockTransaction(write),
+  };
   return {
     lock,
     backendPid,
+    sessionGuard,
     close: async () => {
       lock.markLost();
       await client.end().catch(() => undefined);
@@ -151,9 +242,9 @@ export async function withLabLock<T>(
   connectionString: string,
   run: (lock: AdvisorySessionLock, info: LabLockInfo) => Promise<T>,
 ): Promise<T> {
-  const { lock, backendPid, close } = await openDedicatedPostgresLock(connectionString);
+  const { lock, backendPid, sessionGuard, close } = await openDedicatedPostgresLock(connectionString);
   try {
-    return await run(lock, { backendPid });
+    return await run(lock, { backendPid, sessionGuard });
   } finally {
     await close();
   }

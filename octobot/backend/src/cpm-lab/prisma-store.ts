@@ -1,4 +1,4 @@
-import { LAB_ADVISORY_LOCK_CLASSID, LAB_ADVISORY_LOCK_OBJID } from "./lock.js";
+import { randomBytes } from "node:crypto";
 import { floodDecision, LAB_LIMITS } from "./policy.js";
 import {
   ABANDONED_ERROR_CLASS,
@@ -83,11 +83,36 @@ export async function openPrismaLabStore(databaseUrl: string): Promise<PrismaLab
     datasources: { db: { url: databaseUrl } },
     log: [],
   }) as LabPrismaClient;
-  return new PrismaLabStore(client);
+  return new PrismaLabStore(client, schemaFromDatabaseUrl(databaseUrl));
+}
+
+const SCHEMA_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function schemaFromDatabaseUrl(databaseUrl: string): string | null {
+  let schema: string | null;
+  try {
+    schema = new URL(databaseUrl).searchParams.get("schema");
+  } catch {
+    throw new Error("The lab database URL could not be parsed. The URL was not shown.");
+  }
+  if (schema === null || schema === "" || schema === "public") {
+    return null;
+  }
+  if (!SCHEMA_NAME.test(schema)) {
+    throw new Error("The lab database schema name is not one identifier. The URL was not shown.");
+  }
+  return schema;
+}
+
+function sessionRowId(): string {
+  return `lab_${randomBytes(16).toString("hex")}`;
 }
 
 export class PrismaLabStore implements LabStore {
-  constructor(private readonly prisma: LabPrismaClient) {}
+  constructor(
+    private readonly prisma: LabPrismaClient,
+    private readonly schema: string | null,
+  ) {}
 
   async ensureChannel(telegramChannelId: bigint) {
     const row = await this.prisma.cpmLabChannel.upsert({
@@ -371,35 +396,30 @@ export class PrismaLabStore implements LabStore {
   }
 
   /**
-   * The lock check and the write share one transaction. pg_locks must show the
-   * lock connection's backend still holding the advisory lock, so a session
-   * is never written or replaced after that connection is gone.
+   * The INSERT or UPDATE runs on the lock connection, inside the transaction
+   * started by the guard. Prisma's pool is not used. If that connection dies
+   * after the lock check and before COMMIT, PostgreSQL rolls the row back.
    */
   async saveSession(reader: LabReader, ciphertext: string, replace: boolean, guard: SessionWriteGuard) {
     if (!guard.isHeld() || guard.backendPid === null) {
       throw new LabLockLostError();
     }
-    const backendPid = guard.backendPid;
+    const schema = this.schema;
     try {
-      await this.prisma.$transaction(async (tx) => {
-        const rows = await tx.$queryRawUnsafe<Array<{ held: boolean }>>(
-          LOCK_HELD_BY_PID_SQL,
-          LAB_ADVISORY_LOCK_CLASSID,
-          LAB_ADVISORY_LOCK_OBJID,
-          backendPid,
+      await guard.inLockTransaction(async (query) => {
+        if (schema !== null) {
+          await query(`SELECT set_config('search_path', $1, true)`, [schema]);
+        }
+        await query(
+          replace
+            ? `INSERT INTO cpm_lab_sessions (id, reader, ciphertext)
+               VALUES ($1, $2::"CpmLabReaderKind", $3)
+               ON CONFLICT (reader) DO UPDATE
+                 SET ciphertext = EXCLUDED.ciphertext, "keyVersion" = 1`
+            : `INSERT INTO cpm_lab_sessions (id, reader, ciphertext)
+               VALUES ($1, $2::"CpmLabReaderKind", $3)`,
+          [sessionRowId(), reader, ciphertext],
         );
-        if (rows[0]?.held !== true || !guard.isHeld()) {
-          throw new LabLockLostError();
-        }
-        if (replace) {
-          await tx.cpmLabSession.upsert({
-            where: { reader },
-            create: { reader, ciphertext },
-            update: { ciphertext, keyVersion: 1 },
-          });
-          return;
-        }
-        await tx.cpmLabSession.create({ data: { reader, ciphertext } });
       });
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -495,16 +515,6 @@ export class PrismaLabStore implements LabStore {
 
 const LOCK_REQUEST_ROW_SQL = `SELECT id FROM "cpm_lab_rpc_requests" WHERE id = $1 FOR UPDATE`;
 
-const LOCK_HELD_BY_PID_SQL = `SELECT EXISTS (
-  SELECT 1 FROM pg_locks
-  WHERE locktype = 'advisory'
-    AND granted = true
-    AND pid = $3::integer
-    AND classid = $1::integer
-    AND objid = $2::integer
-    AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
-) AS held`;
-
 async function countPriorFloodEvents(
   tx: LabPrismaTx,
   reader: LabReader,
@@ -526,12 +536,11 @@ function laterOf(left: Date | null, right: Date): Date {
 }
 
 export function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "P2002"
-  );
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  const code = (error as { code: unknown }).code;
+  return code === "P2002" || code === "23505";
 }
 
 function toRequest(row: any): StoredRequest {

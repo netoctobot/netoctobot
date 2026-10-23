@@ -206,7 +206,11 @@ async function login(
   const loginLock: LoginLock = {
     signal: lost.signal,
     probe: () => lock.probe(),
-    guard: { backendPid: info.backendPid, isHeld: () => lock.isHeld() && !lost.signal.aborted },
+    guard: {
+      backendPid: info.backendPid,
+      isHeld: () => info.sessionGuard.isHeld() && !lost.signal.aborted,
+      inLockTransaction: (write) => info.sessionGuard.inLockTransaction(write),
+    },
   };
   const shared = { store, credentials, sessionKey: key, replace, lock: loginLock, openClient, out: deps.out };
   try {

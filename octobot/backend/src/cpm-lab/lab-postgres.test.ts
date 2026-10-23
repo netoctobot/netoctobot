@@ -185,26 +185,57 @@ test("a failure inside the flood transaction rolls back the request, the event, 
   assert.equal((await store.readerState("BOT_CHANNELS_GET_MESSAGES")).nextAllowedAt?.getTime(), at.getTime() + 90_000);
 });
 
-test("sessions refuse overwrite without replace and are written only while pg_locks shows the lock", { skip }, async () => {
+test("sessions refuse overwrite without replace and are written on the lock connection", { skip }, async () => {
   const holder = await openDedicatedPostgresLock(testUrl!);
-  const guard = { backendPid: holder.backendPid, isHeld: () => holder.lock.isHeld() };
+  const guard = holder.sessionGuard;
   try {
     await store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-1", false, guard);
     await assert.rejects(store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-2", false, guard), SessionExistsError);
     await store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-3", true, guard);
     assert.equal((await store.loadSession("BOT_CHANNELS_GET_MESSAGES"))?.ciphertext, "cipher-3");
-    await assert.rejects(
-      store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-4", true, { backendPid: holder.backendPid + 100_000, isHeld: () => true }),
-      LabLockLostError,
-    );
   } finally {
     await holder.close();
   }
-  await assert.rejects(
-    store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-5", true, { backendPid: holder.backendPid, isHeld: () => true }),
-    LabLockLostError,
-  );
+  await assert.rejects(store.saveSession("BOT_CHANNELS_GET_MESSAGES", "cipher-5", true, holder.sessionGuard), LabLockLostError);
   assert.equal((await store.loadSession("BOT_CHANNELS_GET_MESSAGES"))?.ciphertext, "cipher-3");
+});
+
+test("a lock connection lost after the check and before the write keeps the old session", { skip }, async () => {
+  const holder = await openDedicatedPostgresLock(testUrl!);
+  let successor: Awaited<ReturnType<typeof openDedicatedPostgresLock>> | null = null;
+  try {
+    await store.saveSession("USER_GET_MESSAGES_VIEWS", "cipher-old", false, holder.sessionGuard);
+    holder.lock.beforeSessionWrite = async () => {
+      const killer = new pg.Client({ connectionString: testUrl!, application_name: "cpm-lab-test" });
+      await killer.connect();
+      try {
+        await killer.query("SELECT pg_terminate_backend($1)", [holder.backendPid]);
+      } finally {
+        await killer.end().catch(() => undefined);
+      }
+      for (let attempt = 0; attempt < 25 && successor === null; attempt += 1) {
+        try {
+          successor = await openDedicatedPostgresLock(testUrl!);
+        } catch (error) {
+          if (!(error instanceof LabLockDeniedError)) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 40));
+        }
+      }
+      if (successor === null) {
+        throw new Error("the advisory lock did not move to a new connection");
+      }
+    };
+    await assert.rejects(
+      store.saveSession("USER_GET_MESSAGES_VIEWS", "cipher-new", true, holder.sessionGuard),
+      LabLockLostError,
+    );
+    assert.equal((await store.loadSession("USER_GET_MESSAGES_VIEWS"))?.ciphertext, "cipher-old");
+    assert.equal(successor?.lock.isHeld(), true);
+  } finally {
+    holder.lock.beforeSessionWrite = null;
+    await successor?.close().catch(() => undefined);
+    await holder.close().catch(() => undefined);
+  }
 });
 
 test("a second lock holder is denied, and withLabLock releases the connection", { skip }, async () => {

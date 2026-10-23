@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { isLiveCommand, LOCKED_COMMANDS } from "./commands.js";
 import { runLiveCommand, type LiveDeps, type TelegramSessionHandle } from "./live.js";
-import type { AdvisorySessionLock } from "./lock.js";
+import type { AdvisorySessionLock, LabLockInfo } from "./lock.js";
 import { encryptLabSession } from "./session-crypto.js";
-import { LabLockLostError, MemoryLabStore, UNRESOLVED_STOP_REASON } from "./store.js";
+import { directSessionGuard, LabLockLostError, MemoryLabStore, UNRESOLVED_STOP_REASON } from "./store.js";
 import { FakeClock, FakeLock } from "./testing/fakes.js";
 import { mainCommand, startLab } from "./main.js";
 
@@ -22,7 +22,11 @@ const ENV = {
   LAB_TRIAL_INTERVAL_SECONDS: "60",
 };
 
-const HELD = { backendPid: 4242, isHeld: () => true };
+const HELD = directSessionGuard(() => true, 4242);
+
+function lockInfo(lock: FakeLock): LabLockInfo {
+  return { backendPid: 4242, sessionGuard: directSessionGuard(() => lock.isHeld(), 4242) };
+}
 
 function fakeDeps(store: MemoryLabStore, events: string[]): Partial<LiveDeps> {
   return {
@@ -30,7 +34,8 @@ function fakeDeps(store: MemoryLabStore, events: string[]): Partial<LiveDeps> {
     withLock: async (_url, run) => {
       events.push("lock");
       try {
-        return await run(new FakeLock() as unknown as AdvisorySessionLock, { backendPid: 4242 });
+        const lock = new FakeLock();
+        return await run(lock as unknown as AdvisorySessionLock, lockInfo(lock));
       } finally {
         events.push("unlock");
       }
@@ -180,7 +185,7 @@ test("login-bot --replace: lock loss during sign-in closes the client and keeps 
   let finish!: () => void;
   const code = runLiveCommand("login-bot", ["--replace"], { ...ENV, LAB_BOT_TOKEN: "123456:ABCdefGhIJKlmNoPQRstuVWXyz012345678" }, {
     ...fakeDeps(store, events),
-    withLock: async (_url, run) => run(lock as unknown as AdvisorySessionLock, { backendPid: 4242 }),
+    withLock: async (_url, run) => run(lock as unknown as AdvisorySessionLock, lockInfo(lock)),
     openTelegram: async () => ({
       invokeLab: async () => {
         throw new Error("not used");

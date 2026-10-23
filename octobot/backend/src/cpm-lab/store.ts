@@ -82,11 +82,38 @@ export type AbandonResult = {
   stoppedReaders: LabReader[];
 };
 
-/** Checked inside the session write. backendPid is the lock connection's pg_backend_pid. */
+export type LockQuery = (
+  sql: string,
+  params?: readonly unknown[],
+) => Promise<{ rows: Array<Record<string, unknown>> }>;
+
+/**
+ * The session row is written on the connection that holds the advisory lock.
+ * inLockTransaction begins a transaction on that connection, checks that this
+ * same backend still holds the lock, runs the write, and commits. The lock
+ * cannot move to another backend until that connection ends, and ending it
+ * rolls the transaction back. Checking pg_locks from a different connection
+ * does not give that guarantee.
+ */
 export type SessionWriteGuard = {
   backendPid: number | null;
   isHeld: () => boolean;
+  inLockTransaction: (write: (query: LockQuery) => Promise<void>) => Promise<void>;
 };
+
+/** Guard for tests that do not open a database connection. */
+export function directSessionGuard(isHeld: () => boolean, backendPid: number | null = 1): SessionWriteGuard {
+  return {
+    backendPid,
+    isHeld,
+    async inLockTransaction(write) {
+      if (!isHeld() || backendPid === null) {
+        throw new LabLockLostError();
+      }
+      await write(async () => ({ rows: [] }));
+    },
+  };
+}
 
 export const UNRESOLVED_STOP_REASON = "unresolved_request_after_interruption";
 
@@ -492,9 +519,16 @@ export class MemoryLabStore implements LabStore {
   }
 
   async saveSession(reader: LabReader, ciphertext: string, replace: boolean, guard: SessionWriteGuard) {
-    if (!guard.isHeld()) throw new LabLockLostError();
-    if (this.sessions.has(reader) && !replace) throw new SessionExistsError();
-    this.sessions.set(reader, { ciphertext, keyVersion: 1 });
+    if (!guard.isHeld() || guard.backendPid === null) throw new LabLockLostError();
+    let stored: { ciphertext: string; keyVersion: number } | null = null;
+    await guard.inLockTransaction(async () => {
+      if (!guard.isHeld()) throw new LabLockLostError();
+      if (this.sessions.has(reader) && !replace) throw new SessionExistsError();
+      stored = { ciphertext, keyVersion: 1 };
+    });
+    if (stored !== null) {
+      this.sessions.set(reader, stored);
+    }
   }
 
   async addManualEvent(input: { runId: string | null; kind: string; occurredAt: Date; note: string | null }) {
