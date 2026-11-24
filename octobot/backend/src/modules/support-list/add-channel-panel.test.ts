@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { BotType, SupportedLanguage, type Bot as DatabaseBot, type PrismaClient } from "@prisma/client";
-import { Bot, type Context } from "grammy";
+import { Bot, type Api } from "grammy";
 import type { Redis } from "ioredis";
 import type { Env } from "../../config/env.js";
 import { BotRuntimeManager } from "../bots/bot-runtime-manager.js";
@@ -11,12 +11,7 @@ import {
 } from "../channels/channel-link-state.js";
 import { dashboardStateKey, getDashboardState } from "../bots/dashboard-state.js";
 import { translate } from "../localization/localization.service.js";
-import {
-  handleSupportListMyChatMember,
-  presentSupportListHome,
-  registerSupportListHandlers,
-  type SupportListRuntime,
-} from "./handlers.js";
+import { listJoinUrl } from "./render.js";
 
 const botInfo = {
   id: 777,
@@ -32,6 +27,7 @@ const actor = {
   id: 50,
   is_bot: false as const,
   first_name: "Ada",
+  language_code: "ar",
 };
 
 function callbackUpdate(updateId: number, data: string, messageId: number) {
@@ -79,7 +75,9 @@ function member(status: "administrator" | "creator" | "left", userId: number) {
   };
 }
 
-test("automatic acceptance stays off the add panel and back edits that panel", async () => {
+function setupAddPanel() {
+  let editFailure: { messageId: number; description: string } | undefined;
+  let nextMessageId = 99;
   const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
   const values = new Map<string, string>();
   const redis = {
@@ -109,6 +107,7 @@ test("automatic acceptance stays off the add panel and back edits that panel", a
       upsert: async () => user,
     },
     userBotPreference: {
+      updateMany: async () => ({ count: 0 }),
       upsert: async () => ({
         userId: user.id,
         botId: "bot-1",
@@ -138,7 +137,11 @@ test("automatic acceptance stays off the add panel and back edits that panel", a
   };
   const prisma = {
     $transaction: async (callback: (value: typeof tx) => unknown) => callback(tx),
-    user: { findUnique: async () => user },
+    user: {
+      findUnique: async () => user,
+      findUniqueOrThrow: async () => ({ telegramId: 999n }),
+    },
+    platformForcedChannel: { findMany: async () => [] },
     userBotPreference: {
       findUnique: async () => ({ language: SupportedLanguage.AR }),
     },
@@ -154,11 +157,22 @@ test("automatic acceptance stays off the add panel and back edits that panel", a
   bot.api.config.use(async (_previous, method, payload) => {
     const body = (payload ?? {}) as Record<string, unknown>;
     calls.push({ method, payload: body });
+    if (
+      method === "editMessageText" &&
+      editFailure &&
+      body.message_id === editFailure.messageId
+    ) {
+      return {
+        ok: false as const,
+        error_code: 400,
+        description: editFailure.description,
+      };
+    }
     if (method === "sendMessage") {
       return {
         ok: true as const,
         result: {
-          message_id: 99,
+          message_id: nextMessageId++,
           date: 3,
           text: String(body.text ?? ""),
           chat: { id: Number(body.chat_id), type: "private" as const },
@@ -212,35 +226,29 @@ test("automatic acceptance stays off the add panel and back edits that panel", a
     redis,
   );
   const runtime = { bot, botRecord: record };
-  const panels = manager as unknown as {
-    editRuntimeDashboard(
-      context: Context,
-      runtime: typeof runtime,
-      view: { text: string; keyboard: unknown },
-    ): Promise<void>;
-    showRuntimeDashboard(
-      context: Context,
-      runtime: typeof runtime,
-      view: { text: string; keyboard: unknown },
-    ): Promise<void>;
+  const handlers = manager as unknown as {
+    registerUserBotHandlers(runtime: { bot: Bot; botRecord: DatabaseBot }): void;
+    registerChannelMembershipHandler(runtime: { bot: Bot; botRecord: DatabaseBot }): void;
   };
-  const deps: SupportListRuntime & { bot: Bot } = {
-    prisma,
-    redis,
-    bot,
-    getRecord: () => record,
-    getOwnerTelegramId: async () => 999,
-    editDashboard: (context, view) =>
-      panels.editRuntimeDashboard(context, runtime, view),
-    showDashboard: (context, view) =>
-      panels.showRuntimeDashboard(context, runtime, view),
-  };
-
-  registerSupportListHandlers(bot, deps);
-  bot.on("my_chat_member", async (context) => {
-    await handleSupportListMyChatMember(context, deps);
+  handlers.registerUserBotHandlers(runtime);
+  handlers.registerChannelMembershipHandler(runtime);
+  bot.catch((error) => {
+    throw error.error;
   });
+  return {
+    bot,
+    calls,
+    record,
+    redis,
+    values,
+    rejectPanelEdit: (messageId: number, description: string) => {
+      editFailure = { messageId, description };
+    },
+  };
+}
 
+test("automatic acceptance stays off the add panel and back edits that panel", async () => {
+  const { bot, calls, record, redis, values } = setupAddPanel();
   await bot.handleUpdate(callbackUpdate(1, "sl:add", 40));
   assert.deepEqual(await getDashboardState(redis, record.id, actor.id), {
     chatId: actor.id,
@@ -311,73 +319,109 @@ test("automatic acceptance stays off the add panel and back edits that panel", a
   );
 });
 
-test("start add opens the add screen and remembers that panel", async () => {
-  const values = new Map<string, string>();
-  const redis = {
-    get: async (key: string) => values.get(key) ?? null,
-    set: async (key: string, value: string) => {
-      values.set(key, value);
-      return "OK";
-    },
-    del: async (key: string) => (values.delete(key) ? 1 : 0),
-  } as unknown as Redis;
-  const user = {
-    id: "user-1",
-    telegramId: BigInt(actor.id),
-    firstName: actor.first_name,
-  };
-  const prisma = {
-    $transaction: async (
-      callback: (transaction: {
-        user: { upsert: () => Promise<typeof user> };
-        userBotPreference: {
-          upsert: () => Promise<{ language: SupportedLanguage }>;
-        };
-      }) => unknown,
-    ) =>
-      callback({
-        user: { upsert: async () => user },
-        userBotPreference: {
-          upsert: async () => ({ language: SupportedLanguage.AR }),
-        },
-      }),
-  } as unknown as PrismaClient;
-  const record = {
-    id: "bot-1",
-    botUsername: "sed235bot",
-    isActive: true,
-  } as DatabaseBot;
-  let shownText = "";
-  const deps: SupportListRuntime = {
-    prisma,
-    redis,
-    getRecord: () => record,
-    getOwnerTelegramId: async () => 999,
-    showDashboard: async (_context, view) => {
-      shownText = view.text;
+for (const scenario of [
+  { name: "first visit", previousPanel: null, uneditable: false },
+  {
+    name: "first visit with an unavailable add panel",
+    previousPanel: null,
+    uneditable: true,
+  },
+  { name: "returning user", previousPanel: 40, uneditable: false },
+  {
+    name: "first-time user who presses back again after the home panel is shown",
+    previousPanel: null,
+    uneditable: false,
+    repeatBack: true,
+  },
+]) {
+  test(`back from the published list add link shows home for a ${scenario.name}`, async () => {
+    const { bot, calls, record, redis, values, rejectPanelEdit } = setupAddPanel();
+    const dashboardKey = dashboardStateKey(record.id, actor.id);
+    if (scenario.previousPanel !== null) {
       values.set(
-        dashboardStateKey(record.id, actor.id),
-        JSON.stringify({ chatId: actor.id, messageId: 40 }),
+        dashboardKey,
+        JSON.stringify({ chatId: actor.id, messageId: scenario.previousPanel }),
       );
-    },
-    editDashboard: async () => {
-      throw new Error("start add must send the add screen as the panel");
-    },
-  };
-  await presentSupportListHome(
-    {
-      from: { ...actor, language_code: "ar" },
-      chat: { id: actor.id, type: "private" },
-      match: "add",
-    } as Context,
-    deps,
-  );
-  assert.equal(
-    shownText,
-    translate(SupportedLanguage.AR, "supportList.addInstructions"),
-  );
-  assert.deepEqual(await getChannelLinkState(redis, record.id, actor.id), {
-    chatId: actor.id,
-    dashboardMessageId: 40,
+    }
+    const payload = new URL(listJoinUrl(record.botUsername)).searchParams.get("start");
+    await bot.handleUpdate({
+      update_id: 1,
+      message: {
+        message_id: 1,
+        date: 1,
+        chat: { id: actor.id, type: "private", first_name: actor.first_name },
+        from: actor,
+        text: `/start ${payload}`,
+        entities: [{ type: "bot_command", offset: 0, length: 6 }],
+      },
+    });
+    const addCall = calls[0];
+    assert.equal(
+      addCall?.method,
+      scenario.previousPanel === null ? "sendMessage" : "editMessageText",
+    );
+    assert.equal(
+      addCall?.payload.text,
+      translate(SupportedLanguage.AR, "supportList.addInstructions"),
+    );
+    const addPanelId = scenario.previousPanel ?? 99;
+    assert.deepEqual(await getChannelLinkState(redis, record.id, actor.id), {
+      chatId: actor.id,
+      dashboardMessageId: addPanelId,
+    });
+    const keyboard = addCall.payload.reply_markup as NonNullable<
+      Parameters<Api["editMessageText"]>[3]
+    >["reply_markup"];
+    const back = keyboard?.inline_keyboard[1]?.[0];
+    assert.ok(back && "callback_data" in back);
+    assert.equal(back.text, translate(SupportedLanguage.AR, "menu.back"));
+
+    if (scenario.uneditable) {
+      rejectPanelEdit(addPanelId, "Bad Request: message to edit not found");
+    }
+    if (scenario.repeatBack) {
+      await bot.handleUpdate(callbackUpdate(2, back.callback_data, addPanelId));
+      rejectPanelEdit(addPanelId, "Bad Request: message is not modified");
+    }
+    const backUpdateId = scenario.repeatBack ? 3 : 2;
+    const backCallIndex = calls.length;
+    await bot.handleUpdate(callbackUpdate(backUpdateId, back.callback_data, addPanelId));
+
+    const backCalls = calls.slice(backCallIndex);
+    const homeCall = backCalls.find((call) =>
+      call.method === (scenario.uneditable ? "sendMessage" : "editMessageText"),
+    );
+    assert.equal(homeCall?.payload.chat_id, actor.id);
+    if (!scenario.uneditable) {
+      assert.equal(homeCall?.payload.message_id, addPanelId);
+      assert.deepEqual(
+        backCalls.map((call) => call.method),
+        ["editMessageText", "answerCallbackQuery"],
+      );
+    }
+    assert.ok(
+      String(homeCall?.payload.text).startsWith(
+        translate(SupportedLanguage.AR, "supportList.welcome", {
+          listName: "اشترك في القنوات التالية",
+        }),
+      ),
+    );
+    const homeKeyboard = homeCall?.payload.reply_markup as typeof keyboard;
+    assert.deepEqual(homeKeyboard?.inline_keyboard[0]?.[0], {
+      text: translate(SupportedLanguage.AR, "supportList.addChannel"),
+      callback_data: "sl:add",
+    });
+    assert.ok(
+      backCalls.some(
+        (call) =>
+          call.method === "answerCallbackQuery" &&
+          call.payload.callback_query_id === `cb-${backUpdateId}`,
+      ),
+    );
+    assert.equal(await getChannelLinkState(redis, record.id, actor.id), null);
+    assert.deepEqual(await getDashboardState(redis, record.id, actor.id), {
+      chatId: actor.id,
+      messageId: scenario.uneditable ? 100 : addPanelId,
+    });
   });
-});
+}

@@ -9,7 +9,7 @@ import {
   type Bot as DatabaseBot,
   type PrismaClient,
 } from "@prisma/client";
-import type { Bot as TelegramBot, Context } from "grammy";
+import { GrammyError, type Bot as TelegramBot, type Context } from "grammy";
 import type { Redis } from "ioredis";
 import {
   BotAdminRequiredError,
@@ -278,11 +278,11 @@ async function activePlatformBotUsername(
   return platform?.botUsername ?? null;
 }
 
-async function showHome(
+async function supportListHomeView(
   context: Context,
   deps: SupportListRuntime,
   telegramUserId: number,
-): Promise<void> {
+): Promise<DashboardView> {
   const { preference } = await syncBotUser(
     deps.prisma,
     context.from!,
@@ -290,7 +290,7 @@ async function showHome(
   );
   const settings = await ensureSettings(deps.prisma, deps.getRecord().id);
   const owner = await isOwner(deps, telegramUserId);
-  const view = buildSupportListHome(
+  return buildSupportListHome(
     settings,
     preference.language,
     owner,
@@ -300,6 +300,14 @@ async function showHome(
       : 0,
     owner ? null : await activePlatformBotUsername(deps),
   );
+}
+
+async function showHome(
+  context: Context,
+  deps: SupportListRuntime,
+  telegramUserId: number,
+): Promise<void> {
+  const view = await supportListHomeView(context, deps, telegramUserId);
   if (context.callbackQuery) {
     await deps.editDashboard(context, view);
     return;
@@ -730,7 +738,31 @@ export function registerSupportListHandlers(
         clearChannelLinkState(bound.redis, bound.getRecord().id, context.from.id),
         clearSupportListDraft(bound.redis, bound.getRecord().id, context.from.id),
       ]);
-      await showHome(context, bound, context.from.id);
+      const view = await supportListHomeView(context, bound, context.from.id);
+      try {
+        await bound.editDashboard(context, view);
+      } catch (error) {
+        if (
+          context.chat?.type !== "private" ||
+          !(error instanceof GrammyError) ||
+          error.error_code !== 400 ||
+          !/message (?:to edit not found|can't be edited)/i.test(error.description)
+        ) {
+          throw error;
+        }
+        const message = await context.reply(
+          view.text,
+          dashboardMessageOptions(view),
+        );
+        await saveDashboardState(
+          bound.redis,
+          bound.getRecord().id,
+          context.from.id,
+          { chatId: context.chat.id, messageId: message.message_id },
+        );
+        await context.deleteMessage().catch(() => undefined);
+        return;
+      }
       await rememberPanel(context, bound);
     } finally {
       await context.answerCallbackQuery().catch((error: unknown) => {
